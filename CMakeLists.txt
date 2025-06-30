@@ -1,6 +1,6 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.24)
 
-project(Magda VERSION 0.1.0 LANGUAGES CXX)
+project(Magica VERSION 0.1.0 LANGUAGES CXX)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
@@ -17,9 +17,9 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -Wall -Wextra")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 
 # Options
-option(MAGDA_BUILD_TESTS "Build tests" ON)
-option(MAGDA_BUILD_EXAMPLES "Build examples" ON)
-option(MAGDA_BUILD_JUCE_ADAPTER "Build JUCE/Tracktion adapter" OFF)
+option(MAGICA_BUILD_TESTS "Build tests" ON)
+option(MAGICA_BUILD_EXAMPLES "Build examples" ON)
+option(MAGICA_BUILD_JUCE_ADAPTER "Build JUCE/Tracktion adapter" OFF)
 
 # Find packages
 find_package(Threads REQUIRED)
@@ -47,7 +47,7 @@ FetchContent_Declare(
 )
 
 # Catch2 for testing
-if(MAGDA_BUILD_TESTS)
+if(MAGICA_BUILD_TESTS)
     FetchContent_Declare(
         Catch2
         GIT_REPOSITORY https://github.com/catchorg/Catch2.git
@@ -58,7 +58,7 @@ endif()
 # Make dependencies available
 FetchContent_MakeAvailable(nlohmann_json gRPC)
 
-if(MAGDA_BUILD_TESTS)
+if(MAGICA_BUILD_TESTS)
     FetchContent_MakeAvailable(Catch2)
 endif()
 
@@ -66,31 +66,28 @@ endif()
 find_package(Protobuf CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
 
-# Include directories
-include_directories(${CMAKE_SOURCE_DIR}/include)
-
-# Core library
-add_subdirectory(src)
+# Product-based subdirectories
+add_subdirectory(daw)
+add_subdirectory(mcp)
 
 # Examples
-if(MAGDA_BUILD_EXAMPLES)
+if(MAGICA_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
 # Tests
-if(MAGDA_BUILD_TESTS)
+if(MAGICA_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
 
 # JUCE adapter (optional)
-if(MAGDA_BUILD_JUCE_ADAPTER)
+if(MAGICA_BUILD_JUCE_ADAPTER)
     add_subdirectory(adapters/juce)
 endif()
 
 # Install rules
-install(DIRECTORY include/ DESTINATION include)
-install(TARGETS magda_core
+install(TARGETS magica_daw magica_mcp
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     RUNTIME DESTINATION bin

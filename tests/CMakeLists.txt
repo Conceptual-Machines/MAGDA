@@ -5,26 +5,26 @@ set(TEST_SOURCES
 )
 
 # Create test executable
-add_executable(magda_tests ${TEST_SOURCES})
+add_executable(magica_tests ${TEST_SOURCES})
 
 # Link libraries
-target_link_libraries(magda_tests 
+target_link_libraries(magica_tests 
     PRIVATE 
-    magda_core
+    magica_daw
     Catch2::Catch2WithMain
 )
 
 # Include directories
-target_include_directories(magda_tests
+target_include_directories(magica_tests
     PRIVATE
-    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}
 )
 
 # Add the test to CTest
-add_test(NAME magda_unit_tests COMMAND magda_tests)
+add_test(NAME magica_unit_tests COMMAND magica_tests)
 
 # For Catch2 test discovery (optional - automatically discovers individual test cases)
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.10")
     include(Catch)
-    catch_discover_tests(magda_tests)
+    catch_discover_tests(magica_tests)
 endif() 

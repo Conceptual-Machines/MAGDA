@@ -1,4 +1,4 @@
-#include "magda/core/command.hpp"
+#include "command.hpp"
 #include <stdexcept>
 
 // Command implementation

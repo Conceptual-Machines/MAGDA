@@ -1,4 +1,4 @@
-# Magda Makefile - Wrapper around CMake
+# Magica Makefile - Wrapper around CMake
 
 BUILD_DIR = build
 CMAKE_FLAGS = -DCMAKE_BUILD_TYPE=Release
@@ -28,13 +28,13 @@ release:
 # Build with JUCE adapter
 juce:
 	@mkdir -p $(BUILD_DIR)
-	@cd $(BUILD_DIR) && cmake -DMAGDA_BUILD_JUCE_ADAPTER=ON $(CMAKE_FLAGS) ..
+	@cd $(BUILD_DIR) && cmake -DMAGICA_BUILD_JUCE_ADAPTER=ON $(CMAKE_FLAGS) ..
 	@cd $(BUILD_DIR) && make -j$(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
 # Build and run tests
 test:
 	@mkdir -p $(BUILD_DIR)
-	@cd $(BUILD_DIR) && cmake -DMAGDA_BUILD_TESTS=ON $(CMAKE_FLAGS) ..
+	@cd $(BUILD_DIR) && cmake -DMAGICA_BUILD_TESTS=ON $(CMAKE_FLAGS) ..
 	@cd $(BUILD_DIR) && make -j$(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 	@cd $(BUILD_DIR) && ctest --output-on-failure
 
@@ -45,7 +45,7 @@ test-only:
 # Build examples
 examples:
 	@mkdir -p $(BUILD_DIR)
-	@cd $(BUILD_DIR) && cmake -DMAGDA_BUILD_EXAMPLES=ON $(CMAKE_FLAGS) ..
+	@cd $(BUILD_DIR) && cmake -DMAGICA_BUILD_EXAMPLES=ON $(CMAKE_FLAGS) ..
 	@cd $(BUILD_DIR) && make -j$(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
 # Install
@@ -64,7 +64,7 @@ configure:
 
 # Help
 help:
-	@echo "Magda Build System (gRPC-based)"
+	@echo "Magica Build System (gRPC-based)"
 	@echo "================================"
 	@echo "Available targets:"
 	@echo "  build     - Build in release mode (default)"

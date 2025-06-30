@@ -1,4 +1,4 @@
-#include "magda/core/grpc_mcp_server.hpp"
+#include "grpc_mcp_server.hpp"
 #include <grpcpp/security/server_credentials.h>
 #include <grpcpp/server_builder.h>
 #include <random>

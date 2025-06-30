@@ -1,9 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
-#include "magda/core/interfaces/transport_interface.hpp"
-#include "magda/core/interfaces/track_interface.hpp"
-#include "magda/core/interfaces/clip_interface.hpp"
-#include "magda/core/interfaces/mixer_interface.hpp"
+#include "../daw/interfaces/transport_interface.hpp"
+#include "../daw/interfaces/track_interface.hpp"
+#include "../daw/interfaces/clip_interface.hpp"
+#include "../daw/interfaces/mixer_interface.hpp"
 #include <vector>
 #include <string>
 #include <map>
