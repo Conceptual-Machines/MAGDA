@@ -2,9 +2,9 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
-#include "../components/TrackComponent.hpp"
+#include "../components/TrackHeadersPanel.hpp"
+#include "../components/TrackContentPanel.hpp"
 #include "../components/TimelineComponent.hpp"
-#include "../components/ArrangementTimelineComponent.hpp"
 
 namespace magica {
 
@@ -38,24 +38,16 @@ public:
     void scrollBarMoved(juce::ScrollBar* scrollBarThatHasMoved, double newRangeStart) override;
 
 private:
-    // Arrangement timeline viewport (horizontal scroll only)
-    std::unique_ptr<juce::Viewport> arrangementViewport;
-    std::unique_ptr<ArrangementTimelineComponent> arrangementTimeline;
-    
     // Timeline viewport (horizontal scroll only)
     std::unique_ptr<juce::Viewport> timelineViewport;
     std::unique_ptr<TimelineComponent> timeline;
     
-    // Track viewport (both horizontal and vertical scroll)
-    std::unique_ptr<juce::Viewport> trackViewport;
+    // Track headers panel (fixed, no scrolling)
+    std::unique_ptr<TrackHeadersPanel> trackHeadersPanel;
     
-    // Content component that goes inside the track viewport
-    class TrackViewportContent;
-    std::unique_ptr<TrackViewportContent> trackContent;
-
-    // Track area
-    class TrackArea;
-    std::unique_ptr<TrackArea> trackArea;
+    // Track content viewport (both horizontal and vertical scroll)
+    std::unique_ptr<juce::Viewport> trackContentViewport;
+    std::unique_ptr<TrackContentPanel> trackContentPanel;
     
     // Playhead component (always on top)
     class PlayheadComponent;
@@ -68,17 +60,14 @@ private:
     double playheadPosition = 0.0;
 
     // Layout constants
-    static constexpr int ARRANGEMENT_HEIGHT = 30;
     static constexpr int TIMELINE_HEIGHT = 80;
-    static constexpr int DEFAULT_TRACK_HEIGHT = 80;
-    static constexpr int MIN_TRACK_HEIGHT = 40;
-    static constexpr int MAX_TRACK_HEIGHT = 200;
+    static constexpr int TRACK_HEADER_WIDTH = 200;
 
     // Helper methods
     void updateContentSizes();
     void syncHorizontalScrolling();
-    void onTimelineScroll();
-    void onTrackScroll();
+    void syncTrackHeights();
+    void setupTrackSynchronization();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainView)
 };
@@ -97,50 +86,6 @@ private:
     double playheadPosition = 0.0;
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PlayheadComponent)
-};
-
-// Content component for the track viewport
-class MainView::TrackViewportContent : public juce::Component {
-public:
-    TrackViewportContent(MainView& owner);
-    ~TrackViewportContent() override;
-
-    void paint(juce::Graphics& g) override;
-    void resized() override;
-
-    void mouseDown(const juce::MouseEvent& event) override;
-    void mouseDrag(const juce::MouseEvent& event) override;
-    void mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) override;
-
-private:
-    MainView& owner;
-    
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TrackViewportContent)
-};
-
-// Track area component
-class MainView::TrackArea : public juce::Component {
-public:
-    TrackArea();
-    ~TrackArea() override;
-
-    void paint(juce::Graphics& g) override;
-    void resized() override;
-
-    void addTrack();
-    void removeTrack(int index);
-    void selectTrack(int index);
-    int getNumTracks() const;
-    void updateTotalHeight();
-    TrackComponent* getTrack(int index) const;
-
-private:
-    std::vector<std::unique_ptr<TrackComponent>> tracks;
-    int selectedTrackIndex = -1;
-    
-    MainView* getParentMainView() const;
-
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TrackArea)
 };
 
 } // namespace magica 

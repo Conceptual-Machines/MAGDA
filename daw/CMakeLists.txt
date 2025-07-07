@@ -39,8 +39,8 @@ set(DAW_UI_SOURCES
     ui/panels/BottomPanel.cpp
     ui/views/MainView.cpp
     ui/components/TimelineComponent.cpp
-    ui/components/ArrangementTimelineComponent.cpp
-    ui/components/TrackComponent.cpp
+    ui/components/TrackHeadersPanel.cpp
+    ui/components/TrackContentPanel.cpp
     ui/components/SvgButton.cpp
     ui/components/TimelineFiller.cpp
 )
@@ -66,7 +66,8 @@ set(DAW_HEADERS
     ui/panels/BottomPanel.hpp
     ui/views/MainView.hpp
     ui/components/TimelineComponent.hpp
-    ui/components/TrackComponent.hpp
+    ui/components/TrackHeadersPanel.hpp
+    ui/components/TrackContentPanel.hpp
     ui/components/SvgButton.hpp
 )
 
