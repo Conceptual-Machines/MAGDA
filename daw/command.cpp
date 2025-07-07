@@ -50,21 +50,22 @@ juce::var Command::toJson() const {
     obj->setProperty("command", juce::String(type_));
     
     for (const auto& [key, value] : parameters_) {
-        std::visit([&](const auto& v) {
+        std::string keyStr = key;  // Copy the key to avoid capture issues
+        std::visit([&obj, keyStr](const auto& v) {
             if constexpr (std::is_same_v<decltype(v), const std::string&>) {
-                obj->setProperty(juce::Identifier(key), juce::String(v));
+                obj->setProperty(juce::Identifier(keyStr), juce::String(v));
             } else if constexpr (std::is_same_v<decltype(v), const int&>) {
-                obj->setProperty(juce::Identifier(key), v);
+                obj->setProperty(juce::Identifier(keyStr), v);
             } else if constexpr (std::is_same_v<decltype(v), const double&>) {
-                obj->setProperty(juce::Identifier(key), v);
+                obj->setProperty(juce::Identifier(keyStr), v);
             } else if constexpr (std::is_same_v<decltype(v), const bool&>) {
-                obj->setProperty(juce::Identifier(key), v);
+                obj->setProperty(juce::Identifier(keyStr), v);
             } else if constexpr (std::is_same_v<decltype(v), const std::vector<double>&>) {
                 juce::Array<juce::var> arr;
                 for (double d : v) {
                     arr.add(d);
                 }
-                obj->setProperty(juce::Identifier(key), arr);
+                obj->setProperty(juce::Identifier(keyStr), arr);
             }
         }, value);
     }
