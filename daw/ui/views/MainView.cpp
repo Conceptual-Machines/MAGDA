@@ -1,5 +1,6 @@
 #include "MainView.hpp"
 #include "../themes/DarkTheme.hpp"
+#include <BinaryData.h>
 
 namespace magica {
 
@@ -19,9 +20,25 @@ MainView::MainView() {
         setPlayheadPosition(position);
     };
     
-    // Create track headers panel (fixed, no scrolling)
+    timeline->onZoomChanged = [this](double newZoom) {
+        horizontalZoom = newZoom;
+        // Timeline already updated its zoom value, just sync track content
+        trackContentPanel->setZoom(newZoom);
+        updateContentSizes();
+        repaint(); // Ensure playhead is redrawn
+    };
+    
+    // Create track headers panel
     trackHeadersPanel = std::make_unique<TrackHeadersPanel>();
-    addAndMakeVisible(*trackHeadersPanel);
+    addAndMakeVisible(trackHeadersPanel.get());
+    
+    // Create arrangement lock button
+    arrangementLockButton = std::make_unique<SvgButton>("ArrangementLock", BinaryData::lock_svg, BinaryData::lock_svgSize);
+    arrangementLockButton->setTooltip("Toggle arrangement lock (F4)");
+    arrangementLockButton->onClick = [this]() {
+        toggleArrangementLock();
+    };
+    addAndMakeVisible(arrangementLockButton.get());
     
     // Create track content viewport
     trackContentViewport = std::make_unique<juce::Viewport>();
@@ -56,7 +73,13 @@ void MainView::resized() {
     
     // Timeline viewport at the top - offset by track header width
     auto timelineArea = bounds.removeFromTop(TIMELINE_HEIGHT);
-    timelineArea.removeFromLeft(TRACK_HEADER_WIDTH); // Align with track content
+    
+    // Position lock button in the top-left corner above track headers
+    auto lockButtonArea = timelineArea.removeFromLeft(TRACK_HEADER_WIDTH);
+    lockButtonArea = lockButtonArea.removeFromTop(30).reduced(5); // 30px height, 5px margin
+    arrangementLockButton->setBounds(lockButtonArea);
+    
+    // Timeline takes the remaining width
     timelineViewport->setBounds(timelineArea);
     
     // Track headers panel on the left (fixed width)
@@ -66,10 +89,11 @@ void MainView::resized() {
     // Track content viewport gets the remaining space
     trackContentViewport->setBounds(bounds);
     
-    // Playhead component covers the timeline and track content areas
-    auto playheadArea = getLocalBounds();
-    playheadArea.removeFromTop(0); // Include timeline area
-    playheadArea.removeFromLeft(TRACK_HEADER_WIDTH); // Exclude track headers
+    // Playhead component covers only the content area (not scrollbars)
+    auto playheadArea = bounds;
+    // Reduce the area to avoid covering scrollbars
+    int scrollBarThickness = trackContentViewport->getScrollBarThickness();
+    playheadArea = playheadArea.withTrimmedRight(scrollBarThickness).withTrimmedBottom(scrollBarThickness);
     playheadComponent->setBounds(playheadArea);
     
     // Always recalculate zoom to ensure proper timeline distribution
@@ -89,6 +113,7 @@ void MainView::resized() {
 }
 
 void MainView::setHorizontalZoom(double zoomFactor) {
+    // Update zoom
     horizontalZoom = juce::jmax(0.1, zoomFactor);
     
     // Update zoom on timeline and track content
@@ -96,6 +121,35 @@ void MainView::setHorizontalZoom(double zoomFactor) {
     trackContentPanel->setZoom(horizontalZoom);
     
     updateContentSizes();
+    
+    // Center playhead in viewport after zoom
+    int viewportWidth = trackContentViewport->getWidth();
+    int contentWidth = static_cast<int>(timelineLength * horizontalZoom);
+    
+    if (contentWidth > viewportWidth) {
+        // Calculate playhead position in pixels with new zoom
+        int playheadPixelPos = static_cast<int>(playheadPosition * horizontalZoom);
+        
+        // Center playhead in viewport
+        int newScrollX = playheadPixelPos - (viewportWidth / 2);
+        
+        // Clamp scroll position to valid range
+        int maxScrollX = juce::jmax(0, contentWidth - viewportWidth);
+        newScrollX = juce::jlimit(0, maxScrollX, newScrollX);
+        
+        // Apply the new scroll position to both viewports
+        isUpdatingFromZoom = true;
+        timelineViewport->setViewPosition(newScrollX, 0);
+        trackContentViewport->setViewPosition(newScrollX, trackContentViewport->getViewPositionY());
+        isUpdatingFromZoom = false;
+    } else {
+        // If content fits in viewport, scroll to beginning
+        isUpdatingFromZoom = true;
+        timelineViewport->setViewPosition(0, 0);
+        trackContentViewport->setViewPosition(0, trackContentViewport->getViewPositionY());
+        isUpdatingFromZoom = false;
+    }
+    
     repaint(); // Repaint for unified playhead
 }
 
@@ -142,14 +196,23 @@ void MainView::setTimelineLength(double lengthInSeconds) {
 }
 
 void MainView::setPlayheadPosition(double position) {
-    playheadPosition = position;
-    playheadComponent->setPlayheadPosition(position);
+    playheadPosition = juce::jlimit(0.0, timelineLength, position);
+    playheadComponent->setPlayheadPosition(playheadPosition);
     playheadComponent->repaint();
 }
 
 void MainView::toggleArrangementLock() {
     timeline->setArrangementLocked(!timeline->isArrangementLocked());
     timeline->repaint();
+    
+    // Update lock button icon
+    if (timeline->isArrangementLocked()) {
+        arrangementLockButton->updateSvgData(BinaryData::lock_svg, BinaryData::lock_svgSize);
+        arrangementLockButton->setTooltip("Arrangement locked - Click to unlock (F4)");
+    } else {
+        arrangementLockButton->updateSvgData(BinaryData::lock_open_svg, BinaryData::lock_open_svgSize);
+        arrangementLockButton->setTooltip("Arrangement unlocked - Click to lock (F4)");
+    }
 }
 
 bool MainView::isArrangementLocked() const {
@@ -157,7 +220,7 @@ bool MainView::isArrangementLocked() const {
 }
 
 bool MainView::keyPressed(const juce::KeyPress& key) {
-    // Toggle arrangement lock with Ctrl+L (or Cmd+L on Mac)
+    // Toggle arrangement lock with F4
     if (key.isKeyCode(juce::KeyPress::F4Key)) {
         toggleArrangementLock();
         return true;
@@ -173,9 +236,8 @@ void MainView::updateContentSizes() {
     // Update timeline size
     timeline->setSize(juce::jmax(contentWidth, timelineViewport->getWidth()), TIMELINE_HEIGHT);
     
-    // Update track content size
-    trackContentPanel->setSize(juce::jmax(contentWidth, trackContentViewport->getWidth()),
-                              juce::jmax(trackContentHeight, trackContentViewport->getHeight()));
+    // Update track content size - let viewport handle scrollbar ranges automatically
+    trackContentPanel->setSize(contentWidth, trackContentHeight);
     
     // Update track headers panel height to match content
     trackHeadersPanel->setSize(TRACK_HEADER_WIDTH, juce::jmax(trackContentHeight, trackContentViewport->getHeight()));
@@ -185,9 +247,16 @@ void MainView::updateContentSizes() {
 }
 
 void MainView::scrollBarMoved(juce::ScrollBar* scrollBarThatHasMoved, double newRangeStart) {
+    // Don't interfere if this is triggered by zoom logic
+    if (isUpdatingFromZoom) {
+        return;
+    }
+    
     // Sync timeline viewport when track content viewport scrolls horizontally
     if (scrollBarThatHasMoved == &trackContentViewport->getHorizontalScrollBar()) {
         timelineViewport->setViewPosition(static_cast<int>(newRangeStart), 0);
+        // Force playhead repaint when scrolling
+        playheadComponent->repaint();
     }
 }
 
@@ -231,7 +300,7 @@ void MainView::setupTrackSynchronization() {
 
 // PlayheadComponent implementation
 MainView::PlayheadComponent::PlayheadComponent(MainView& owner) : owner(owner) {
-    setInterceptsMouseClicks(false, false); // Allow clicks to pass through
+    setInterceptsMouseClicks(true, true); // Enable mouse interaction for dragging
 }
 
 MainView::PlayheadComponent::~PlayheadComponent() = default;
@@ -244,8 +313,8 @@ void MainView::PlayheadComponent::paint(juce::Graphics& g) {
     // Calculate playhead position in pixels
     int playheadX = static_cast<int>(playheadPosition * owner.horizontalZoom);
     
-    // Adjust for horizontal scroll offset
-    int scrollOffset = owner.timelineViewport->getViewPositionX();
+    // Adjust for horizontal scroll offset from track content viewport (not timeline viewport)
+    int scrollOffset = owner.trackContentViewport->getViewPositionX();
     playheadX -= scrollOffset;
     
     // Only draw if playhead is visible
@@ -269,6 +338,52 @@ void MainView::PlayheadComponent::paint(juce::Graphics& g) {
 void MainView::PlayheadComponent::setPlayheadPosition(double position) {
     playheadPosition = position;
     repaint();
+}
+
+void MainView::PlayheadComponent::mouseDown(const juce::MouseEvent& event) {
+    // Check if clicking near the playhead line
+    int playheadX = static_cast<int>(playheadPosition * owner.horizontalZoom);
+    int scrollOffset = owner.trackContentViewport->getViewPositionX();
+    playheadX -= scrollOffset;
+    
+    // Allow clicking within 10 pixels of the playhead line
+    if (std::abs(event.x - playheadX) <= 10) {
+        isDragging = true;
+        setMouseCursor(juce::MouseCursor::LeftRightResizeCursor);
+    }
+}
+
+void MainView::PlayheadComponent::mouseDrag(const juce::MouseEvent& event) {
+    if (isDragging) {
+        // Calculate new playhead position based on mouse X position
+        int scrollOffset = owner.trackContentViewport->getViewPositionX();
+        int adjustedX = event.x + scrollOffset;
+        double newPosition = static_cast<double>(adjustedX) / owner.horizontalZoom;
+        
+        // Clamp to timeline bounds
+        newPosition = juce::jlimit(0.0, owner.timelineLength, newPosition);
+        
+        // Update playhead position
+        owner.setPlayheadPosition(newPosition);
+    }
+}
+
+void MainView::PlayheadComponent::mouseUp(const juce::MouseEvent& event) {
+    isDragging = false;
+    setMouseCursor(juce::MouseCursor::NormalCursor);
+}
+
+void MainView::mouseDown(const juce::MouseEvent& event) {
+    // Removed timeline zoom handling - let timeline component handle its own zoom
+    // The timeline component now handles zoom gestures in its lower half
+}
+
+void MainView::mouseDrag(const juce::MouseEvent& event) {
+    // Removed zoom handling - timeline component handles its own zoom
+}
+
+void MainView::mouseUp(const juce::MouseEvent& event) {
+    // Removed zoom handling - timeline component handles its own zoom
 }
 
 } // namespace magica 

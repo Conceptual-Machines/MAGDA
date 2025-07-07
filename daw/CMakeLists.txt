@@ -16,6 +16,8 @@ juce_add_binary_data(MagicaAssets
     ../assets/icons/repeat.svg
     ../assets/icons/repeat_one.svg
     ../assets/icons/volume_up.svg
+    ../assets/icons/lock.svg
+    ../assets/icons/lock_open.svg
 )
 
 # DAW Core sources

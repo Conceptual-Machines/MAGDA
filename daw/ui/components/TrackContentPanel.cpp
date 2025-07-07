@@ -133,10 +133,7 @@ void TrackContentPanel::paintTrackLane(juce::Graphics& g, const TrackLane& lane,
     // Draw grid overlay
     paintGrid(g, area);
     
-    // Track number (small text in top-left corner)
-    g.setColour(DarkTheme::getColour(DarkTheme::TEXT_SECONDARY));
-    g.setFont(FontManager::getInstance().getUIFont(9.0f));
-    g.drawText(juce::String(trackIndex + 1), area.getX() + 5, area.getY() + 2, 20, 15, juce::Justification::centred);
+    // Track number removed - track names are shown in the headers panel
 }
 
 void TrackContentPanel::paintGrid(juce::Graphics& g, juce::Rectangle<int> area) {
@@ -151,18 +148,50 @@ void TrackContentPanel::drawTimeGrid(juce::Graphics& g, juce::Rectangle<int> are
     // Make grid lines more visible
     g.setColour(DarkTheme::getColour(DarkTheme::GRID_LINE).brighter(0.2f));
     
-    // Calculate appropriate grid spacing based on zoom
+    // Use the same grid calculation as timeline for perfect sync
     const int minPixelSpacing = 30;
-    int gridInterval = 1; // Start with 1 second intervals
     
-    // Adjust interval if grid lines would be too close
-    while (static_cast<int>(gridInterval * currentZoom) < minPixelSpacing && gridInterval < 60) {
-        gridInterval *= (gridInterval < 10) ? 2 : 5; // 1,2,5,10,20,50...
+    // Define marker intervals in seconds (same as timeline)
+    const double intervals[] = {
+        0.001,    // 1ms (sample level at 44.1kHz ≈ 0.023ms)
+        0.005,    // 5ms
+        0.01,     // 10ms
+        0.05,     // 50ms
+        0.1,      // 100ms
+        0.25,     // 250ms
+        0.5,      // 500ms
+        1.0,      // 1 second
+        2.0,      // 2 seconds
+        5.0,      // 5 seconds
+        10.0,     // 10 seconds
+        30.0,     // 30 seconds
+        60.0      // 1 minute
+    };
+    
+    // Find the appropriate interval (same logic as timeline)
+    double gridInterval = 1.0; // Default to 1 second
+    for (double interval : intervals) {
+        if (static_cast<int>(interval * currentZoom) >= minPixelSpacing) {
+            gridInterval = interval;
+            break;
+        }
     }
     
-    // Draw vertical grid lines
-    for (int i = 0; i <= timelineLength; i += gridInterval) {
-        int x = static_cast<int>(i * currentZoom);
+    // If even the finest interval is too wide, use sample-level precision
+    if (gridInterval == 0.001 && static_cast<int>(0.001 * currentZoom) > minPixelSpacing * 2) {
+        // At very high zoom, show sample markers (assuming 44.1kHz)
+        double sampleInterval = 1.0 / 44100.0; // ~0.0000227 seconds per sample
+        int sampleStep = 1;
+        while (static_cast<int>(sampleStep * sampleInterval * currentZoom) < minPixelSpacing) {
+            sampleStep *= 10; // 1, 10, 100, 1000 samples
+        }
+        gridInterval = sampleStep * sampleInterval;
+    }
+    
+    // Draw vertical grid lines aligned to interval boundaries
+    double startTime = std::floor(0.0 / gridInterval) * gridInterval;
+    for (double time = startTime; time <= timelineLength; time += gridInterval) {
+        int x = static_cast<int>(time * currentZoom);
         if (x >= area.getX() && x <= area.getRight()) {
             g.drawLine(x, area.getY(), x, area.getBottom(), 1.0f);
         }

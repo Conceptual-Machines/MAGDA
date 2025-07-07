@@ -27,6 +27,26 @@ SvgButton::SvgButton(const juce::String& buttonName, const char* svgData, size_t
     setMouseClickGrabsKeyboardFocus(false);
 }
 
+void SvgButton::updateSvgData(const char* svgData, size_t svgDataSize) {
+    // Load new SVG from binary data
+    if (svgData && svgDataSize > 0) {
+        auto svgString = juce::String::fromUTF8(svgData, static_cast<int>(svgDataSize));
+        auto svgXml = juce::XmlDocument::parse(svgString);
+        if (svgXml) {
+            svgIcon = juce::Drawable::createFromSVG(*svgXml);
+            if (!svgIcon) {
+                DBG("Failed to create drawable from SVG for button: " + getName());
+            }
+        } else {
+            DBG("Failed to parse SVG XML for button: " + getName());
+        }
+    } else {
+        DBG("No SVG data provided for button: " + getName());
+    }
+    
+    repaint(); // Trigger repaint with new icon
+}
+
 void SvgButton::paintButton(juce::Graphics& g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown)
 {
     if (!svgIcon) {

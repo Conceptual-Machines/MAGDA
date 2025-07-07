@@ -226,10 +226,7 @@ void TrackHeadersPanel::paintTrackHeader(juce::Graphics& g, const TrackHeader& h
     g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
     g.drawRect(area, 1);
     
-    // Track number (small text in top-left)
-    g.setColour(DarkTheme::getColour(DarkTheme::TEXT_SECONDARY));
-    g.setFont(FontManager::getInstance().getUIFont(9.0f));
-    g.drawText(juce::String((&header - &*trackHeaders[0]) + 1), area.getX() + 5, area.getY() + 2, 20, 15, juce::Justification::centred);
+    // Track number removed - track names are sufficient identification
 }
 
 void TrackHeadersPanel::paintResizeHandle(juce::Graphics& g, juce::Rectangle<int> area) {

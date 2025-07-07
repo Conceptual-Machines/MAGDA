@@ -28,9 +28,21 @@ void TimelineComponent::paint(juce::Graphics& g) {
     g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
     g.drawRect(getLocalBounds(), 1);
     
+    // Draw subtle zoom area indicator in lower half with shadow effect
+    auto lowerHalf = getLocalBounds().removeFromBottom(getHeight() / 2);
+    if (isZooming) {
+        // Slightly more prominent when actively zooming
+        g.setColour(DarkTheme::getColour(DarkTheme::TIMELINE_BACKGROUND).brighter(0.1f));
+    } else {
+        // Subtle indication when not zooming
+        g.setColour(DarkTheme::getColour(DarkTheme::TIMELINE_BACKGROUND).brighter(0.03f));
+    }
+    g.fillRect(lowerHalf);
+    
     // Draw arrangement sections first (behind time markers)
     drawArrangementSections(g);
     drawTimeMarkers(g);
+    
     // Note: Playhead is now drawn by MainView's unified playhead component
 }
 
@@ -46,8 +58,8 @@ void TimelineComponent::setTimelineLength(double lengthInSeconds) {
 }
 
 void TimelineComponent::setPlayheadPosition(double position) {
-    playheadPosition = position;
-    repaint();
+    playheadPosition = juce::jlimit(0.0, timelineLength, position);
+    // Don't repaint - timeline doesn't draw playhead anymore
 }
 
 void TimelineComponent::setZoom(double pixelsPerSecond) {
@@ -56,6 +68,21 @@ void TimelineComponent::setZoom(double pixelsPerSecond) {
 }
 
 void TimelineComponent::mouseDown(const juce::MouseEvent& event) {
+    // Check if this is a zoom gesture (click in lower half of timeline for zoom)
+    if (event.y > getHeight() / 2) {
+        isZooming = true;
+        zoomStartY = event.y;
+        zoomStartValue = zoom;
+        
+        // Change cursor to magnifying glass
+        setMouseCursor(juce::MouseCursor::UpDownResizeCursor);
+        
+        // Repaint to show zoom mode UI
+        repaint();
+        
+        return;
+    }
+    
     // Always prioritize playhead positioning unless specifically targeting arrangement sections
     // and arrangement sections are unlocked
     if (!arrangementLocked && event.y <= getHeight() / 2) {
@@ -79,6 +106,7 @@ void TimelineComponent::mouseDown(const juce::MouseEvent& event) {
     
     // Default behavior: handle playhead positioning
     double clickTime = pixelToTime(event.x);
+    clickTime = juce::jlimit(0.0, timelineLength, clickTime); // Clamp to valid range
     setPlayheadPosition(clickTime);
     
     // Notify parent of position change
@@ -88,6 +116,29 @@ void TimelineComponent::mouseDown(const juce::MouseEvent& event) {
 }
 
 void TimelineComponent::mouseDrag(const juce::MouseEvent& event) {
+    if (isZooming) {
+        // Calculate zoom based on vertical drag distance
+        int deltaY = zoomStartY - event.y; // Drag up = zoom in
+        
+        // Use a balanced sensitivity - not too fast, not too slow
+        double sensitivity = 60.0; // 60 pixels = 2x zoom (balanced control)
+        double zoomFactor = 1.0 + (deltaY / sensitivity);
+        
+        // Apply zoom with much higher limits for sample-level zoom
+        // At 44.1kHz, 1 sample = 1/44100 seconds
+        // For 1 pixel per sample, we need 44100 pixels per second
+        double newZoom = juce::jlimit(0.1, 100000.0, zoomStartValue * zoomFactor);
+        
+        // Update our own zoom value first
+        setZoom(newZoom);
+        
+        // Notify parent of zoom change (parent will sync track content)
+        if (onZoomChanged) {
+            onZoomChanged(newZoom);
+        }
+        return;
+    }
+    
     if (!arrangementLocked && isDraggingSection && selectedSectionIndex >= 0) {
         // Move entire section
         auto& section = *sections[selectedSectionIndex];
@@ -120,6 +171,7 @@ void TimelineComponent::mouseDrag(const juce::MouseEvent& event) {
     } else {
         // Handle playhead dragging (default behavior)
         double dragTime = pixelToTime(event.x);
+        dragTime = juce::jlimit(0.0, timelineLength, dragTime); // Clamp to valid range
         setPlayheadPosition(dragTime);
         
         // Notify parent of position change
@@ -144,6 +196,19 @@ void TimelineComponent::mouseDoubleClick(const juce::MouseEvent& event) {
             repaint();
         }
     }
+}
+
+void TimelineComponent::mouseUp(const juce::MouseEvent& event) {
+    // Reset all interaction states
+    isZooming = false;
+    isDraggingSection = false;
+    isDraggingEdge = false;
+    
+    // Reset cursor
+    setMouseCursor(juce::MouseCursor::NormalCursor);
+    
+    // Repaint to hide zoom mode UI
+    repaint();
 }
 
 void TimelineComponent::addSection(const juce::String& name, double startTime, double endTime, juce::Colour colour) {
@@ -187,25 +252,83 @@ void TimelineComponent::drawTimeMarkers(juce::Graphics& g) {
     // Calculate appropriate marker spacing based on zoom
     // We want markers to be spaced at least 30 pixels apart
     const int minPixelSpacing = 30;
-    int markerInterval = 1; // Start with 1 second intervals
     
-    // Adjust interval if markers would be too close
-    while (timeToPixel(markerInterval) < minPixelSpacing && markerInterval < 60) {
-        markerInterval *= (markerInterval < 10) ? 2 : 5; // 1,2,5,10,20,50...
+    // Define marker intervals in seconds (including sub-second intervals)
+    const double intervals[] = {
+        0.001,    // 1ms (sample level at 44.1kHz ≈ 0.023ms)
+        0.005,    // 5ms
+        0.01,     // 10ms
+        0.05,     // 50ms
+        0.1,      // 100ms
+        0.25,     // 250ms
+        0.5,      // 500ms
+        1.0,      // 1 second
+        2.0,      // 2 seconds
+        5.0,      // 5 seconds
+        10.0,     // 10 seconds
+        30.0,     // 30 seconds
+        60.0      // 1 minute
+    };
+    
+    // Find the appropriate interval
+    double markerInterval = 1.0; // Default to 1 second
+    for (double interval : intervals) {
+        if (timeToPixel(interval) >= minPixelSpacing) {
+            markerInterval = interval;
+            break;
+        }
+    }
+    
+    // If even the finest interval is too wide, use sample-level precision
+    if (markerInterval == 0.001 && timeToPixel(0.001) > minPixelSpacing * 2) {
+        // At very high zoom, show sample markers (assuming 44.1kHz)
+        double sampleInterval = 1.0 / 44100.0; // ~0.0000227 seconds per sample
+        int sampleStep = 1;
+        while (timeToPixel(sampleStep * sampleInterval) < minPixelSpacing) {
+            sampleStep *= 10; // 1, 10, 100, 1000 samples
+        }
+        markerInterval = sampleStep * sampleInterval;
+    }
+    
+    // Calculate start position (align to interval boundaries)
+    double startTime = 0.0;
+    if (markerInterval >= 1.0) {
+        startTime = std::floor(0.0 / markerInterval) * markerInterval;
+    } else {
+        startTime = std::floor(0.0 / markerInterval) * markerInterval;
     }
     
     // Draw time markers
-    for (int i = 0; i <= timelineLength; i += markerInterval) {
-        int x = timeToPixel(i);
+    for (double time = startTime; time <= timelineLength; time += markerInterval) {
+        int x = timeToPixel(time);
         if (x >= 0 && x < getWidth()) {
             // Draw tick mark at bottom
             g.drawLine(x, getHeight() - 10, x, getHeight() - 2);
             
+            // Format time label based on interval precision
+            juce::String timeStr;
+            if (markerInterval < 1.0) {
+                // Sub-second precision
+                if (markerInterval >= 0.1) {
+                    timeStr = juce::String(time, 1) + "s";
+                } else if (markerInterval >= 0.01) {
+                    timeStr = juce::String(time, 2) + "s";
+                } else if (markerInterval >= 0.001) {
+                    timeStr = juce::String(time, 3) + "s";
+                } else {
+                    // Sample level - show as samples
+                    int samples = static_cast<int>(time * 44100.0);
+                    timeStr = juce::String(samples) + " smp";
+                }
+            } else {
+                // Second precision and above
+                int minutes = static_cast<int>(time) / 60;
+                int seconds = static_cast<int>(time) % 60;
+                timeStr = juce::String::formatted("%d:%02d", minutes, seconds);
+            }
+            
             // Draw time label at bottom to avoid overlap with arrangement sections
-            int minutes = i / 60;
-            int seconds = i % 60;
-            juce::String timeStr = juce::String::formatted("%d:%02d", minutes, seconds);
-            g.drawText(timeStr, x - 20, getHeight() - 25, 40, 20, juce::Justification::centred);
+            g.drawText(timeStr, x - 30, getHeight() - 25, 60, 20, juce::Justification::centred);
         }
     }
 }
@@ -275,9 +398,8 @@ void TimelineComponent::drawSection(juce::Graphics& g, const ArrangementSection&
                    DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
         g.setFont(FontManager::getInstance().getUIFont(10.0f));
         
-        // Add lock indicator to name if locked
-        juce::String displayName = arrangementLocked ? "🔒 " + section.name : section.name;
-        g.drawText(displayName, sectionArea.reduced(2), juce::Justification::centred, true);
+        // Draw section name without lock symbol (lock will be shown elsewhere)
+        g.drawText(section.name, sectionArea.reduced(2), juce::Justification::centred, true);
     }
 }
 

@@ -5,6 +5,7 @@
 #include "../components/TrackHeadersPanel.hpp"
 #include "../components/TrackContentPanel.hpp"
 #include "../components/TimelineComponent.hpp"
+#include "../components/SvgButton.hpp"
 
 namespace magica {
 
@@ -43,6 +44,11 @@ public:
 
     // Keyboard handling
     bool keyPressed(const juce::KeyPress& key) override;
+    
+    // Mouse handling for zoom
+    void mouseDown(const juce::MouseEvent& event) override;
+    void mouseDrag(const juce::MouseEvent& event) override;
+    void mouseUp(const juce::MouseEvent& event) override;
 
 private:
     // Timeline viewport (horizontal scroll only)
@@ -51,6 +57,9 @@ private:
     
     // Track headers panel (fixed, no scrolling)
     std::unique_ptr<TrackHeadersPanel> trackHeadersPanel;
+    
+    // Arrangement lock button
+    std::unique_ptr<SvgButton> arrangementLockButton;
     
     // Track content viewport (both horizontal and vertical scroll)
     std::unique_ptr<juce::Viewport> trackContentViewport;
@@ -68,6 +77,7 @@ private:
     
     // Synchronization guard to prevent infinite recursion
     bool isUpdatingTrackSelection = false;
+    bool isUpdatingFromZoom = false;  // Prevent zoom from interfering with manual scroll
 
     // Layout constants
     static constexpr int TIMELINE_HEIGHT = 80;
@@ -90,10 +100,16 @@ public:
 
     void paint(juce::Graphics& g) override;
     void setPlayheadPosition(double position);
+    
+    // Mouse handling for dragging playhead
+    void mouseDown(const juce::MouseEvent& event) override;
+    void mouseDrag(const juce::MouseEvent& event) override;
+    void mouseUp(const juce::MouseEvent& event) override;
 
 private:
     MainView& owner;
     double playheadPosition = 0.0;
+    bool isDragging = false;
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PlayheadComponent)
 };

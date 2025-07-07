@@ -33,6 +33,7 @@ public:
     void mouseDown(const juce::MouseEvent& event) override;
     void mouseDrag(const juce::MouseEvent& event) override;
     void mouseDoubleClick(const juce::MouseEvent& event) override;
+    void mouseUp(const juce::MouseEvent& event) override;
     
     // Arrangement section management
     void addSection(const juce::String& name, double startTime, double endTime, juce::Colour colour = juce::Colours::blue);
@@ -47,6 +48,7 @@ public:
     std::function<void(double)> onPlayheadPositionChanged;
     std::function<void(int, const ArrangementSection&)> onSectionChanged;
     std::function<void(const juce::String&, double, double)> onSectionAdded;
+    std::function<void(double)> onZoomChanged; // Callback for zoom changes
 
 private:
     double timelineLength = 300.0;
@@ -60,6 +62,11 @@ private:
     bool isDraggingEdge = false;
     bool isDraggingStart = false; // true for start edge, false for end edge
     bool arrangementLocked = false; // Lock arrangement sections to prevent accidental movement
+    
+    // Zoom interaction state
+    bool isZooming = false;
+    int zoomStartY = 0;
+    double zoomStartValue = 1.0;
     
     // Helper methods
     double pixelToTime(int pixel) const;

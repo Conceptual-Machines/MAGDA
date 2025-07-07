@@ -29,7 +29,17 @@ release:
 .PHONY: run
 run: debug
 	@echo "🎵 Running Magica DAW..."
-	./$(BUILD_DIR)/daw/magica_daw_app
+	"./$(BUILD_DIR)/daw/magica_daw_app_artefacts/Debug/Magica DAW.app/Contents/MacOS/Magica DAW"
+
+# Open the application (macOS)
+.PHONY: open
+open:
+	@echo "🎵 Opening Magica DAW..."
+	open "$(BUILD_DIR)/daw/magica_daw_app_artefacts/Debug/Magica DAW.app"
+
+# Build and open the application
+.PHONY: build-open
+build-open: debug open
 
 # Run tests
 .PHONY: test
@@ -57,6 +67,8 @@ help:
 	@echo "  all, debug     - Build debug version (default)"
 	@echo "  release        - Build release version"
 	@echo "  run            - Build and run the application"
+	@echo "  open           - Open the application (macOS)"
+	@echo "  build-open     - Build and open the application"
 	@echo "  test           - Build and run tests"
 	@echo "  clean          - Remove build artifacts"
 	@echo "  rebuild        - Clean and rebuild"

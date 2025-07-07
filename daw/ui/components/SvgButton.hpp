@@ -13,6 +13,9 @@ public:
     // Button overrides
     void paintButton(juce::Graphics& g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
     
+    // Update SVG data
+    void updateSvgData(const char* svgData, size_t svgDataSize);
+    
     // Set custom colors
     void setNormalColor(juce::Colour color) { normalColor = color; }
     void setHoverColor(juce::Colour color) { hoverColor = color; }
