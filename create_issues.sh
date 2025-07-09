@@ -1,508 +1,246 @@
 #!/bin/bash
 
-# Create GitHub issues from CSV file
-# Usage: ./create_issues.sh
+# Script to create GitHub issues for Magica DAW development
+# Requires GitHub CLI (gh) to be installed and authenticated
 
-echo "Creating GitHub issues for Magica project..."
+echo "Creating GitHub issues for Magica DAW..."
 
-# Create issues from CSV data
-# High Priority Issues
-
-echo "Creating high priority issues..."
-
-# Issue 1: Fix Build System
+# Issue 1: Mixer/Session View Toggle
 gh issue create \
-  --title "Fix Build System - gRPC Dependencies" \
-  --body "The build system has conflicts with gRPC and protobuf dependencies. Need to:
+  --title "Add mixer/session area with viewport toggle" \
+  --body "Add mixer/session area that can be displayed in the arrangement viewport
 
-1. Fix gRPC target naming (use \`grpc++\` instead of \`gRPC::grpc++\`)
-2. Configure gRPC CMake options properly before FetchContent_MakeAvailable
-3. Remove vcpkg conflicts by setting \`CMAKE_TOOLCHAIN_FILE = \"\"\`
-4. Fix protobuf plugin target references
+- Implement toggle button in UI to switch between arrangement and mixer views
+- Start with simple mock interface (no audio engine integration needed)
+- Should integrate with existing viewport system
 
-**Current Error:**
-\`\`\`
-No target \"gRPC::grpc_cpp_plugin\"
-Target \"magica_mcp\" links to gRPC::grpc++ but the target was not found
-\`\`\`
+**Acceptance Criteria:**
+- [ ] Toggle button switches between arrangement and mixer views
+- [ ] Mixer view displays in main arrangement area
+- [ ] Basic mixer UI layout with channel strips
+- [ ] State is preserved when switching views" \
+  --label "enhancement,ui,mixer"
 
-**Solution:**
-- Set gRPC CMake variables before \`FetchContent_MakeAvailable(gRPC)\`
-- Use \`grpc++\` and \`gpr\` targets instead of \`gRPC::grpc++\`
-- Use \`\$<TARGET_FILE:grpc_cpp_plugin>\` for protobuf generation" \
-  --label "build-system,grpc,cmake" \
-  --label "High Priority"
-
-# Issue 2: Create Basic UI - Main Window
+# Issue 2: Bottom Panel Mode Switching
 gh issue create \
-  --title "Create Basic UI - Main Window" \
-  --body "Create the main application window that's referenced in \`magica_daw_main.cpp\` but doesn't exist.
+  --title "Add piano roll and plugin chain views to bottom panel" \
+  --body "Add piano roll and plugin chain interfaces to bottom panel with toggle mechanism
 
-**Files to create:**
-- \`daw/ui/main_window.hpp\`
-- \`daw/ui/main_window.cpp\`
+- Add piano roll interface to bottom panel
+- Add plugin chain interface to bottom panel  
+- Implement toggle mechanism to switch between the two
+- Start with simple mock interfaces
 
-**Requirements:**
-- JUCE DocumentWindow subclass
-- Basic layout with transport controls, track list, timeline
-- Connect to DAW engine for play/stop operations
-- Integrate with gRPC server for agent communication
+**Acceptance Criteria:**
+- [ ] Piano roll view displays in bottom panel
+- [ ] Plugin chain view displays in bottom panel
+- [ ] Toggle mechanism switches between views
+- [ ] Views integrate with existing bottom panel architecture" \
+  --label "enhancement,ui,piano-roll,plugin-chain"
 
-**Basic structure:**
-\`\`\`cpp
-class MainWindow : public juce::DocumentWindow {
-    TransportPanel transport_panel_;
-    TrackListPanel track_list_;
-    TimelinePanel timeline_;
-    MixerPanel mixer_;
-    
-    void onPlayClicked() { daw_engine_->play(); }
-    void onStopClicked() { daw_engine_->stop(); }
-};
-\`\`\`" \
-  --label "ui,core" \
-  --label "High Priority"
-
-# Issue 3: Create Transport Panel UI
+# Issue 3: Time/Beats Grid Overlay
 gh issue create \
-  --title "Create Transport Panel UI" \
-  --body "Create transport controls panel for play, stop, record, and transport state.
+  --title "Implement time/beats grid overlay system" \
+  --body "Add toggle switch for time vs beats grid overlay in timeline
 
-**Files to create:**
-- \`daw/ui/transport_panel.hpp\`
-- \`daw/ui/transport_panel.cpp\`
+- Add toggle switch for time vs beats grid overlay
+- Implement grid rendering in timeline components
+- Should work with existing zoom system
+- Grid should adapt to current zoom level
 
-**Features:**
-- Play/Stop/Record buttons
-- Tempo display and control
-- Time signature display
-- Current position display (bars/beats and time)
-- Loop controls
-- Transport state indicators
+**Acceptance Criteria:**
+- [ ] Toggle button switches between time and beats grid
+- [ ] Grid overlay renders correctly in timeline
+- [ ] Grid adapts to zoom level changes
+- [ ] Grid state persists across sessions" \
+  --label "enhancement,ui,timeline,grid"
 
-**Integration:**
-- Connect to TransportInterface
-- Update UI based on transport state changes
-- Send commands to DAW engine" \
-  --label "ui,transport" \
-  --label "High Priority"
-
-# Issue 4: Create Track List Panel
+# Issue 4: Visual Loop Functionality
 gh issue create \
-  --title "Create Track List Panel" \
-  --body "Create track management panel showing all tracks in the session.
+  --title "Add visual loop indicators and controls" \
+  --body "Implement visual loop functionality in timeline
 
-**Files to create:**
-- \`daw/ui/track_list.hpp\`
-- \`daw/ui/track_list.cpp\`
+- Add loop region visual indicators to timeline
+- Implement loop start/end markers
+- Add loop enable/disable toggle
+- Visual-only implementation (no audio playback integration yet)
 
-**Features:**
-- List of all tracks (MIDI, Audio, Instrument, Bus)
-- Track name editing
-- Mute/Solo/Arm buttons per track
-- Track type indicators
-- Volume faders
-- Track selection
-- Add/Delete track buttons
+**Acceptance Criteria:**
+- [ ] Loop region displays visually in timeline
+- [ ] Loop markers can be dragged to adjust region
+- [ ] Loop toggle button enables/disables loop display
+- [ ] Loop state is visually distinct from normal playback" \
+  --label "enhancement,ui,timeline,loop"
 
-**Integration:**
-- Connect to TrackInterface
-- Update when tracks are added/removed
-- Reflect track state changes" \
-  --label "ui,tracks" \
-  --label "High Priority"
-
-# Issue 5: Create Timeline Panel
+# Issue 5: AI Prompt Console
 gh issue create \
-  --title "Create Timeline Panel" \
-  --body "Create timeline view showing the session timeline and playhead.
+  --title "Implement AI prompt console in right panel" \
+  --body "Add console/terminal interface to right panel for AI prompt interaction
 
-**Files to create:**
-- \`daw/ui/timeline.hpp\`
-- \`daw/ui/timeline.cpp\`
+- Add console/terminal interface to right panel for AI prompt interaction
+- Should allow user to type commands and see AI responses
+- Integration point for AI agent system
+- Start with basic text input/output interface
 
-**Features:**
-- Timeline ruler with time and bar/beat markers
-- Playhead position indicator
-- Zoom controls
-- Grid display (bars, beats, ticks)
-- Loop region visualization
-- Click-to-seek functionality
+**Acceptance Criteria:**
+- [ ] Console interface displays in right panel
+- [ ] Text input field for typing prompts
+- [ ] Scrollable history of prompts and responses
+- [ ] Basic command history (up/down arrow navigation)
+- [ ] Clear console functionality
+- [ ] Ready for AI agent integration" \
+  --label "enhancement,ui,ai,console"
 
-**Integration:**
-- Connect to TransportInterface for playhead position
-- Update playhead position in real-time
-- Handle timeline clicks for seeking" \
-  --label "ui,timeline" \
-  --label "High Priority"
-
-# Issue 6: Implement Transport Interface
+# Issue 6: Node-Based Plugin Chain System
 gh issue create \
-  --title "Implement Transport Interface" \
-  --body "Implement the TransportInterface to connect UI controls to actual DAW operations.
+  --title "Implement node-based FX chain architecture" \
+  --body "Design system similar to Ableton/Bitwig for grouping effects
 
-**Files to create:**
-- \`daw/engine/transport_interface_impl.hpp\`
-- \`daw/engine/transport_interface_impl.cpp\`
+- Design system similar to Ableton/Bitwig for grouping effects
+- Support both parallel and sequential configurations
+- Use node graph to represent relationships
+- Should integrate with future audio engine graph
+- Start with data structures and visual representation
 
-**Implementation:**
-- Connect to TracktionEngine for actual transport operations
-- Implement all virtual methods from TransportInterface
-- Handle play, stop, record, locate, tempo, time signature
-- Provide real-time state updates
-- Thread-safe operations
+**Acceptance Criteria:**
+- [ ] Node data structure for representing FX chains
+- [ ] Support for parallel and sequential routing
+- [ ] Visual node editor interface
+- [ ] Ability to save/load chain configurations
+- [ ] Architecture ready for audio engine integration" \
+  --label "enhancement,architecture,plugins,audio-graph"
 
-**Methods to implement:**
-- \`play()\`, \`stop()\`, \`pause()\`, \`record()\`
-- \`locate()\`, \`locateMusical()\`
-- \`setTempo()\`, \`setTimeSignature()\`
-- \`setLooping()\`, \`setLoopRegion()\`" \
-  --label "daw-engine,transport" \
-  --label "High Priority"
-
-# Issue 7: Implement Track Interface
+# Issue 7: Basic Metronome
 gh issue create \
-  --title "Implement Track Interface" \
-  --body "Implement the TrackInterface to handle track management operations.
+  --title "Add simple metronome with audio engine integration" \
+  --body "Implement basic metronome functionality driven by audio engine
 
-**Files to create:**
-- \`daw/engine/track_interface_impl.hpp\`
-- \`daw/engine/track_interface_impl.cpp\`
+- Implement basic metronome functionality
+- Should be driven by audio engine timing
+- Integrate with transport controls
+- Simple click sound generation
 
-**Implementation:**
-- Connect to TracktionEngine for track operations
-- Implement track creation, deletion, naming
-- Handle mute, solo, arm operations
-- Manage track types (MIDI, Audio, Instrument, Bus)
-- Provide track state updates
+**Acceptance Criteria:**
+- [ ] Metronome generates click sounds
+- [ ] Timing driven by audio engine
+- [ ] Integrates with play/stop/tempo controls
+- [ ] Volume control for metronome
+- [ ] Can be enabled/disabled" \
+  --label "enhancement,audio-engine,metronome,core"
 
-**Methods to implement:**
-- \`createTrack()\`, \`deleteTrack()\`
-- \`setTrackName()\`, \`getTrackName()\`
-- \`muteTrack()\`, \`soloTrack()\`, \`armTrack()\`
-- \`getTracks()\`, \`getTrackCount()\`" \
-  --label "daw-engine,tracks" \
-  --label "High Priority"
-
-# Issue 8: Implement Clip Interface
+# Issue 8: Audio-Driven Playhead
 gh issue create \
-  --title "Implement Clip Interface" \
-  --body "Implement the ClipInterface to handle MIDI and audio clip operations.
+  --title "Add playhead driven by audio engine" \
+  --body "Implement playhead that moves based on audio engine timing
 
-**Files to create:**
-- \`daw/engine/clip_interface_impl.hpp\`
-- \`daw/engine/clip_interface_impl.cpp\`
+- Implement playhead that moves based on audio engine timing
+- Should update UI smoothly during playback
+- Integrate with existing timeline components
+- Ensure sample-accurate positioning
 
-**Implementation:**
-- Connect to TracktionEngine for clip operations
-- Handle MIDI clip creation and editing
-- Manage audio clip operations
-- Implement note operations (add, remove, edit)
-- Handle clip quantization
+**Acceptance Criteria:**
+- [ ] Playhead position updates during audio playback
+- [ ] Smooth visual updates in timeline
+- [ ] Sample-accurate positioning
+- [ ] Integrates with zoom and scroll system
+- [ ] Works with loop functionality" \
+  --label "enhancement,audio-engine,playhead,transport"
 
-**Methods to implement:**
-- \`createMidiClip()\`, \`createAudioClip()\`
-- \`addNotesToClip()\`, \`removeNotesFromClip()\`
-- \`getClipNotes()\`, \`updateClipNotes()\`
-- \`quantizeClip()\`, \`getClipInfo()\`" \
-  --label "daw-engine,clips" \
-  --label "High Priority"
-
-# Issue 9: Create Command Dispatcher
+# Issue 9: Add Track API Function
 gh issue create \
-  --title "Create Command Dispatcher" \
-  --body "Create a command dispatcher to route gRPC commands to DAW operations.
+  --title "Create DAW API for track management" \
+  --body "Implement 'add track' function with API interface for AI agent use
 
-**Files to create:**
-- \`daw/command_dispatcher.hpp\`
-- \`daw/command_dispatcher.cpp\`
+- Implement 'add track' function in DAW core
+- Expose through API interface for external use
+- Design for AI agent consumption
+- Should integrate with existing track system
 
-**Implementation:**
-- Register handlers for all DAW operations
-- Connect Command objects to actual DAW interface calls
-- Provide error handling and validation
-- Support async operations where needed
-- Return proper CommandResponse objects
+**Acceptance Criteria:**
+- [ ] Add track function in DAW core
+- [ ] API endpoint for adding tracks
+- [ ] Support different track types (audio, MIDI, etc.)
+- [ ] Returns track ID and status
+- [ ] Error handling for invalid requests" \
+  --label "enhancement,api,tracks,ai-ready"
 
-**Handler registration:**
-\`\`\`cpp
-dispatcher.registerHandler(\"play\", [this](const Command& cmd) {
-    transport_interface_->play();
-    return CommandResponse(CommandResponse::Status::Success, \"Playing\");
-});
-\`\`\`
-
-**Commands to handle:**
-- Transport: play, stop, record, set_tempo, set_time_signature
-- Tracks: create_track, delete_track, mute_track, solo_track
-- Clips: create_midi_clip, add_notes, quantize_clip
-- Mixer: set_volume, set_pan, add_effect" \
-  --label "grpc,daw-engine" \
-  --label "High Priority"
-
-# Issue 10: Connect gRPC Server to DAW
+# Issue 10: Dual AI Agent System
 gh issue create \
-  --title "Connect gRPC Server to DAW" \
-  --body "Connect the gRPC server to the DAW engine by registering command handlers.
+  --title "Implement MCP-style dual AI agent system" \
+  --body "Design two-agent system: prompt parser + function-specific agents
 
-**Files to modify:**
-- \`daw/magica_daw_main.cpp\`
-- \`daw/magica.cpp\`
+- Design two-agent system: prompt parser + function-specific agents
+- Implement MCP (Model Context Protocol) style architecture
+- Start with commercial LLM integration
+- Design for eventual local LLM support
 
-**Implementation:**
-- Create CommandDispatcher instance
-- Register all command handlers with GrpcMCPServer
-- Connect DAW interfaces to command handlers
-- Handle gRPC request routing to DAW operations
-- Provide proper error responses
+**Acceptance Criteria:**
+- [ ] Prompt parsing agent that interprets user commands
+- [ ] Function-specific agent for DAW operations
+- [ ] MCP-style protocol between agents
+- [ ] Commercial LLM integration (OpenAI/Anthropic)
+- [ ] Architecture ready for local LLM plugins" \
+  --label "enhancement,ai,agents,architecture"
 
-**Integration points:**
-- Register handlers in main application initialization
-- Connect TransportInterface to transport commands
-- Connect TrackInterface to track commands
-- Connect ClipInterface to clip commands
-- Connect MixerInterface to mixer commands" \
-  --label "grpc,daw-engine" \
-  --label "High Priority"
-
-echo "High priority issues created successfully!"
-
-# Medium Priority Issues
-echo "Creating medium priority issues..."
-
-# Issue 11: Create Mixer Panel
+# Issue 11: Local LLM Support
 gh issue create \
-  --title "Create Mixer Panel" \
-  --body "Create mixer panel for track volume, pan, and effects.
+  --title "Implement local LLM integration framework" \
+  --body "Research and implement local LLM integration with performance optimization
 
-**Files to create:**
-- \`daw/ui/mixer_panel.hpp\`
-- \`daw/ui/mixer_panel.cpp\`
+- Research and implement local LLM integration
+- Support for models like Llama, Mistral, etc.
+- Performance optimization for real-time use
+- Fallback to commercial LLMs when needed
 
-**Features:**
-- Volume faders for each track
-- Pan controls
-- Level meters (VU meters)
-- Effect slots per track
-- Master fader
-- Stereo field visualization
+**Acceptance Criteria:**
+- [ ] Local LLM inference framework
+- [ ] Support for popular open models
+- [ ] Performance benchmarking
+- [ ] Graceful fallback to commercial APIs
+- [ ] Memory and CPU usage optimization" \
+  --label "enhancement,ai,local-llm,research"
 
-**Integration:**
-- Connect to MixerInterface
-- Real-time level metering
-- Volume/pan parameter updates" \
-  --label "ui,mixer" \
-  --label "Medium Priority"
-
-# Issue 12: Implement Mixer Interface
+# Issue 12: Code Quality Tools
 gh issue create \
-  --title "Implement Mixer Interface" \
-  --body "Implement the MixerInterface to handle mixing operations.
+  --title "Integrate clang-format, clang-tidy, and code quality tools" \
+  --body "Add code quality tools and standards to the development workflow
 
-**Files to create:**
-- \`daw/engine/mixer_interface_impl.hpp\`
-- \`daw/engine/mixer_interface_impl.cpp\`
+- Add clang-format for consistent code formatting
+- Integrate clang-tidy for static analysis and linting
+- Add pre-commit hooks for automatic formatting
+- Include code quality checks in CI pipeline
+- Add configuration files for consistent standards
 
-**Implementation:**
-- Connect to TracktionEngine for mixing operations
-- Handle volume and pan controls
-- Manage effects and plugins
-- Provide real-time metering
-- Handle master bus operations
+**Acceptance Criteria:**
+- [ ] .clang-format configuration file added
+- [ ] .clang-tidy configuration file added  
+- [ ] Pre-commit hooks for automatic formatting
+- [ ] CI integration for code quality checks
+- [ ] Documentation for code style guidelines
+- [ ] Make target for formatting code (make format)
+- [ ] Make target for running lints (make lint)" \
+  --label "development,code-quality,tooling,ci"
 
-**Methods to implement:**
-- \`setTrackVolume()\`, \`getTrackVolume()\`
-- \`setTrackPan()\`, \`getTrackPan()\`
-- \`addEffect()\`, \`removeEffect()\`
-- \`getLevelMeters()\`, \`getMasterVolume()\`" \
-  --label "daw-engine,mixer" \
-  --label "Medium Priority"
-
-# Issue 13: Add Error Handling and Validation
+# Issue 13: Expand Test Coverage
 gh issue create \
-  --title "Add Error Handling and Validation" \
-  --body "Add comprehensive error handling and validation throughout the system.
+  --title "Add comprehensive test coverage for core components" \
+  --body "Expand JUCE test coverage beyond ZoomManager
 
-**Areas to improve:**
-- Command parameter validation
-- DAW operation error handling
-- gRPC error responses
-- UI error feedback
-- Logging and debugging
+- Expand JUCE test coverage beyond ZoomManager
+- Add tests for timeline, transport, and core DAW functions
+- Ensure CI runs all tests reliably
 
-**Implementation:**
-- Validate command parameters before execution
-- Handle DAW operation failures gracefully
-- Provide meaningful error messages
-- Add logging for debugging
-- Implement retry mechanisms where appropriate
-- Add input validation for UI controls" \
-  --label "error-handling,validation" \
-  --label "Medium Priority"
-
-# Issue 14: Add Unit Tests
-gh issue create \
-  --title "Add Unit Tests" \
-  --body "Create comprehensive unit tests for all components.
-
-**Test files to create:**
-- \`tests/test_transport_interface.cpp\`
-- \`tests/test_track_interface.cpp\`
-- \`tests/test_clip_interface.cpp\`
-- \`tests/test_mixer_interface.cpp\`
-- \`tests/test_command_dispatcher.cpp\`
-- \`tests/test_grpc_server.cpp\`
-- \`tests/test_ui_components.cpp\`
-
-**Test coverage:**
-- Interface implementations
-- Command routing
-- gRPC message handling
-- UI component behavior
-- Error scenarios
-- Integration tests" \
-  --label "testing,unit-tests" \
-  --label "Medium Priority"
-
-# Issue 15: Add Integration Tests
-gh issue create \
-  --title "Add Integration Tests" \
-  --body "Create integration tests for the complete system.
-
-**Test files to create:**
-- \`tests/integration/test_agent_daw_communication.cpp\`
-- \`tests/integration/test_ui_daw_integration.cpp\`
-- \`tests/integration/test_grpc_daw_integration.cpp\`
-
-**Test scenarios:**
-- Agent connects and sends commands
-- UI updates reflect DAW state changes
-- gRPC calls execute DAW operations
-- Real-time updates work correctly
-- Error handling across system boundaries" \
-  --label "testing,integration-tests" \
-  --label "Medium Priority"
-
-# Issue 16: Implement gRPC DAW Server
-gh issue create \
-  --title "Implement gRPC DAW Server" \
-  --body "Create the actual gRPC server implementation that's referenced in main.cpp.
-
-**Files to create:**
-- \`daw/server/magica_daw_server.hpp\`
-- \`daw/server/magica_daw_server.cpp\`
-
-**Implementation:**
-- Implement the MagdaDAWService gRPC interface
-- Connect to CommandDispatcher for operation execution
-- Handle all protobuf message types
-- Provide proper gRPC status responses
-- Support streaming operations for real-time updates
-
-**Service methods to implement:**
-- Transport: Play, Stop, Record, SetTempo, SetTimeSignature
-- Tracks: CreateTrack, DeleteTrack, MuteTrack, SoloTrack
-- MIDI: CreateMidiClip, AddNotesToClip, QuantizeClip
-- Audio: CreateAudioClip, GetAudioClipInfo
-- Mixing: SetTrackVolume, SetTrackPan, AddEffect
-- Session: CreateSession, LoadSession, SaveSession
-- Agents: RegisterAgent, SendMessage, BroadcastMessage" \
-  --label "grpc,server" \
-  --label "Medium Priority"
-
-echo "Medium priority issues created successfully!"
-
-# Low Priority Issues
-echo "Creating low priority issues..."
-
-# Issue 17: Add Documentation
-gh issue create \
-  --title "Add Documentation" \
-  --body "Create comprehensive documentation for the system.
-
-**Documentation to create:**
-- \`docs/architecture.md\` - System architecture overview
-- \`docs/api_reference.md\` - gRPC API documentation
-- \`docs/ui_guide.md\` - User interface guide
-- \`docs/agent_development.md\` - Guide for developing agents
-- \`docs/development_setup.md\` - Development environment setup
-- \`docs/deployment.md\` - Deployment instructions
-
-**Content:**
-- Architecture diagrams
-- API examples
-- Code examples
-- Troubleshooting guides
-- Best practices" \
-  --label "documentation" \
-  --label "Low Priority"
-
-# Issue 18: Add CI/CD Pipeline
-gh issue create \
-  --title "Add CI/CD Pipeline" \
-  --body "Set up continuous integration and deployment pipeline.
-
-**Components:**
-- GitHub Actions workflow
-- Automated testing
-- Build verification
-- Code quality checks
-- Automated deployment
-
-**Workflow steps:**
-- Build on multiple platforms
-- Run unit and integration tests
-- Check code formatting
-- Run static analysis
-- Generate documentation
-- Create release artifacts" \
-  --label "ci-cd,automation" \
-  --label "Low Priority"
-
-# Issue 19: Add Performance Monitoring
-gh issue create \
-  --title "Add Performance Monitoring" \
-  --body "Add performance monitoring and profiling capabilities.
-
-**Components:**
-- Performance metrics collection
-- Real-time monitoring
-- Profiling tools integration
-- Memory usage tracking
-- Audio performance monitoring
-
-**Metrics to track:**
-- gRPC request latency
-- DAW operation performance
-- UI responsiveness
-- Memory usage
-- Audio buffer underruns" \
-  --label "performance,monitoring" \
-  --label "Low Priority"
-
-# Issue 20: Add Plugin System
-gh issue create \
-  --title "Add Plugin System" \
-  --body "Design and implement a plugin system for extending DAW functionality.
-
-**Components:**
-- Plugin interface definition
-- Plugin loading mechanism
-- Plugin communication protocol
-- Plugin management UI
-- Plugin marketplace integration
-
-**Plugin types:**
-- Audio effects plugins
-- MIDI processing plugins
-- Analysis plugins
-- Export plugins
-- Custom UI plugins" \
-  --label "plugins,extensibility" \
-  --label "Low Priority"
+**Acceptance Criteria:**
+- [ ] Test coverage for TimelineComponent
+- [ ] Test coverage for Transport controls
+- [ ] Test coverage for Track management
+- [ ] All tests pass in CI
+- [ ] Coverage reporting integrated" \
+  --label "testing,juce,quality"
 
 echo "All issues created successfully!"
-echo "Total issues created: 20"
-echo "High Priority: 10"
-echo "Medium Priority: 6"
-echo "Low Priority: 4" 
+echo ""
+echo "Recommended priority order:"
+echo "1. High Priority: Issues #3, #4, #5, #9 (Grid toggle, Loop functionality, AI Console, Track API)"
+echo "2. Medium Priority: Issues #1, #2, #7, #12 (Mixer toggle, Bottom panel, Metronome, Code quality)"
+echo "3. Lower Priority: Issues #6, #8, #10, #11, #13 (Advanced features)" 

@@ -25,16 +25,32 @@ jobs:
       run: |
         cmake -B build -DCMAKE_BUILD_TYPE=Debug
     
+    
     - name: Build
       run: |
         cmake --build build --config Debug -j4
     
-    - name: Test
+    - name: Run CTest
       run: |
         cd build
         ctest --output-on-failure -C Debug
     
-    - name: Run unit tests directly
+    - name: Run JUCE tests directly
       run: |
         cd build
-        ./tests/magica_tests 
+        if [ -f "./tests/magica_juce_tests_artefacts/Debug/magica_juce_tests" ]; then
+          echo "Running JUCE unit tests..."
+          ./tests/magica_juce_tests_artefacts/Debug/magica_juce_tests
+        else
+          echo "JUCE tests not found, skipping..."
+        fi
+    
+    - name: Run Catch2 tests directly (if available)
+      run: |
+        cd build
+        if [ -f "./tests/magica_tests" ]; then
+          echo "Running Catch2 unit tests..."
+          ./tests/magica_tests
+        else
+          echo "Catch2 tests not found, skipping..."
+        fi 

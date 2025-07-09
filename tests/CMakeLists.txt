@@ -27,4 +27,30 @@ add_test(NAME magica_unit_tests COMMAND magica_tests)
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.10")
     include(Catch)
     catch_discover_tests(magica_tests)
-endif() 
+endif()
+
+# JUCE Unit Test Console Application
+juce_add_console_app(magica_juce_tests
+    VERSION "0.1.0"
+    COMPANY_NAME "Magica"
+    PRODUCT_NAME "Magica JUCE Tests"
+)
+
+# Add JUCE test source
+target_sources(magica_juce_tests PRIVATE test_zoom_simple.cpp)
+
+# Link required libraries for JUCE tests
+target_link_libraries(magica_juce_tests
+    PRIVATE
+    juce::juce_core
+    juce::juce_events
+)
+
+# Include directories for JUCE tests
+target_include_directories(magica_juce_tests
+    PRIVATE
+    ${CMAKE_SOURCE_DIR}
+)
+
+# Add JUCE test to CTest
+add_test(NAME magica_juce_unit_tests COMMAND magica_juce_tests) 
