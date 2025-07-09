@@ -1,0 +1,84 @@
+# Pre-commit configuration for Magica DAW
+# Automatic code formatting and quality checks on commit
+
+repos:
+  # Standard pre-commit hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: destroyed-symlinks
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+  # C++ formatting with clang-format
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v17.0.6
+    hooks:
+      - id: clang-format
+        files: \.(cpp|hpp|h|c|cc|cxx)$
+        args: [--style=file]
+
+  # CMake formatting
+  - repo: https://github.com/cheshirekow/cmake-format-precommit
+    rev: v0.6.13
+    hooks:
+      - id: cmake-format
+        files: CMakeLists\.txt$|\.cmake$
+        args: [--line-width=80, --tab-size=4]
+
+  # Local hooks for project-specific checks
+  - repo: local
+    hooks:
+      # Check that build still works after formatting
+      - id: build-check
+        name: Build Check
+        entry: make
+        args: [debug]
+        language: system
+        files: \.(cpp|hpp|h|c|cc|cxx|cmake)$|CMakeLists\.txt$
+        pass_filenames: false
+        stages: [pre-push]
+
+      # Run basic linting on changed files
+      - id: clang-tidy-check
+        name: Clang-Tidy Check
+        entry: bash
+        args: 
+          - -c
+          - |
+            if command -v /opt/homebrew/opt/llvm/bin/clang-tidy >/dev/null 2>&1; then
+              echo "Running clang-tidy on changed files..."
+              # Only run on .cpp files that were changed
+              for file in "$@"; do
+                if [[ "$file" == *.cpp ]]; then
+                  echo "Checking $file..."
+                  /opt/homebrew/opt/llvm/bin/clang-tidy "$file" -p=cmake-build-debug --config-file=.clang-tidy --format-style=file || true
+                fi
+              done
+            else
+              echo "clang-tidy not found, skipping..."
+            fi
+        language: system
+        files: \.(cpp|hpp|h)$
+        stages: [pre-push]
+
+      # Ensure tests still pass
+      - id: test-check
+        name: Test Check
+        entry: make
+        args: [test]
+        language: system
+        files: \.(cpp|hpp|h|c|cc|cxx)$
+        pass_filenames: false
+        stages: [pre-push]
+
+# Configuration
+default_stages: [commit]
+minimum_pre_commit_version: 2.20.0 

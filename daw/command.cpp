@@ -1,4 +1,5 @@
 #include "command.hpp"
+
 #include <stdexcept>
 
 // Command implementation
@@ -8,16 +9,17 @@ Command::Command(const juce::var& json) {
     if (!json.hasProperty("command")) {
         throw std::runtime_error("JSON missing 'command' field");
     }
-    
+
     type_ = json["command"].toString().toStdString();
-    
+
     // Parse parameters
     auto* obj = json.getDynamicObject();
     if (obj) {
         for (auto& prop : obj->getProperties()) {
             std::string key = prop.name.toString().toStdString();
-            if (key == "command") continue;
-            
+            if (key == "command")
+                continue;
+
             auto value = prop.value;
             if (value.isString()) {
                 parameters_[key] = value.toString().toStdString();
@@ -48,28 +50,30 @@ bool Command::hasParameter(const std::string& key) const {
 juce::var Command::toJson() const {
     juce::DynamicObject::Ptr obj = new juce::DynamicObject();
     obj->setProperty("command", juce::String(type_));
-    
+
     for (const auto& [key, value] : parameters_) {
         std::string keyStr = key;  // Copy the key to avoid capture issues
-        std::visit([&obj, keyStr](const auto& v) {
-            if constexpr (std::is_same_v<decltype(v), const std::string&>) {
-                obj->setProperty(juce::Identifier(keyStr), juce::String(v));
-            } else if constexpr (std::is_same_v<decltype(v), const int&>) {
-                obj->setProperty(juce::Identifier(keyStr), v);
-            } else if constexpr (std::is_same_v<decltype(v), const double&>) {
-                obj->setProperty(juce::Identifier(keyStr), v);
-            } else if constexpr (std::is_same_v<decltype(v), const bool&>) {
-                obj->setProperty(juce::Identifier(keyStr), v);
-            } else if constexpr (std::is_same_v<decltype(v), const std::vector<double>&>) {
-                juce::Array<juce::var> arr;
-                for (double d : v) {
-                    arr.add(d);
+        std::visit(
+            [&obj, keyStr](const auto& v) {
+                if constexpr (std::is_same_v<decltype(v), const std::string&>) {
+                    obj->setProperty(juce::Identifier(keyStr), juce::String(v));
+                } else if constexpr (std::is_same_v<decltype(v), const int&>) {
+                    obj->setProperty(juce::Identifier(keyStr), v);
+                } else if constexpr (std::is_same_v<decltype(v), const double&>) {
+                    obj->setProperty(juce::Identifier(keyStr), v);
+                } else if constexpr (std::is_same_v<decltype(v), const bool&>) {
+                    obj->setProperty(juce::Identifier(keyStr), v);
+                } else if constexpr (std::is_same_v<decltype(v), const std::vector<double>&>) {
+                    juce::Array<juce::var> arr;
+                    for (double d : v) {
+                        arr.add(d);
+                    }
+                    obj->setProperty(juce::Identifier(keyStr), arr);
                 }
-                obj->setProperty(juce::Identifier(keyStr), arr);
-            }
-        }, value);
+            },
+            value);
     }
-    
+
     return juce::var(obj.get());
 }
 
@@ -83,12 +87,12 @@ std::string Command::toJsonString() const {
 }
 
 // CommandResponse implementation
-CommandResponse::CommandResponse(Status status, const std::string& message) 
+CommandResponse::CommandResponse(Status status, const std::string& message)
     : status_(status), message_(message) {}
 
 juce::var CommandResponse::toJson() const {
     juce::DynamicObject::Ptr obj = new juce::DynamicObject();
-    
+
     switch (status_) {
         case Status::Success:
             obj->setProperty("status", "success");
@@ -100,14 +104,14 @@ juce::var CommandResponse::toJson() const {
             obj->setProperty("status", "pending");
             break;
     }
-    
+
     if (!message_.empty()) {
         obj->setProperty("message", juce::String(message_));
     }
-    
+
     if (!data_.isVoid()) {
         obj->setProperty("data", data_);
     }
-    
+
     return juce::var(obj.get());
-} 
+}

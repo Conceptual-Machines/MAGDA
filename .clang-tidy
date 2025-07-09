@@ -1,46 +1,55 @@
----
-# Clang-tidy configuration for Magica DAW
-# Static analysis and linting rules
+# Clang-Tidy Configuration for Magica DAW
+# Static analysis and linting rules for C++ audio development
 
-Checks: >
-  bugprone-*,
-  cert-*,
-  clang-analyzer-*,
-  cppcoreguidelines-*,
-  google-*,
-  hicpp-*,
-  llvm-*,
-  misc-*,
-  modernize-*,
-  performance-*,
-  portability-*,
-  readability-*,
-  -bugprone-easily-swappable-parameters,
-  -cert-err58-cpp,
-  -cppcoreguidelines-avoid-magic-numbers,
-  -cppcoreguidelines-macro-usage,
-  -cppcoreguidelines-non-private-member-variables-in-classes,
-  -cppcoreguidelines-owning-memory,
-  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
-  -cppcoreguidelines-pro-bounds-constant-array-index,
-  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
-  -cppcoreguidelines-pro-type-reinterpret-cast,
-  -cppcoreguidelines-pro-type-vararg,
-  -google-readability-avoid-underscore-in-googletest-name,
+# Enable checks - comprehensive but practical set
+Checks: >-
+  *,
+  -android-*,
+  -fuchsia-*,
+  -llvm-*,
+  -zircon-*,
+  -altera-*,
+  -llvmlibc-*,
+  -abseil-*,
+  -google-build-using-namespace,
   -google-readability-todo,
-  -hicpp-avoid-c-arrays,
-  -hicpp-no-array-decay,
+  -hicpp-use-auto,
   -hicpp-vararg,
-  -llvm-header-guard,
-  -llvm-include-order,
-  -misc-non-private-member-variables-in-classes,
-  -modernize-avoid-c-arrays,
   -modernize-use-trailing-return-type,
-  -readability-magic-numbers,
+  -readability-else-after-return,
+  -readability-implicit-bool-conversion,
   -readability-named-parameter,
-  -readability-uppercase-literal-suffix
+  -readability-uppercase-literal-suffix,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-magic-numbers,
+  -cert-err58-cpp,
+  -misc-non-private-member-variables-in-classes,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
+  -modernize-avoid-c-arrays,
+  -cppcoreguidelines-avoid-c-arrays,
+  -hicpp-avoid-c-arrays,
+  -readability-isolate-declaration,
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  -cppcoreguidelines-pro-type-vararg,
+  -hicpp-vararg,
+  -modernize-use-nodiscard,
+  -bugprone-easily-swappable-parameters,
+  -misc-const-correctness,
+  -readability-identifier-length,
+  -cppcoreguidelines-avoid-do-while
 
+# Warnings as errors (can be adjusted based on team preference)
+WarningsAsErrors: ''
+
+# Header filter - analyze headers in project
+HeaderFilterRegex: '(daw|agents|tests)/.*\.(h|hpp)$'
+
+# Analysis options
+# AnalyzeTemporaryDtors: false  # Not supported in this version
+
+# Check options for fine-tuning specific rules
 CheckOptions:
+  # Naming conventions
   - key: readability-identifier-naming.NamespaceCase
     value: lower_case
   - key: readability-identifier-naming.ClassCase
@@ -55,28 +64,65 @@ CheckOptions:
     value: camelBack
   - key: readability-identifier-naming.MemberCase
     value: camelBack
-  - key: readability-identifier-naming.PrivateMemberSuffix
+  - key: readability-identifier-naming.MemberSuffix
     value: '_'
   - key: readability-identifier-naming.ConstantCase
     value: UPPER_CASE
   - key: readability-identifier-naming.EnumCase
     value: CamelCase
   - key: readability-identifier-naming.EnumConstantCase
-    value: UPPER_CASE
+    value: CamelCase
   - key: readability-identifier-naming.MacroDefinitionCase
     value: UPPER_CASE
-  - key: readability-function-cognitive-complexity.Threshold
-    value: 25
+    
+  # Function length limits
   - key: readability-function-size.LineThreshold
-    value: 80
+    value: '80'
   - key: readability-function-size.StatementThreshold
-    value: 50
+    value: '50'
+  - key: readability-function-size.BranchThreshold
+    value: '10'
+  - key: readability-function-size.ParameterThreshold
+    value: '8'
+    
+  # Complexity limits
+  - key: readability-function-cognitive-complexity.Threshold
+    value: '15'
+    
+  # Include sorting
+  - key: llvm-include-order.Priority
+    value: '1'
+    
+  # Performance
   - key: performance-for-range-copy.WarnOnAllAutoCopies
-    value: true
-  - key: cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor
-    value: true
-
-WarningsAsErrors: ''
-HeaderFilterRegex: '(daw|tests)/.*\.(h|hpp)$'
-FormatStyle: file
-User: magica 
+    value: 'true'
+  - key: performance-unnecessary-value-param.AllowedTypes
+    value: 'juce::String;juce::var;std::shared_ptr;std::unique_ptr'
+    
+  # Modernization
+  - key: modernize-loop-convert.MaxCopySize
+    value: '16'
+  - key: modernize-loop-convert.MinConfidence
+    value: 'reasonable'
+  - key: modernize-use-auto.MinTypeNameLength
+    value: '5'
+    
+  # Readability
+  - key: readability-braces-around-statements.ShortStatementLines
+    value: '1'
+  - key: readability-simplify-boolean-expr.ChainedConditionalReturn
+    value: 'true'
+  - key: readability-simplify-boolean-expr.ChainedConditionalAssignment
+    value: 'true'
+    
+  # Bugprone
+  - key: bugprone-argument-comment.StrictMode
+    value: 'false'
+  - key: bugprone-suspicious-string-compare.WarnOnImplicitComparison
+    value: 'true'
+    
+  # CERT rules
+  - key: cert-dcl16-c.NewSuffixes
+    value: 'L;LL;LU;LLU'
+  - key: cert-oop54-cpp.WarnOnlyIfThisHasSuspiciousField
+    value: 'false' 

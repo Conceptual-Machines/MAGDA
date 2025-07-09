@@ -1,11 +1,11 @@
 #include "SvgButton.hpp"
+
 #include <juce_graphics/juce_graphics.h>
 
 namespace magica {
 
 SvgButton::SvgButton(const juce::String& buttonName, const char* svgData, size_t svgDataSize)
-    : juce::Button(buttonName)
-{
+    : juce::Button(buttonName) {
     // Load SVG from binary data
     if (svgData && svgDataSize > 0) {
         auto svgString = juce::String::fromUTF8(svgData, static_cast<int>(svgDataSize));
@@ -21,7 +21,7 @@ SvgButton::SvgButton(const juce::String& buttonName, const char* svgData, size_t
     } else {
         DBG("No SVG data provided for button: " + buttonName);
     }
-    
+
     // Set button properties
     setWantsKeyboardFocus(false);
     setMouseClickGrabsKeyboardFocus(false);
@@ -43,12 +43,12 @@ void SvgButton::updateSvgData(const char* svgData, size_t svgDataSize) {
     } else {
         DBG("No SVG data provided for button: " + getName());
     }
-    
-    repaint(); // Trigger repaint with new icon
+
+    repaint();  // Trigger repaint with new icon
 }
 
-void SvgButton::paintButton(juce::Graphics& g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown)
-{
+void SvgButton::paintButton(juce::Graphics& g, bool shouldDrawButtonAsHighlighted,
+                            bool shouldDrawButtonAsDown) {
     if (!svgIcon) {
         // Fallback: draw button name as text
         g.setColour(normalColor);
@@ -56,10 +56,10 @@ void SvgButton::paintButton(juce::Graphics& g, bool shouldDrawButtonAsHighlighte
         g.drawText(getButtonText(), getLocalBounds(), juce::Justification::centred);
         return;
     }
-    
+
     // Determine the color based on button state
     juce::Colour iconColor = normalColor;
-    
+
     if (active) {
         iconColor = activeColor;
     } else if (shouldDrawButtonAsDown) {
@@ -67,7 +67,7 @@ void SvgButton::paintButton(juce::Graphics& g, bool shouldDrawButtonAsHighlighte
     } else if (shouldDrawButtonAsHighlighted) {
         iconColor = hoverColor;
     }
-    
+
     // Draw background if pressed or active
     if (shouldDrawButtonAsDown || active) {
         g.setColour(iconColor.withAlpha(0.1f));
@@ -76,19 +76,19 @@ void SvgButton::paintButton(juce::Graphics& g, bool shouldDrawButtonAsHighlighte
         g.setColour(iconColor.withAlpha(0.05f));
         g.fillRoundedRectangle(getLocalBounds().toFloat(), 4.0f);
     }
-    
+
     // Calculate icon bounds (centered with some padding)
     auto bounds = getLocalBounds().reduced(4);
-    
+
     // Create a copy of the drawable and replace colors
     auto iconCopy = svgIcon->createCopy();
-    
+
     // Replace the currentColor with our desired color
     iconCopy->replaceColour(juce::Colours::black, iconColor);
     iconCopy->replaceColour(juce::Colour(0xFF000000), iconColor);
-    
+
     // Draw the icon
     iconCopy->drawWithin(g, bounds.toFloat(), juce::RectanglePlacement::centred, 1.0f);
 }
 
-} // namespace magica 
+}  // namespace magica

@@ -1,19 +1,20 @@
 #pragma once
 
-#include <string>
-#include <memory>
+#include <juce_core/juce_core.h>
+
 #include <functional>
 #include <map>
-#include <juce_core/juce_core.h>
+#include <memory>
+#include <string>
 
 /**
  * @brief Base interface for all AI agents in the Magica DAW
- * 
+ *
  * This interface provides a simple, lightweight framework for AI agents
  * that can interact with the DAW without the complexity of gRPC.
  */
 class AgentInterface {
-public:
+  public:
     virtual ~AgentInterface() = default;
 
     /**
@@ -62,9 +63,11 @@ public:
      * @brief Set callback for sending messages to the DAW or other agents
      * @param callback Function to call when agent wants to send a message
      */
-    virtual void setMessageCallback(std::function<void(const std::string& from_agent, const std::string& message)> callback) = 0;
+    virtual void setMessageCallback(
+        std::function<void(const std::string& from_agent, const std::string& message)>
+            callback) = 0;
 
-protected:
+  protected:
     /**
      * @brief Send a message to the DAW or other agents
      * @param message The message to send
@@ -75,6 +78,6 @@ protected:
         }
     }
 
-private:
+  private:
     std::function<void(const std::string&, const std::string&)> messageCallback_;
-}; 
+};

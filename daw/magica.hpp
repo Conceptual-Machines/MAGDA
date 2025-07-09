@@ -3,22 +3,22 @@
 /**
  * @file magica.hpp
  * @brief Main header for the Magica Multi-Agent DAW system
- * 
+ *
  * Magica is a Multi-Agent Generative Interface for Creative Audio.
- * It enables multiple intelligent agents to collaboratively compose, arrange, and 
+ * It enables multiple intelligent agents to collaboratively compose, arrange, and
  * manipulate music in real time through a unified API and server-based communication model.
  */
 
-#include "interfaces/transport_interface.hpp"
-#include "interfaces/track_interface.hpp"
+#include "command.hpp"
 #include "interfaces/clip_interface.hpp"
 #include "interfaces/mixer_interface.hpp"
 #include "interfaces/prompt_interface.hpp"
-#include "command.hpp"
+#include "interfaces/track_interface.hpp"
+#include "interfaces/transport_interface.hpp"
 
 // Forward declaration
 namespace magica {
-    class TracktionEngineWrapper;
+class TracktionEngineWrapper;
 }
 
 /**
@@ -41,4 +41,4 @@ void magica_shutdown();
  * @brief Get access to the global Tracktion Engine instance
  * @return Pointer to the engine wrapper, or nullptr if not initialized
  */
-magica::TracktionEngineWrapper* magica_get_engine(); 
+magica::TracktionEngineWrapper* magica_get_engine();

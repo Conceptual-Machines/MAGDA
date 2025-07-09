@@ -5,14 +5,14 @@
 namespace magica {
 
 class TimelineFiller : public juce::Component {
-public:
+  public:
     TimelineFiller();
     ~TimelineFiller() override = default;
 
     void paint(juce::Graphics& g) override;
 
-private:
+  private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TimelineFiller)
 };
 
-} // namespace magica 
+}  // namespace magica

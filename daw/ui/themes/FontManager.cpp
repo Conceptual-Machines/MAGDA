@@ -1,4 +1,5 @@
 #include "FontManager.hpp"
+
 #include <iostream>
 
 namespace magica {
@@ -12,23 +13,23 @@ bool FontManager::initialize() {
     if (initialized) {
         return true;
     }
-    
+
     bool success = true;
-    
+
     initialized = success;
-    
+
     if (initialized) {
         std::cout << "✓ Inter fonts loaded successfully" << std::endl;
     } else {
         std::cerr << "⚠ Some Inter fonts failed to load, falling back to system fonts" << std::endl;
     }
-    
+
     return initialized;
 }
 
 juce::Font FontManager::getInterFont(float size, Weight weight) const {
     juce::Typeface* typeface = nullptr;
-    
+
     switch (weight) {
         case Weight::Regular:
             typeface = interRegular.get();
@@ -43,11 +44,11 @@ juce::Font FontManager::getInterFont(float size, Weight weight) const {
             typeface = interBold.get();
             break;
     }
-    
+
     if (typeface) {
         return juce::Font(typeface).withHeight(size);
     }
-    
+
     // Fallback to system font
     auto style = juce::Font::plain;
     switch (weight) {
@@ -58,7 +59,7 @@ juce::Font FontManager::getInterFont(float size, Weight weight) const {
             style = juce::Font::plain;
             break;
     }
-    
+
     return juce::Font(FALLBACK_FONT, size, style);
 }
 
@@ -86,6 +87,4 @@ juce::Font FontManager::getTimeFont(float size) const {
     return getInterFont(size, Weight::SemiBold);
 }
 
-
-
-} // namespace magica 
+}  // namespace magica

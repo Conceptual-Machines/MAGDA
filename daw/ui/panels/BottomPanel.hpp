@@ -5,15 +5,15 @@
 namespace magica {
 
 class BottomPanel : public juce::Component {
-public:
+  public:
     BottomPanel();
     ~BottomPanel() override;
 
     void paint(juce::Graphics& g) override;
     void resized() override;
 
-private:
+  private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BottomPanel)
 };
 
-} // namespace magica 
+}  // namespace magica

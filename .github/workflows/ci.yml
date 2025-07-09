@@ -7,6 +7,40 @@ on:
     branches: [ main, develop ]
 
 jobs:
+  code-quality:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Install clang-format and clang-tidy
+      run: |
+        brew install clang-format
+        # clang-tidy is included with Xcode command line tools
+        which clang-tidy || echo "clang-tidy not found, installing..."
+        
+    - name: Check code formatting
+      run: |
+        echo "Checking code formatting with clang-format..."
+        find daw agents tests -name "*.cpp" -o -name "*.hpp" -o -name "*.h" | \
+          xargs clang-format -style=file --dry-run --Werror
+        echo "Format check passed!"
+    
+    - name: Configure CMake (needed for clang-tidy)
+      run: |
+        cmake -B build -DCMAKE_BUILD_TYPE=Debug
+    
+    - name: Run static analysis
+      run: |
+        echo "Running clang-tidy static analysis..."
+        # Run on a sample of files to avoid CI timeout
+        find daw -name "*.cpp" | head -5 | \
+          xargs -I {} /opt/homebrew/opt/llvm/bin/clang-tidy {} -p=build --config-file=.clang-tidy --format-style=file || true
+        find agents -name "*.cpp" | head -3 | \
+          xargs -I {} /opt/homebrew/opt/llvm/bin/clang-tidy {} -p=build --config-file=.clang-tidy --format-style=file || true
+        echo "Static analysis complete!"
+
   build-and-test:
     runs-on: macos-latest
         

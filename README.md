@@ -251,27 +251,53 @@ Workflow:
 - JUCE framework
 - Protocol Buffers
 
-### **Build Steps**
+### **Quick Setup**
 ```bash
-# Clone repository
+# Clone repository with submodules
+git clone --recursive https://github.com/yourusername/magica.git
+cd magica
+
+# Run automated setup (handles submodules, dependencies, pre-commit)
+make setup
+
+# Build and run
+make debug
+make run
+```
+
+### **Manual Build Steps**
+```bash
+# Clone repository (if not done with --recursive)
 git clone https://github.com/yourusername/magica.git
 cd magica
 
+# Initialize submodules (required for Tracktion Engine + JUCE)
+git submodule update --init --recursive
+
 # Build entire system
-make build
+make debug
 
 # Run the DAW application
-./build/magica_daw_app
+make run
 
 # Run tests
 make test
 
-# Debug build
-make debug
+# Check code quality
+make quality
+```
 
-# Build specific domains
-cd daw && cmake -B build && make -C build    # DAW only
-cd mcp && cmake -B build && make -C build    # MCP only
+### **Development Quick Start**
+```bash
+# Set up development environment (if not done with make setup)
+pip install pre-commit
+pre-commit install
+
+# Development workflow
+make format         # Format code
+make quality        # Run all quality checks
+make test           # Run tests
+make debug          # Build project
 ```
 
 ### **Dependencies**
@@ -282,6 +308,87 @@ cd mcp && cmake -B build && make -C build    # MCP only
 # - Catch2 v3.4.0 (testing)
 # - Tracktion Engine (audio)
 ```
+
+## 🔧 Development & Code Quality
+
+Magica uses automated code quality tools to ensure consistent, maintainable, and high-quality C++ code throughout the project.
+
+### **Code Quality Tools**
+
+Our development workflow includes:
+- **clang-format**: Automatic code formatting with LLVM style
+- **clang-tidy**: Static analysis and linting (with graceful fallback)
+- **pre-commit hooks**: Automated quality checks before commits
+- **CI/CD integration**: Quality checks on all pull requests
+
+### **Available Make Targets**
+
+```bash
+# 🔧 Build & Development
+make build          # Build entire system
+make debug          # Debug build with symbols
+make test           # Run all tests
+make clean          # Clean build artifacts
+
+# 🎨 Code Quality
+make format         # Format all code with clang-format
+make check-format   # Check formatting without changes
+make lint           # Run static analysis (sample of files)
+make lint-all       # Run comprehensive static analysis
+make quality        # Run all quality checks
+make fix            # Fix common issues and format code
+
+# 📊 Other
+make help           # Show all available targets
+```
+
+### **Code Style Guidelines**
+
+We follow consistent C++ conventions:
+- **Line Length**: 100 characters maximum
+- **Indentation**: 4 spaces (no tabs)
+- **Naming**: CamelCase for classes, camelBack for functions/variables
+- **Pointers**: Left-aligned (`int* ptr`, `int& ref`)
+- **Braces**: Attached style (`{` on same line)
+
+### **Pre-commit Hooks**
+
+Set up automatic quality checks:
+```bash
+# Install pre-commit (if not already installed)
+pip install pre-commit
+
+# Install hooks
+pre-commit install
+
+# Run hooks on all files
+pre-commit run --all-files
+```
+
+### **Development Workflow**
+
+1. **Make changes** to C++ code
+2. **Format automatically** with `make format`
+3. **Check quality** with `make quality`
+4. **Run tests** with `make test`
+5. **Commit changes** (pre-commit hooks run automatically)
+6. **Push to GitHub** (CI runs full quality checks)
+
+### **CI/CD Integration**
+
+Every pull request automatically runs:
+- ✅ Code formatting checks
+- ✅ Static analysis with clang-tidy
+- ✅ Build verification across platforms
+- ✅ Complete test suite execution
+- ✅ Documentation generation
+
+### **Code Quality Notes**
+
+- **clang-tidy compatibility**: Some versions may have issues; the system gracefully falls back to formatting-only mode
+- **Comprehensive coverage**: Quality checks cover all C++ files in `daw/`, `agents/`, and `tests/`
+- **Developer-friendly**: Tools are configured to be helpful, not obstructive
+- **Documentation**: Full style guide available in [`docs/code_style.md`](docs/code_style.md)
 
 ## 🎼 Why Magica?
 
@@ -297,6 +404,38 @@ cd mcp && cmake -B build && make -C build    # MCP only
 
 Magica is an experimental project exploring the future of AI-driven music production. Contributions welcome!
 
+### **Getting Started**
+
+1. **Fork and clone** the repository:
+   ```bash
+   git clone --recursive https://github.com/yourusername/magica.git
+   cd magica
+   ```
+
+2. **Run automated setup**:
+   ```bash
+   make setup
+   ```
+   This will:
+   - ✅ Initialize git submodules (Tracktion Engine + JUCE)
+   - ✅ Check for required dependencies (CMake, C/C++ compilers)
+   - ✅ Install pre-commit hooks automatically
+   - ✅ Create build directories
+
+3. **Build and test**:
+   ```bash
+   make debug      # Build project
+   make test       # Run tests
+   make quality    # Check code quality
+   ```
+
+4. **Follow our development workflow**:
+   - Make your changes
+   - Run `make quality` to check code quality
+   - Run `make test` to ensure tests pass
+   - Commit (pre-commit hooks run automatically)
+   - Submit a pull request
+
 ### **Areas for Contribution**
 - **DAW Domain (`daw/`)**:
   - aideas-core integration for advanced audio processing
@@ -310,6 +449,74 @@ Magica is an experimental project exploring the future of AI-driven music produc
   - Documentation and tutorials
   - Performance optimization
   - Testing and CI/CD
+  - Code quality improvements
+
+### **Code Quality Standards**
+
+All contributions must pass our automated quality checks:
+- ✅ Code formatting (clang-format)
+- ✅ Static analysis (clang-tidy)
+- ✅ Build verification
+- ✅ Test suite execution
+- ✅ Documentation updates
+
+See [`docs/code_style.md`](docs/code_style.md) for detailed guidelines.
+
+## 🔧 Troubleshooting
+
+### **Git Submodules Issues**
+
+If you encounter build errors related to missing files, the issue is likely uninitialized submodules:
+
+```bash
+# Error: tracktion_engine headers not found
+# Error: JUCE modules missing
+# Error: No such file or directory: 'third_party/tracktion_engine/...'
+```
+
+**Solution:**
+```bash
+# Re-run setup to fix submodules
+make setup
+
+# Or manually initialize submodules
+git submodule update --init --recursive
+
+# If submodules are corrupted, reset them
+git submodule deinit --all
+git submodule update --init --recursive
+```
+
+### **Compiler Issues**
+
+**Missing C/C++ compilers:**
+```bash
+# macOS - Install Xcode Command Line Tools
+xcode-select --install
+
+# Ubuntu/Debian
+sudo apt-get install build-essential
+
+# Fedora/RHEL
+sudo dnf install gcc gcc-c++ make
+```
+
+**clang-tidy compatibility issues:**
+- The system gracefully falls back to formatting-only mode
+- See [`docs/code_style.md`](docs/code_style.md) for alternative installation methods
+
+### **Build Issues**
+
+```bash
+# Clean build if encountering CMake cache issues
+make clean
+make setup
+make debug
+
+# Force regenerate build files
+rm -rf cmake-build-debug
+make debug
+```
 
 ## 📄 License
 

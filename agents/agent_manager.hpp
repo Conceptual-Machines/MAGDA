@@ -1,19 +1,21 @@
 #pragma once
 
-#include "agent_interface.hpp"
-#include <vector>
+#include <juce_core/juce_core.h>
+
 #include <memory>
 #include <mutex>
-#include <juce_core/juce_core.h>
+#include <vector>
+
+#include "agent_interface.hpp"
 
 /**
  * @brief Manages all AI agents in the Magica DAW
- * 
+ *
  * The AgentManager coordinates communication between agents and the DAW,
  * handles agent lifecycle, and provides a simple message routing system.
  */
 class AgentManager {
-public:
+  public:
     AgentManager();
     ~AgentManager();
 
@@ -73,7 +75,7 @@ public:
      */
     void stopAllAgents();
 
-private:
+  private:
     /**
      * @brief Handle messages from agents
      * @param fromAgent The ID of the agent sending the message
@@ -83,4 +85,4 @@ private:
 
     mutable std::mutex agentsMutex_;
     std::map<std::string, std::shared_ptr<AgentInterface>> agents_;
-}; 
+};

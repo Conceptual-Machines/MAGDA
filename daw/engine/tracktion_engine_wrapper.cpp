@@ -1,4 +1,5 @@
 #include "tracktion_engine_wrapper.hpp"
+
 #include <iostream>
 
 namespace magica {
@@ -13,12 +14,12 @@ bool TracktionEngineWrapper::initialize() {
     try {
         // Initialize Tracktion Engine
         engine_ = std::make_unique<tracktion::Engine>("MagicaDAW");
-        
+
         // For now, just initialize without creating an edit
         // This allows the build to succeed and we can expand functionality later
         std::cout << "Tracktion Engine initialized successfully (minimal mode)" << std::endl;
         return true;
-        
+
     } catch (const std::exception& e) {
         std::cerr << "ERROR: Failed to initialize Tracktion Engine: " << e.what() << std::endl;
         return false;
@@ -37,36 +38,31 @@ void TracktionEngineWrapper::shutdown() {
 
 CommandResponse TracktionEngineWrapper::processCommand(const Command& command) {
     const auto& type = command.getType();
-    
+
     try {
         if (type == "play") {
             play();
             return CommandResponse(CommandResponse::Status::Success, "Playback started");
-        }
-        else if (type == "stop") {
+        } else if (type == "stop") {
             stop();
             return CommandResponse(CommandResponse::Status::Success, "Playback stopped");
-        }
-        else if (type == "createTrack") {
+        } else if (type == "createTrack") {
             // Simple parameter parsing - in a real implementation you'd parse JSON
             auto trackId = createMidiTrack("New Track");
-            
+
             juce::DynamicObject::Ptr obj = new juce::DynamicObject();
             obj->setProperty("trackId", juce::String(trackId));
             juce::var responseData(obj.get());
-            
+
             auto response = CommandResponse(CommandResponse::Status::Success, "Track created");
             response.setData(responseData);
             return response;
+        } else {
+            return CommandResponse(CommandResponse::Status::Error, "Unknown command");
         }
-        else {
-            return CommandResponse(CommandResponse::Status::Error, 
-                                 "Unknown command");
-        }
-    }
-    catch (const std::exception& e) {
-        return CommandResponse(CommandResponse::Status::Error, 
-                             "Command execution failed: " + std::string(e.what()));
+    } catch (const std::exception& e) {
+        return CommandResponse(CommandResponse::Status::Error,
+                               "Command execution failed: " + std::string(e.what()));
     }
 }
 
@@ -86,7 +82,7 @@ void TracktionEngineWrapper::stop() {
 }
 
 void TracktionEngineWrapper::pause() {
-    stop(); // Tracktion doesn't distinguish between stop and pause
+    stop();  // Tracktion doesn't distinguish between stop and pause
 }
 
 void TracktionEngineWrapper::record() {
@@ -98,7 +94,8 @@ void TracktionEngineWrapper::record() {
 
 void TracktionEngineWrapper::locate(double position_seconds) {
     if (currentEdit_) {
-        currentEdit_->getTransport().setPosition(tracktion::TimePosition::fromSeconds(position_seconds));
+        currentEdit_->getTransport().setPosition(
+            tracktion::TimePosition::fromSeconds(position_seconds));
     }
 }
 
@@ -106,7 +103,8 @@ void TracktionEngineWrapper::locateMusical(int bar, int beat, int tick) {
     // Convert musical position to time
     if (currentEdit_) {
         auto& tempoSequence = currentEdit_->tempoSequence;
-        auto beatPosition = tracktion::BeatPosition::fromBeats(bar * 4.0 + beat - 1.0 + tick / 1000.0);
+        auto beatPosition =
+            tracktion::BeatPosition::fromBeats(bar * 4.0 + beat - 1.0 + tick / 1000.0);
         auto timePosition = tempoSequence.beatsToTime(beatPosition);
         currentEdit_->getTransport().setPosition(timePosition);
     }
@@ -125,7 +123,7 @@ void TracktionEngineWrapper::getCurrentMusicalPosition(int& bar, int& beat, int&
         auto& tempoSequence = currentEdit_->tempoSequence;
         auto beatPosition = tempoSequence.timeToBeats(position);
         auto beats = beatPosition.inBeats();
-        
+
         bar = static_cast<int>(beats / 4.0) + 1;
         beat = static_cast<int>(beats) % 4 + 1;
         tick = static_cast<int>((beats - static_cast<int>(beats)) * 1000);
@@ -202,8 +200,9 @@ bool TracktionEngineWrapper::isLooping() const {
 
 // TrackInterface implementation
 std::string TracktionEngineWrapper::createAudioTrack(const std::string& name) {
-    if (!currentEdit_) return "";
-    
+    if (!currentEdit_)
+        return "";
+
     auto trackId = generateTrackId();
     auto tracks = tracktion::getAudioTracks(*currentEdit_);
     auto insertPoint = tracktion::TrackInsertPoint(nullptr, nullptr);
@@ -217,8 +216,9 @@ std::string TracktionEngineWrapper::createAudioTrack(const std::string& name) {
 }
 
 std::string TracktionEngineWrapper::createMidiTrack(const std::string& name) {
-    if (!currentEdit_) return "";
-    
+    if (!currentEdit_)
+        return "";
+
     auto trackId = generateTrackId();
     auto insertPoint = tracktion::TrackInsertPoint(nullptr, nullptr);
     auto track = currentEdit_->insertNewAudioTrack(insertPoint, nullptr);
@@ -316,19 +316,16 @@ bool TracktionEngineWrapper::trackExists(const std::string& track_id) const {
 }
 
 // ClipInterface implementation
-std::string TracktionEngineWrapper::addMidiClip(const std::string& track_id, 
-                                               double start_time, 
-                                               double length, 
-                                               const std::vector<MidiNote>& notes) {
+std::string TracktionEngineWrapper::addMidiClip(const std::string& track_id, double start_time,
+                                                double length, const std::vector<MidiNote>& notes) {
     // TODO: Implement MIDI clip creation with notes
     auto clipId = generateClipId();
     std::cout << "Created MIDI clip (stub): " << clipId << std::endl;
     return clipId;
 }
 
-std::string TracktionEngineWrapper::addAudioClip(const std::string& track_id,
-                                                double start_time,
-                                                const std::string& audio_file_path) {
+std::string TracktionEngineWrapper::addAudioClip(const std::string& track_id, double start_time,
+                                                 const std::string& audio_file_path) {
     // TODO: Implement audio clip creation
     auto clipId = generateClipId();
     std::cout << "Created audio clip (stub): " << clipId << std::endl;
@@ -365,9 +362,8 @@ void TracktionEngineWrapper::addNoteToMidiClip(const std::string& clip_id, const
     std::cout << "Added note to MIDI clip (stub): " << clip_id << std::endl;
 }
 
-void TracktionEngineWrapper::removeNotesFromMidiClip(const std::string& clip_id, 
-                                                    double start_time, 
-                                                    double end_time) {
+void TracktionEngineWrapper::removeNotesFromMidiClip(const std::string& clip_id, double start_time,
+                                                     double end_time) {
     // TODO: Implement note removal from MIDI clip
     std::cout << "Removed notes from MIDI clip (stub): " << clip_id << std::endl;
 }
@@ -434,7 +430,8 @@ double TracktionEngineWrapper::getMasterVolume() const {
     return 1.0;
 }
 
-std::string TracktionEngineWrapper::addEffect(const std::string& track_id, const std::string& effect_name) {
+std::string TracktionEngineWrapper::addEffect(const std::string& track_id,
+                                              const std::string& effect_name) {
     // TODO: Implement effect addition
     auto effectId = generateEffectId();
     std::cout << "Added effect (stub): " << effect_name << " to track " << track_id << std::endl;
@@ -446,15 +443,15 @@ void TracktionEngineWrapper::removeEffect(const std::string& effect_id) {
     std::cout << "Removed effect (stub): " << effect_id << std::endl;
 }
 
-void TracktionEngineWrapper::setEffectParameter(const std::string& effect_id, 
-                                               const std::string& parameter_name, 
-                                               double value) {
+void TracktionEngineWrapper::setEffectParameter(const std::string& effect_id,
+                                                const std::string& parameter_name, double value) {
     // TODO: Implement effect parameter setting
-    std::cout << "Set effect parameter (stub): " << effect_id << "." << parameter_name << " = " << value << std::endl;
+    std::cout << "Set effect parameter (stub): " << effect_id << "." << parameter_name << " = "
+              << value << std::endl;
 }
 
-double TracktionEngineWrapper::getEffectParameter(const std::string& effect_id, 
-                                                 const std::string& parameter_name) const {
+double TracktionEngineWrapper::getEffectParameter(const std::string& effect_id,
+                                                  const std::string& parameter_name) const {
     // TODO: Implement effect parameter retrieval
     return 0.0;
 }
@@ -474,18 +471,21 @@ std::vector<std::string> TracktionEngineWrapper::getAvailableEffects() const {
     return {"Reverb", "Delay", "EQ", "Compressor"};
 }
 
-std::vector<std::string> TracktionEngineWrapper::getTrackEffects(const std::string& track_id) const {
+std::vector<std::string> TracktionEngineWrapper::getTrackEffects(
+    const std::string& track_id) const {
     // TODO: Implement track effects retrieval
     return {};
 }
 
 // Legacy methods for backward compatibility
-std::string TracktionEngineWrapper::createAudioClip(const std::string& track_id, const std::string& file_path,
-                                                   double start_time, double length) {
+std::string TracktionEngineWrapper::createAudioClip(const std::string& track_id,
+                                                    const std::string& file_path, double start_time,
+                                                    double length) {
     return addAudioClip(track_id, start_time, file_path);
 }
 
-std::string TracktionEngineWrapper::createMidiClip(const std::string& track_id, double start_time, double length) {
+std::string TracktionEngineWrapper::createMidiClip(const std::string& track_id, double start_time,
+                                                   double length) {
     return addMidiClip(track_id, start_time, length, {});
 }
 
@@ -501,7 +501,8 @@ void TracktionEngineWrapper::setClipLength(const std::string& clip_id, double le
     resizeClip(clip_id, length);
 }
 
-std::vector<std::string> TracktionEngineWrapper::getClipsInTrack(const std::string& track_id) const {
+std::vector<std::string> TracktionEngineWrapper::getClipsInTrack(
+    const std::string& track_id) const {
     return getTrackClips(track_id);
 }
 
@@ -528,4 +529,4 @@ std::string TracktionEngineWrapper::generateEffectId() {
     return "effect_" + std::to_string(nextEffectId_++);
 }
 
-} // namespace magica 
+}  // namespace magica

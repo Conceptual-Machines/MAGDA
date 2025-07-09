@@ -1,4 +1,5 @@
 #include "TrackHeadersPanel.hpp"
+
 #include "../themes/DarkTheme.hpp"
 #include "../themes/FontManager.hpp"
 
@@ -11,22 +12,27 @@ TrackHeadersPanel::TrackHeader::TrackHeader(const juce::String& trackName) : nam
     nameLabel->setColour(juce::Label::textColourId, DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
     nameLabel->setColour(juce::Label::backgroundColourId, juce::Colours::transparentBlack);
     nameLabel->setFont(FontManager::getInstance().getUIFont(12.0f));
-    
+
     muteButton = std::make_unique<juce::ToggleButton>("M");
     muteButton->setButtonText("M");
-    muteButton->setColour(juce::ToggleButton::textColourId, DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
-    
+    muteButton->setColour(juce::ToggleButton::textColourId,
+                          DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
+
     soloButton = std::make_unique<juce::ToggleButton>("S");
     soloButton->setButtonText("S");
-    soloButton->setColour(juce::ToggleButton::textColourId, DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
-    
-    volumeSlider = std::make_unique<juce::Slider>(juce::Slider::LinearHorizontal, juce::Slider::NoTextBox);
+    soloButton->setColour(juce::ToggleButton::textColourId,
+                          DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
+
+    volumeSlider =
+        std::make_unique<juce::Slider>(juce::Slider::LinearHorizontal, juce::Slider::NoTextBox);
     volumeSlider->setRange(0.0, 1.0);
     volumeSlider->setValue(volume);
     volumeSlider->setColour(juce::Slider::trackColourId, DarkTheme::getColour(DarkTheme::SURFACE));
-    volumeSlider->setColour(juce::Slider::thumbColourId, DarkTheme::getColour(DarkTheme::ACCENT_BLUE));
-    
-    panSlider = std::make_unique<juce::Slider>(juce::Slider::LinearHorizontal, juce::Slider::NoTextBox);
+    volumeSlider->setColour(juce::Slider::thumbColourId,
+                            DarkTheme::getColour(DarkTheme::ACCENT_BLUE));
+
+    panSlider =
+        std::make_unique<juce::Slider>(juce::Slider::LinearHorizontal, juce::Slider::NoTextBox);
     panSlider->setRange(-1.0, 1.0);
     panSlider->setValue(pan);
     panSlider->setColour(juce::Slider::trackColourId, DarkTheme::getColour(DarkTheme::SURFACE));
@@ -35,7 +41,7 @@ TrackHeadersPanel::TrackHeader::TrackHeader(const juce::String& trackName) : nam
 
 TrackHeadersPanel::TrackHeadersPanel() {
     setSize(TRACK_HEADER_WIDTH, 400);
-    
+
     // Add some initial tracks
     addTrack();
     addTrack();
@@ -44,17 +50,18 @@ TrackHeadersPanel::TrackHeadersPanel() {
 
 void TrackHeadersPanel::paint(juce::Graphics& g) {
     g.fillAll(DarkTheme::getColour(DarkTheme::PANEL_BACKGROUND));
-    
+
     // Draw border
     g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
     g.drawRect(getLocalBounds(), 1);
-    
+
     // Draw track headers
     for (size_t i = 0; i < trackHeaders.size(); ++i) {
         auto headerArea = getTrackHeaderArea(static_cast<int>(i));
         if (headerArea.intersects(getLocalBounds())) {
-            paintTrackHeader(g, *trackHeaders[i], headerArea, static_cast<int>(i) == selectedTrackIndex);
-            
+            paintTrackHeader(g, *trackHeaders[i], headerArea,
+                             static_cast<int>(i) == selectedTrackIndex);
+
             // Draw resize handle
             auto resizeArea = getResizeHandleArea(static_cast<int>(i));
             paintResizeHandle(g, resizeArea);
@@ -69,20 +76,20 @@ void TrackHeadersPanel::resized() {
 void TrackHeadersPanel::addTrack() {
     juce::String trackName = "Track " + juce::String(trackHeaders.size() + 1);
     auto header = std::make_unique<TrackHeader>(trackName);
-    
+
     // Set up callbacks
     int trackIndex = static_cast<int>(trackHeaders.size());
     setupTrackHeader(*header, trackIndex);
-    
+
     // Add components
     addAndMakeVisible(*header->nameLabel);
     addAndMakeVisible(*header->muteButton);
     addAndMakeVisible(*header->soloButton);
     addAndMakeVisible(*header->volumeSlider);
     addAndMakeVisible(*header->panSlider);
-    
+
     trackHeaders.push_back(std::move(header));
-    
+
     updateTrackHeaderLayout();
     repaint();
 }
@@ -90,13 +97,13 @@ void TrackHeadersPanel::addTrack() {
 void TrackHeadersPanel::removeTrack(int index) {
     if (index >= 0 && index < trackHeaders.size()) {
         trackHeaders.erase(trackHeaders.begin() + index);
-        
+
         if (selectedTrackIndex == index) {
             selectedTrackIndex = -1;
         } else if (selectedTrackIndex > index) {
             selectedTrackIndex--;
         }
-        
+
         updateTrackHeaderLayout();
         repaint();
     }
@@ -105,11 +112,11 @@ void TrackHeadersPanel::removeTrack(int index) {
 void TrackHeadersPanel::selectTrack(int index) {
     if (index >= 0 && index < trackHeaders.size()) {
         selectedTrackIndex = index;
-        
+
         if (onTrackSelected) {
             onTrackSelected(index);
         }
-        
+
         repaint();
     }
 }
@@ -122,10 +129,10 @@ void TrackHeadersPanel::setTrackHeight(int trackIndex, int height) {
     if (trackIndex >= 0 && trackIndex < trackHeaders.size()) {
         height = juce::jlimit(MIN_TRACK_HEIGHT, MAX_TRACK_HEIGHT, height);
         trackHeaders[trackIndex]->height = height;
-        
+
         updateTrackHeaderLayout();
         repaint();
-        
+
         if (onTrackHeightChanged) {
             onTrackHeightChanged(trackIndex, height);
         }
@@ -161,55 +168,55 @@ void TrackHeadersPanel::setupTrackHeader(TrackHeader& header, int trackIndex) {
         if (trackIndex < trackHeaders.size()) {
             auto& header = *trackHeaders[trackIndex];
             header.name = header.nameLabel->getText();
-            
+
             if (onTrackNameChanged) {
                 onTrackNameChanged(trackIndex, header.name);
             }
         }
     };
-    
+
     // Mute button callback
     header.muteButton->onClick = [this, trackIndex]() {
         if (trackIndex < trackHeaders.size()) {
             auto& header = *trackHeaders[trackIndex];
             header.muted = header.muteButton->getToggleState();
-            
+
             if (onTrackMutedChanged) {
                 onTrackMutedChanged(trackIndex, header.muted);
             }
         }
     };
-    
+
     // Solo button callback
     header.soloButton->onClick = [this, trackIndex]() {
         if (trackIndex < trackHeaders.size()) {
             auto& header = *trackHeaders[trackIndex];
             header.solo = header.soloButton->getToggleState();
-            
+
             if (onTrackSoloChanged) {
                 onTrackSoloChanged(trackIndex, header.solo);
             }
         }
     };
-    
+
     // Volume slider callback
     header.volumeSlider->onValueChange = [this, trackIndex]() {
         if (trackIndex < trackHeaders.size()) {
             auto& header = *trackHeaders[trackIndex];
             header.volume = static_cast<float>(header.volumeSlider->getValue());
-            
+
             if (onTrackVolumeChanged) {
                 onTrackVolumeChanged(trackIndex, header.volume);
             }
         }
     };
-    
+
     // Pan slider callback
     header.panSlider->onValueChange = [this, trackIndex]() {
         if (trackIndex < trackHeaders.size()) {
             auto& header = *trackHeaders[trackIndex];
             header.pan = static_cast<float>(header.panSlider->getValue());
-            
+
             if (onTrackPanChanged) {
                 onTrackPanChanged(trackIndex, header.pan);
             }
@@ -217,22 +224,24 @@ void TrackHeadersPanel::setupTrackHeader(TrackHeader& header, int trackIndex) {
     };
 }
 
-void TrackHeadersPanel::paintTrackHeader(juce::Graphics& g, const TrackHeader& header, juce::Rectangle<int> area, bool isSelected) {
+void TrackHeadersPanel::paintTrackHeader(juce::Graphics& g, const TrackHeader& header,
+                                         juce::Rectangle<int> area, bool isSelected) {
     // Background
-    g.setColour(isSelected ? DarkTheme::getColour(DarkTheme::TRACK_SELECTED) : DarkTheme::getColour(DarkTheme::TRACK_BACKGROUND));
+    g.setColour(isSelected ? DarkTheme::getColour(DarkTheme::TRACK_SELECTED)
+                           : DarkTheme::getColour(DarkTheme::TRACK_BACKGROUND));
     g.fillRect(area);
-    
+
     // Border
     g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
     g.drawRect(area, 1);
-    
+
     // Track number removed - track names are sufficient identification
 }
 
 void TrackHeadersPanel::paintResizeHandle(juce::Graphics& g, juce::Rectangle<int> area) {
     g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
     g.fillRect(area);
-    
+
     // Draw resize grip
     g.setColour(DarkTheme::getColour(DarkTheme::TEXT_SECONDARY));
     int centerY = area.getCentreY();
@@ -246,10 +255,10 @@ juce::Rectangle<int> TrackHeadersPanel::getTrackHeaderArea(int trackIndex) const
     if (trackIndex < 0 || trackIndex >= trackHeaders.size()) {
         return {};
     }
-    
+
     int yPosition = getTrackYPosition(trackIndex);
     int height = trackHeaders[trackIndex]->height;
-    
+
     return juce::Rectangle<int>(0, yPosition, getWidth(), height - RESIZE_HANDLE_HEIGHT);
 }
 
@@ -257,11 +266,12 @@ juce::Rectangle<int> TrackHeadersPanel::getResizeHandleArea(int trackIndex) cons
     if (trackIndex < 0 || trackIndex >= trackHeaders.size()) {
         return {};
     }
-    
+
     int yPosition = getTrackYPosition(trackIndex);
     int height = trackHeaders[trackIndex]->height;
-    
-    return juce::Rectangle<int>(0, yPosition + height - RESIZE_HANDLE_HEIGHT, getWidth(), RESIZE_HANDLE_HEIGHT);
+
+    return juce::Rectangle<int>(0, yPosition + height - RESIZE_HANDLE_HEIGHT, getWidth(),
+                                RESIZE_HANDLE_HEIGHT);
 }
 
 bool TrackHeadersPanel::isResizeHandleArea(const juce::Point<int>& point, int& trackIndex) const {
@@ -278,32 +288,32 @@ void TrackHeadersPanel::updateTrackHeaderLayout() {
     for (size_t i = 0; i < trackHeaders.size(); ++i) {
         auto& header = *trackHeaders[i];
         auto headerArea = getTrackHeaderArea(static_cast<int>(i));
-        
+
         if (!headerArea.isEmpty()) {
             // Layout UI components within the header area
             auto contentArea = headerArea.reduced(5);
-            
+
             // Name label at top (always visible)
             header.nameLabel->setBounds(contentArea.removeFromTop(20));
-            contentArea.removeFromTop(5); // Spacing
-            
+            contentArea.removeFromTop(5);  // Spacing
+
             // Mute and Solo buttons (always visible)
             auto buttonArea = contentArea.removeFromTop(20);
             header.muteButton->setBounds(buttonArea.removeFromLeft(30));
-            buttonArea.removeFromLeft(5); // Spacing
+            buttonArea.removeFromLeft(5);  // Spacing
             header.soloButton->setBounds(buttonArea.removeFromLeft(30));
-            
-            contentArea.removeFromTop(5); // Spacing
-            
+
+            contentArea.removeFromTop(5);  // Spacing
+
             // Volume slider - only show if enough space
             if (contentArea.getHeight() >= 20) {
                 header.volumeSlider->setBounds(contentArea.removeFromTop(15));
                 header.volumeSlider->setVisible(true);
-                contentArea.removeFromTop(5); // Spacing
+                contentArea.removeFromTop(5);  // Spacing
             } else {
                 header.volumeSlider->setVisible(false);
             }
-            
+
             // Pan slider - only show if enough space
             if (contentArea.getHeight() >= 15) {
                 header.panSlider->setBounds(contentArea.removeFromTop(15));
@@ -340,7 +350,8 @@ void TrackHeadersPanel::mouseDrag(const juce::MouseEvent& event) {
     // Handle vertical track height resizing
     if (isResizing && resizingTrackIndex >= 0) {
         int deltaY = event.y - resizeStartY;
-        int newHeight = juce::jlimit(MIN_TRACK_HEIGHT, MAX_TRACK_HEIGHT, resizeStartHeight + deltaY);
+        int newHeight =
+            juce::jlimit(MIN_TRACK_HEIGHT, MAX_TRACK_HEIGHT, resizeStartHeight + deltaY);
         setTrackHeight(resizingTrackIndex, newHeight);
     }
 }
@@ -400,4 +411,4 @@ void TrackHeadersPanel::setTrackPan(int trackIndex, float pan) {
     }
 }
 
-} // namespace magica 
+}  // namespace magica

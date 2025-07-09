@@ -1,12 +1,15 @@
----
-# Clang-format configuration for Magica DAW
-# Based on JUCE/modern C++ conventions
+# Clang-Format Configuration for Magica DAW
+# Based on LLVM style with customizations for C++ audio development
 
 BasedOnStyle: LLVM
+Language: Cpp
+
+# Indentation
 IndentWidth: 4
 TabWidth: 4
 UseTab: Never
-ColumnLimit: 120
+IndentCaseLabels: true
+IndentPPDirectives: BeforeHash
 
 # Alignment
 AlignAfterOpenBracket: Align
@@ -16,38 +19,20 @@ AlignEscapedNewlines: Right
 AlignOperands: true
 AlignTrailingComments: true
 
-# Allow
-AllowAllParametersOfDeclarationOnNextLine: true
-AllowShortBlocksOnASingleLine: false
-AllowShortCaseLabelsOnASingleLine: false
-AllowShortFunctionsOnASingleLine: Inline
-AllowShortIfStatementsOnASingleLine: false
-AllowShortLoopsOnASingleLine: false
-
-# Braces
-BreakBeforeBraces: Allman
+# Line length and breaking
+ColumnLimit: 100
+BreakBeforeBraces: Attach
 BreakBeforeTernaryOperators: true
 BreakConstructorInitializers: BeforeColon
 BreakInheritanceList: BeforeColon
+BreakStringLiterals: true
 
-# Indentation
-IndentCaseLabels: true
-IndentPPDirectives: AfterHash
-IndentWrappedFunctionNames: false
-
-# Includes
-IncludeBlocks: Regroup
-SortIncludes: true
-
-# Pointers and references
-PointerAlignment: Left
-ReferenceAlignment: Left
-
-# Spaces
+# Spacing
 SpaceAfterCStyleCast: false
 SpaceAfterLogicalNot: false
 SpaceAfterTemplateKeyword: true
 SpaceBeforeAssignmentOperators: true
+SpaceBeforeCpp11BracedList: false
 SpaceBeforeCtorInitializerColon: true
 SpaceBeforeInheritanceColon: true
 SpaceBeforeParens: ControlStatements
@@ -56,17 +41,63 @@ SpaceInEmptyParentheses: false
 SpacesBeforeTrailingComments: 2
 SpacesInAngles: false
 SpacesInCStyleCastParentheses: false
-SpacesInContainerLiterals: false
+SpacesInContainerLiterals: true
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
 
-# Other
-DerivePointerAlignment: false
-DisableFormat: false
-ForEachMacros: []
-KeepEmptyLinesAtTheStartOfBlocks: false
-MaxEmptyLinesToKeep: 2
+# Function and class formatting
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortBlocksOnASingleLine: false
+
+# Includes
+SortIncludes: true
+IncludeBlocks: Regroup
+IncludeCategories:
+  # System headers
+  - Regex: '^<.*\.h>'
+    Priority: 1
+  # C++ standard library
+  - Regex: '^<.*>'
+    Priority: 2
+  # JUCE headers
+  - Regex: '^<juce_.*>'
+    Priority: 3
+  # Tracktion headers
+  - Regex: '^<tracktion_.*>'
+    Priority: 4
+  # Local project headers
+  - Regex: '^".*"'
+    Priority: 5
+
+# Pointer and reference alignment
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# Namespace formatting
 NamespaceIndentation: None
+CompactNamespaces: false
+
+# Constructor initialization
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+ConstructorInitializerIndentWidth: 4
+
+# Comments
 ReflowComments: true
-SortUsingDeclarations: true
-Standard: Cpp17 
+
+# Penalties (to guide formatting decisions)
+PenaltyBreakAssignment: 2
+PenaltyBreakBeforeFirstCallParameter: 19
+PenaltyBreakComment: 300
+PenaltyBreakFirstLessLess: 120
+PenaltyBreakString: 1000
+PenaltyExcessCharacter: 1000000
+PenaltyReturnTypeOnItsOwnLine: 200
+
+# Misc
+Cpp11BracedListStyle: true
+FixNamespaceComments: true
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1 

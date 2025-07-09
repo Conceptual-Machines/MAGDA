@@ -1,13 +1,15 @@
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
+
 #include <memory>
+
 #include "../components/SvgButton.hpp"
 
 namespace magica {
 
 class TransportPanel : public juce::Component {
-public:
+  public:
     TransportPanel();
     ~TransportPanel() override;
 
@@ -22,7 +24,7 @@ public:
     std::function<void(bool)> onLoop;
     std::function<void(double)> onTempoChange;
 
-private:
+  private:
     // Transport controls (left section)
     std::unique_ptr<SvgButton> playButton;
     std::unique_ptr<SvgButton> stopButton;
@@ -62,4 +64,4 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TransportPanel)
 };
 
-} // namespace magica 
+}  // namespace magica

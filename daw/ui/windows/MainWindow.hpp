@@ -1,7 +1,9 @@
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
+
 #include <memory>
+
 #include "MenuManager.hpp"
 
 namespace magica {
@@ -14,19 +16,19 @@ class MainView;
 class BottomPanel;
 
 class MainWindow : public juce::DocumentWindow {
-public:
+  public:
     MainWindow();
     ~MainWindow() override;
 
     void closeButtonPressed() override;
 
-private:
+  private:
     class MainComponent;
     std::unique_ptr<MainComponent> mainComponent;
-    
+
     // Menu bar
     std::unique_ptr<juce::MenuBarComponent> menuBar;
-    
+
     void setupMenuBar();
     void setupMenuCallbacks();
 
@@ -34,7 +36,7 @@ private:
 };
 
 class MainWindow::MainComponent : public juce::Component {
-public:
+  public:
     MainComponent();
     ~MainComponent() override;
 
@@ -45,11 +47,11 @@ public:
     bool leftPanelVisible = true;
     bool rightPanelVisible = true;
     bool bottomPanelVisible = true;
-    
-            std::unique_ptr<TransportPanel> transportPanel;
+
+    std::unique_ptr<TransportPanel> transportPanel;
     std::unique_ptr<MainView> mainView;
 
-private:
+  private:
     // Main layout panels
     std::unique_ptr<LeftPanel> leftPanel;
     std::unique_ptr<RightPanel> rightPanel;
@@ -79,4 +81,4 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };
 
-} // namespace magica 
+}  // namespace magica
