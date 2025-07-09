@@ -46,9 +46,9 @@ public:
 private:
     // Zoom and scroll state
     double currentZoom = 1.0;
-    double minZoom = 0.1;
-    double maxZoom = 100000.0;
-    double timelineLength = 120.0;
+    double minZoom = 0.1;          // Will be loaded from config
+    double maxZoom = 100000.0;     // Will be loaded from config
+    double timelineLength = 0.0;   // Will be loaded from config
     int viewportWidth = 800;
     int currentScrollX = 0;
     

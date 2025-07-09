@@ -1,6 +1,7 @@
 #include "TimelineComponent.hpp"
 #include "../themes/DarkTheme.hpp"
 #include "../themes/FontManager.hpp"
+#include "Config.hpp"
 #include <iostream>
 #include <cmath>
 #include <algorithm>
@@ -9,6 +10,12 @@
 namespace magica {
 
 TimelineComponent::TimelineComponent() {
+    // Load configuration
+    auto& config = magica::Config::getInstance();
+    timelineLength = config.getDefaultTimelineLength();
+    
+    setMouseCursor(juce::MouseCursor::NormalCursor);
+    setWantsKeyboardFocus(false);
     setSize(800, 40);
     
     // Create some sample arrangement sections
@@ -65,6 +72,10 @@ void TimelineComponent::setPlayheadPosition(double position) {
 void TimelineComponent::setZoom(double pixelsPerSecond) {
     zoom = pixelsPerSecond;
     repaint();
+}
+
+void TimelineComponent::setViewportWidth(int width) {
+    viewportWidth = width;
 }
 
 void TimelineComponent::mouseDown(const juce::MouseEvent& event) {
@@ -258,37 +269,39 @@ void TimelineComponent::mouseDrag(const juce::MouseEvent& event) {
             double sensitivity;
             std::cout << "🎯 ZOOM CHECK: actualDeltaY=" << actualDeltaY << " (clamped), zoomStartValue=" << zoomStartValue << std::endl;
             
+            auto& config = magica::Config::getInstance();
+            
             if (actualDeltaY > 0) {
                 // Zooming in - more sensitive for easier sample-level access
                 if (isShiftHeld) {
-                    sensitivity = 8.0; // Super sensitive zoom-in with Shift
+                    sensitivity = config.getZoomInSensitivityShift();
                     std::cout << "🎯 ZOOM IN: sensitivity=" << sensitivity << " (SHIFT TURBO)" << std::endl;
                 } else if (isAltHeld) {
-                    sensitivity = 15.0; // Very sensitive zoom-in with Alt
+                    sensitivity = config.getZoomInSensitivity() * 0.6; // Alt is 60% of normal
                     std::cout << "🎯 ZOOM IN: sensitivity=" << sensitivity << " (ALT FAST)" << std::endl;
                 } else {
-                    sensitivity = 25.0; // More sensitive standard zoom-in
+                    sensitivity = config.getZoomInSensitivity();
                     std::cout << "🎯 ZOOM IN: sensitivity=" << sensitivity << " (SENSITIVE)" << std::endl;
                 }
             } else {
-                // Zooming out - more controlled (higher values = less sensitive)
+                // Zooming out - MUCH more aggressive (lower values = more sensitive)
                 if (isShiftHeld) {
-                    sensitivity = 400.0; // More controlled zoom-out with Shift
-                    std::cout << "🎯 ZOOM OUT: sensitivity=" << sensitivity << " (SHIFT CONTROLLED)" << std::endl;
+                    sensitivity = config.getZoomOutSensitivityShift();
+                    std::cout << "🎯 ZOOM OUT: sensitivity=" << sensitivity << " (SHIFT EXTREME)" << std::endl;
                 } else if (isAltHeld) {
-                    sensitivity = 300.0; // Moderately controlled zoom-out with Alt
+                    sensitivity = config.getZoomOutSensitivity() * 0.75; // Alt is 75% of normal
                     std::cout << "🎯 ZOOM OUT: sensitivity=" << sensitivity << " (ALT CONTROLLED)" << std::endl;
                 } else {
-                    sensitivity = 200.0; // Standard zoom-out (more sensitive than before)
-                    std::cout << "🎯 ZOOM OUT: sensitivity=" << sensitivity << " (STANDARD)" << std::endl;
+                    sensitivity = config.getZoomOutSensitivity();
+                    std::cout << "🎯 ZOOM OUT: sensitivity=" << sensitivity << " (STANDARD AGGRESSIVE)" << std::endl;
                 }
             }
             
             double linearZoomFactor = 1.0 + (actualDeltaY / sensitivity);
             
-            // Gradual safety clamping instead of harsh reset
-            const double minZoomFactor = 0.1;   // 10x zoom out max per operation
-            const double maxZoomFactor = 5.0;   // 5x zoom in max per operation
+            // Much more aggressive zoom-out clamping 
+            const double minZoomFactor = 0.001;  // 1000x zoom out max per operation (EXTREME)
+            const double maxZoomFactor = 5.0;    // 5x zoom in max per operation
             
             if (linearZoomFactor < minZoomFactor) {
                 std::cout << "🎯 ZOOM FACTOR CLAMPED TO MIN: " << linearZoomFactor << " -> " << minZoomFactor << std::endl;
@@ -298,27 +311,41 @@ void TimelineComponent::mouseDrag(const juce::MouseEvent& event) {
                 linearZoomFactor = maxZoomFactor;
             }
             
-            // Simple but more aggressive scaling for zoom-in
+            // More aggressive scaling for zoom-out
             double scaledZoomFactor;
             if (actualDeltaY > 0) {
                 // Zooming in - linear but faster scaling
                 scaledZoomFactor = linearZoomFactor;
             } else {
-                // Zooming out - gentle scaling
+                // Zooming out - extreme scaling to get back to full view very fast
                 double logScale = std::log(linearZoomFactor);
-                scaledZoomFactor = std::exp(logScale * 0.5);
+                scaledZoomFactor = std::exp(logScale * 1.2); // Very aggressive scaling
             }
             
             double newZoom = zoomStartValue * scaledZoomFactor;
             
-            // Higher limits for sample-level viewing but safer than 100k
-            const double minZoom = 1.0;  
-            const double maxZoom = 10000.0; // High enough for detailed viewing but safe
+            // Calculate minimum zoom based on timeline length and viewport width
+            // This ensures you can always zoom out to see the full timeline
+            double minZoom = config.getMinZoomLevel(); // Get from config
+            if (timelineLength > 0 && viewportWidth > 0) {
+                // Use actual viewport width for accurate calculation
+                double availableWidth = viewportWidth - 50.0; // Leave some padding
+                minZoom = availableWidth / timelineLength;
+                minZoom = juce::jmax(minZoom, config.getMinZoomLevel()); // But not below config minimum
+                
+                std::cout << "🎯 DYNAMIC MIN ZOOM: timelineLength=" << timelineLength 
+                          << ", viewportWidth=" << viewportWidth 
+                          << ", availableWidth=" << availableWidth
+                          << ", minZoom=" << minZoom << std::endl;
+            }
+            
+            // Use config max zoom level
+            double maxZoom = config.getMaxZoomLevel();
             
             // Apply limits and prevent NaN/extreme values
             if (std::isnan(newZoom) || newZoom < minZoom) {
                 newZoom = minZoom;
-                std::cout << "🎯 ZOOM CLAMPED TO MIN: " << newZoom << std::endl;
+                std::cout << "🎯 ZOOM CLAMPED TO MIN: " << newZoom << " (FULL TIMELINE VIEW)" << std::endl;
             } else if (newZoom > maxZoom) {
                 newZoom = maxZoom;
                 std::cout << "🎯 ZOOM CLAMPED TO MAX: " << newZoom << " (HIGH DETAIL)" << std::endl;

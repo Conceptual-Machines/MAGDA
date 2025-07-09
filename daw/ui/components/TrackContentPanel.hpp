@@ -59,7 +59,7 @@ private:
     std::vector<std::unique_ptr<TrackLane>> trackLanes;
     int selectedTrackIndex = -1;
     double currentZoom = 1.0; // pixels per second
-    double timelineLength = 120.0;
+    double timelineLength = 0.0; // Will be loaded from config
     
     // Helper methods
     void paintTrackLane(juce::Graphics& g, const TrackLane& lane, juce::Rectangle<int> area, bool isSelected, int trackIndex);

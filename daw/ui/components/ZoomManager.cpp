@@ -1,12 +1,21 @@
 #include "ZoomManager.hpp"
+#include "Config.hpp"
+#include <algorithm>
 #include <iostream>
 #include <cmath>
 
 namespace magica {
 
 ZoomManager::ZoomManager() {
-    // Set default zoom bounds
-    setZoomBounds(0.1, 100000.0);
+    // Load configuration values
+    auto& config = magica::Config::getInstance();
+    minZoom = config.getMinZoomLevel();
+    maxZoom = config.getMaxZoomLevel();
+    timelineLength = config.getDefaultTimelineLength();
+    
+    std::cout << "🎯 ZOOM MANAGER: initialized with minZoom=" << minZoom 
+              << ", maxZoom=" << maxZoom 
+              << ", timelineLength=" << timelineLength << std::endl;
 }
 
 void ZoomManager::setZoom(double newZoom) {

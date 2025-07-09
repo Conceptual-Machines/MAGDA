@@ -1,10 +1,20 @@
 #include "MainView.hpp"
 #include "../themes/DarkTheme.hpp"
 #include <BinaryData.h>
+#include "Config.hpp"
+#include <iostream>
 
 namespace magica {
 
-MainView::MainView() : timelineLength(120.0), playheadPosition(0.0), horizontalZoom(20.0), initialZoomSet(false) {
+MainView::MainView() : playheadPosition(0.0), horizontalZoom(20.0), initialZoomSet(false) {
+    // Load configuration
+    auto& config = magica::Config::getInstance();
+    config.loadFromFile("magica_config.txt"); // Load from file if it exists
+    timelineLength = config.getDefaultTimelineLength();
+    
+    std::cout << "🎯 CONFIG: Timeline length=" << timelineLength << " seconds" << std::endl;
+    std::cout << "🎯 CONFIG: Default zoom view=" << config.getDefaultZoomViewDuration() << " seconds" << std::endl;
+    
     // Make this component focusable to receive keyboard events
     setWantsKeyboardFocus(true);
     
@@ -65,7 +75,7 @@ void MainView::setupComponents() {
     setupTrackSynchronization();
     
     // Set initial timeline length and zoom
-    setTimelineLength(120.0);
+    setTimelineLength(300.0);
 }
 
 void MainView::setupCallbacks() {
@@ -75,7 +85,12 @@ void MainView::setupCallbacks() {
     };
 }
 
-MainView::~MainView() = default;
+MainView::~MainView() {
+    // Save configuration on shutdown
+    auto& config = magica::Config::getInstance();
+    config.saveToFile("magica_config.txt");
+    std::cout << "🎯 CONFIG: Saved configuration on shutdown" << std::endl;
+}
 
 void MainView::paint(juce::Graphics& g) {
     g.fillAll(DarkTheme::getColour(DarkTheme::BACKGROUND));
@@ -124,23 +139,26 @@ void MainView::resized() {
     auto viewportWidth = timelineViewport->getWidth();
     if (viewportWidth > 0) {
         zoomManager->setViewportWidth(viewportWidth);
+        // Also update timeline component with viewport width for minimum zoom calculation
+        timeline->setViewportWidth(viewportWidth);
         
-        // Set initial zoom to show 1 minute (60 seconds) ONLY on first resize
+        // Set initial zoom to show configurable duration on first resize
         if (!initialZoomSet) {
             int availableWidth = viewportWidth - 18; // Account for LEFT_PADDING
             
             if (availableWidth > 0) {
-                double zoomFor1Minute = static_cast<double>(availableWidth) / 60.0; // 60 seconds = 1 minute
+                auto& config = magica::Config::getInstance();
+                double zoomViewDuration = config.getDefaultZoomViewDuration();
+                double zoomForDefaultView = static_cast<double>(availableWidth) / zoomViewDuration;
                 
                 // Ensure minimum zoom level for usability
-                zoomFor1Minute = juce::jmax(zoomFor1Minute, 0.5);
+                zoomForDefaultView = juce::jmax(zoomForDefaultView, 0.5);
                 
                 // Set zoom centered at the beginning of timeline
-                zoomManager->setZoomCentered(zoomFor1Minute, 0.0);
+                zoomManager->setZoomCentered(zoomForDefaultView, 0.0);
                 
-                std::cout << "🎯 INITIAL ZOOM: showing 1 minute, viewportWidth=" << viewportWidth 
-                          << ", availableWidth=" << availableWidth 
-                          << ", zoomFor1Minute=" << zoomFor1Minute << std::endl;
+                std::cout << "🎯 INITIAL ZOOM: showing " << zoomViewDuration << " seconds, availableWidth=" << availableWidth 
+                          << ", zoomForDefaultView=" << zoomForDefaultView << std::endl;
                 
                 initialZoomSet = true;
             }

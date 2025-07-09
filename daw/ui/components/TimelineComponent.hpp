@@ -28,6 +28,7 @@ public:
     void setTimelineLength(double lengthInSeconds);
     void setPlayheadPosition(double position);
     void setZoom(double pixelsPerSecond);
+    void setViewportWidth(int width); // For calculating minimum zoom
     
     // Note: Uses callbacks to communicate with ZoomManager via MainView
 
@@ -58,9 +59,10 @@ private:
     // Layout constants
     static constexpr int LEFT_PADDING = 18; // Left padding to ensure first time label is visible
     
-    double timelineLength = 300.0;
+    double timelineLength = 300.0; // 5 minutes
     double playheadPosition = 0.0;
     double zoom = 1.0; // pixels per second
+    int viewportWidth = 1500; // Default viewport width for minimum zoom calculation
     
     // Arrangement sections
     std::vector<std::unique_ptr<ArrangementSection>> sections;

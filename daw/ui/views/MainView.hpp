@@ -78,7 +78,7 @@ private:
     // Zoom and scroll state
     double horizontalZoom = 1.0;  // Pixels per second
     double verticalZoom = 1.0;    // Track height multiplier
-    double timelineLength = 120.0; // Total timeline length in seconds
+    double timelineLength = 0.0;  // Total timeline length in seconds (loaded from config)
     double playheadPosition = 0.0;
     
     // Synchronization guard to prevent infinite recursion

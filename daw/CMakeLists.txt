@@ -24,6 +24,7 @@ juce_add_binary_data(MagicaAssets
 set(DAW_CORE_SOURCES
     command.cpp
     magica.cpp
+    core/Config.cpp
     engine/tracktion_engine_wrapper.cpp
 )
 
@@ -52,6 +53,7 @@ set(DAW_UI_SOURCES
 set(DAW_HEADERS
     command.hpp
     magica.hpp
+    core/Config.hpp
     engine/tracktion_engine_wrapper.hpp
     interfaces/clip_interface.hpp
     interfaces/mixer_interface.hpp
@@ -114,6 +116,7 @@ target_link_libraries(magica_daw_app
 target_include_directories(magica_daw
     PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/core
     ${CMAKE_CURRENT_SOURCE_DIR}/interfaces
     PRIVATE
     ${CMAKE_SOURCE_DIR}
@@ -123,6 +126,7 @@ target_include_directories(magica_daw
 target_include_directories(magica_daw_app
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/core
     ${CMAKE_CURRENT_SOURCE_DIR}/ui
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/themes
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/windows

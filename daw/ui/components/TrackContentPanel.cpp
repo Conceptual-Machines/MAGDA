@@ -1,16 +1,24 @@
 #include "TrackContentPanel.hpp"
 #include "../themes/DarkTheme.hpp"
 #include "../themes/FontManager.hpp"
+#include "Config.hpp"
+#include <iostream>
 
 namespace magica {
 
 TrackContentPanel::TrackContentPanel() {
-    setSize(800, 400);
+    // Load configuration values
+    auto& config = magica::Config::getInstance();
+    timelineLength = config.getDefaultTimelineLength();
     
-    // Add some initial tracks
-    addTrack();
-    addTrack();
-    addTrack();
+    // Set up the component
+    setSize(1000, 200);
+    setOpaque(true);
+    
+    // Add some default tracks
+    addTrack(); // Audio Track 1
+    addTrack(); // Audio Track 2
+    addTrack(); // MIDI Track 1
 }
 
 void TrackContentPanel::paint(juce::Graphics& g) {
