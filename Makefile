@@ -145,12 +145,20 @@ fix:
 	$(MAKE) format
 	@echo "Code fixes and formatting complete."
 
+# Setup project (initialize submodules, check dependencies)
+.PHONY: setup
+setup:
+	@echo "Setting up Magica DAW project..."
+	@chmod +x setup.sh
+	@./setup.sh
+
 # Show help
 .PHONY: help
 help:
 	@echo "Magica DAW - Build System"
 	@echo ""
 	@echo "Available targets:"
+	@echo "  setup          - Initialize project (submodules, dependencies)"
 	@echo "  all, debug     - Build debug version (default)"
 	@echo "  release        - Build release version"
 	@echo "  run            - Build and run the application"
