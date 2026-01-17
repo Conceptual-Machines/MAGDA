@@ -44,11 +44,15 @@ class TransportPanel : public juce::Component {
     std::unique_ptr<juce::Label> loopLengthDisplay;
 
     // Tempo and quantize (right section)
-    std::unique_ptr<juce::Label> tempoLabel;
-    std::unique_ptr<juce::Slider> tempoSlider;
+    std::unique_ptr<juce::Label> tempoDisplay;       // Main BPM display
+    std::unique_ptr<SvgButton> tempoDecreaseButton;  // Minus button
+    std::unique_ptr<SvgButton> tempoIncreaseButton;  // Plus button
     std::unique_ptr<juce::ComboBox> quantizeCombo;
     std::unique_ptr<SvgButton> metronomeButton;
-    std::unique_ptr<SvgButton> clickButton;
+
+    // Tempo editing
+    void updateTempoDisplay();
+    void adjustTempo(double delta);
 
     // Layout sections
     juce::Rectangle<int> getTransportControlsArea() const;

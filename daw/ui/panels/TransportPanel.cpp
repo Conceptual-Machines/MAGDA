@@ -66,11 +66,14 @@ void TransportPanel::resized() {
     auto tempoY = tempoArea.getCentreY() - 15;
     auto tempoX = tempoArea.getX() + 10;
 
-    tempoLabel->setBounds(tempoX, tempoY, 50, 30);
-    tempoSlider->setBounds(tempoX + 55, tempoY, 80, 30);
-    quantizeCombo->setBounds(tempoX + 145, tempoY, 80, 30);
-    metronomeButton->setBounds(tempoX + 235, tempoY, 60, 30);
-    clickButton->setBounds(tempoX + 305, tempoY, 50, 30);
+    // Tempo section: [-] [120.0] [+]
+    tempoDecreaseButton->setBounds(tempoX, tempoY, 30, 30);
+    tempoDisplay->setBounds(tempoX + 35, tempoY, 70, 30);
+    tempoIncreaseButton->setBounds(tempoX + 110, tempoY, 30, 30);
+
+    // Quantize and metronome
+    quantizeCombo->setBounds(tempoX + 155, tempoY, 80, 30);
+    metronomeButton->setBounds(tempoX + 245, tempoY, 40, 30);
 }
 
 juce::Rectangle<int> TransportPanel::getTransportControlsArea() const {
@@ -201,25 +204,41 @@ void TransportPanel::setupTimeDisplay() {
 }
 
 void TransportPanel::setupTempoAndQuantize() {
-    // Tempo label
-    tempoLabel = std::make_unique<juce::Label>();
-    tempoLabel->setText("BPM:", juce::dontSendNotification);
-    tempoLabel->setColour(juce::Label::textColourId, DarkTheme::getTextColour());
-    tempoLabel->setJustificationType(juce::Justification::centredRight);
-    addAndMakeVisible(*tempoLabel);
+    // Tempo decrease button (-)
+    tempoDecreaseButton =
+        std::make_unique<SvgButton>("Decrease", BinaryData::remove_svg, BinaryData::remove_svgSize);
+    styleTransportButton(*tempoDecreaseButton, DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
+    tempoDecreaseButton->onClick = [this]() { adjustTempo(-1.0); };
+    addAndMakeVisible(*tempoDecreaseButton);
 
-    // Tempo slider
-    tempoSlider = std::make_unique<juce::Slider>();
-    tempoSlider->setSliderStyle(juce::Slider::LinearHorizontal);
-    tempoSlider->setTextBoxStyle(juce::Slider::TextBoxRight, false, 40, 20);
-    tempoSlider->setRange(60.0, 200.0, 1.0);
-    tempoSlider->setValue(currentTempo);
-    tempoSlider->onValueChange = [this]() {
-        currentTempo = tempoSlider->getValue();
-        if (onTempoChange)
-            onTempoChange(currentTempo);
+    // Tempo display (editable label)
+    tempoDisplay = std::make_unique<juce::Label>();
+    tempoDisplay->setFont(FontManager::getInstance().getTimeFont(18.0f));
+    tempoDisplay->setColour(juce::Label::textColourId,
+                            DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
+    tempoDisplay->setColour(juce::Label::backgroundColourId,
+                            DarkTheme::getColour(DarkTheme::SURFACE).darker(0.2f));
+    tempoDisplay->setColour(juce::Label::outlineColourId, DarkTheme::getColour(DarkTheme::BORDER));
+    tempoDisplay->setJustificationType(juce::Justification::centred);
+    tempoDisplay->setEditable(true);
+    tempoDisplay->onTextChange = [this]() {
+        double newTempo = tempoDisplay->getText().getDoubleValue();
+        if (newTempo >= 20.0 && newTempo <= 999.0) {
+            currentTempo = newTempo;
+            if (onTempoChange)
+                onTempoChange(currentTempo);
+        }
+        updateTempoDisplay();  // Ensure display shows valid value
     };
-    addAndMakeVisible(*tempoSlider);
+    addAndMakeVisible(*tempoDisplay);
+    updateTempoDisplay();
+
+    // Tempo increase button (+)
+    tempoIncreaseButton =
+        std::make_unique<SvgButton>("Increase", BinaryData::add_svg, BinaryData::add_svgSize);
+    styleTransportButton(*tempoIncreaseButton, DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
+    tempoIncreaseButton->onClick = [this]() { adjustTempo(1.0); };
+    addAndMakeVisible(*tempoIncreaseButton);
 
     // Quantize combo
     quantizeCombo = std::make_unique<juce::ComboBox>();
@@ -240,16 +259,17 @@ void TransportPanel::setupTempoAndQuantize() {
         metronomeButton->setActive(newState);
     };
     addAndMakeVisible(*metronomeButton);
+}
 
-    // Click button
-    clickButton = std::make_unique<SvgButton>("Click", BinaryData::volume_up_svg,
-                                              BinaryData::volume_up_svgSize);
-    styleTransportButton(*clickButton, DarkTheme::getColour(DarkTheme::ACCENT_BLUE));
-    clickButton->onClick = [this]() {
-        bool newState = !clickButton->isActive();
-        clickButton->setActive(newState);
-    };
-    addAndMakeVisible(*clickButton);
+void TransportPanel::updateTempoDisplay() {
+    tempoDisplay->setText(juce::String(currentTempo, 1), juce::dontSendNotification);
+}
+
+void TransportPanel::adjustTempo(double delta) {
+    currentTempo = juce::jlimit(20.0, 999.0, currentTempo + delta);
+    updateTempoDisplay();
+    if (onTempoChange)
+        onTempoChange(currentTempo);
 }
 
 void TransportPanel::styleTransportButton(SvgButton& button, juce::Colour accentColor) {
@@ -318,8 +338,8 @@ void TransportPanel::setTimeSignature(int numerator, int denominator) {
 }
 
 void TransportPanel::setTempo(double bpm) {
-    currentTempo = bpm;
-    tempoSlider->setValue(bpm, juce::dontSendNotification);
+    currentTempo = juce::jlimit(20.0, 999.0, bpm);
+    updateTempoDisplay();
 }
 
 }  // namespace magica
