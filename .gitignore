@@ -75,3 +75,4 @@ catch2-*
 JuceLibraryCode/
 Builds/
 *.jucer.bak
+.mcp.json
