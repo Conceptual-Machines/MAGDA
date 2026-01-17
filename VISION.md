@@ -1494,6 +1494,192 @@ Project Repository Structure:
 - Project analysis and statistics
 - Custom export/import formats
 
+### 11. MAGICA DSL (Domain-Specific Language)
+
+#### Concept
+**Philosophy**: A unified query/command language for both AI agents and power users.
+
+The DSL uses a **Context-Free Grammar (CFG)** approach where:
+- **LLM agents** generate DSL scripts (constrained by grammar, no hallucination)
+- **Power users** type DSL commands directly for quick automation
+- **Runtime** executes scripts with full context access (the LLM doesn't need to see all clips/tracks)
+
+This separates "what to do" (DSL script) from "how to do it" (runtime with full DAW state).
+
+#### Why CFG-Based DSL?
+
+**Traditional LLM approach (context-heavy)**:
+```
+User: "Find clips shorter than 1 second"
+→ LLM receives: [clip1: 0.5s, clip2: 2.3s, clip3: 0.8s, ...] (huge context)
+→ LLM reasons about each clip
+→ LLM outputs: specific clip IDs
+```
+
+**MAGICA DSL approach (context-free)**:
+```
+User: "Find clips shorter than 1 second"
+→ LLM generates DSL: clips().filter(duration_lt=1.0).select()
+→ Runtime executes with full Tracktion Edit access
+→ Runtime returns: [clip1, clip3]
+```
+
+**Benefits**:
+- LLM doesn't need DAW state context - just generates the query/script
+- Grammar constrains output - no hallucinated commands
+- Deterministic execution - same script always produces same result
+- Scalable - works whether you have 10 clips or 10,000
+- Learnable - users can read AI-generated scripts and learn the DSL
+
+#### DSL Syntax Examples
+
+**Query Operations**:
+```
+# Find and manipulate clips
+clips().filter(track="Piano", duration_lt=1.0).delete()
+clips().filter(muted=true).unmute()
+clips().in_selection().quantize(grid=0.25)
+
+# Track operations
+tracks().filter(has_midi=true).arm()
+tracks().filter(name_contains="Vocal").solo()
+
+# Automation
+automation().on(track="Bass", param="volume").smooth(window=0.1)
+automation().on(track="Synth", param="filter_cutoff").randomize(amount=0.2)
+```
+
+**MIDI Operations**:
+```
+midi().in_clip("Piano_01").transpose(semitones=12)
+midi().in_selection().quantize(grid=0.125, strength=0.8)
+midi().filter(velocity_lt=20).delete()
+midi().filter(note=60).set(velocity=100)
+```
+
+**Batch Operations**:
+```
+# Process all clips on drum tracks
+tracks().filter(name_contains="Drum").clips().normalize()
+
+# Find overlapping clips
+clips().filter(overlapping=true).list()
+
+# Export stems
+tracks().filter(type="audio").each(t => t.export(path="/stems/{name}.wav"))
+```
+
+#### Dual-Use Interface
+
+| Use Case | Input | Example |
+|----------|-------|---------|
+| **AI Agent** | Natural language → LLM → DSL | "Delete short clips" → `clips().filter(duration_lt=0.1).delete()` |
+| **Power User** | Direct DSL typing | User types `clips().filter(duration_lt=0.1).delete()` |
+| **Macro Recording** | Actions → DSL script | Record actions, export as reusable script |
+| **Script Files** | Load .magica scripts | `magica run cleanup.magica` |
+
+#### User Interface
+
+**Command Palette** (Cmd+Shift+P):
+- Quick one-liner execution
+- Autocomplete with grammar awareness
+- Recent command history
+
+**Console Panel**:
+- Full REPL with multi-line support
+- Syntax highlighting
+- Output display with clickable results
+- History navigation
+
+**Script Editor**:
+- Multi-line script editing
+- Syntax highlighting and validation
+- Run selection or full script
+- Save/load .magica script files
+
+#### C++ Implementation
+
+**Core Components**:
+
+```cpp
+// AST Types
+struct Value {
+    enum Kind { Number, String, Identifier, Bool, Function };
+    Kind kind;
+    double num;
+    std::string str;
+    bool boolean;
+};
+
+struct Arg { std::string name; Value value; };
+struct Call { std::string name; std::vector<Arg> args; };
+struct CallChain { std::vector<Call> calls; };
+
+// Engine with method registration (no reflection in C++)
+class DSLEngine {
+    std::unordered_map<std::string, MethodHandler> methods;
+public:
+    void registerMethod(const std::string& name, MethodHandler handler);
+    Result execute(const std::string& dslCode);
+    std::string exportCFG();  // Export grammar for LLM tools
+};
+
+// DSL Implementation with Tracktion access
+class MagicaDSL {
+    tracktion::Edit& edit;  // Direct access to DAW state
+public:
+    void registerAll(DSLEngine& engine);
+
+    // Query methods
+    Result clips(const Args& args);
+    Result tracks(const Args& args);
+    Result midi(const Args& args);
+
+    // Filter/transform methods
+    Result filter(const Args& args);
+    Result select(const Args& args);
+
+    // Action methods
+    Result delete_(const Args& args);
+    Result quantize(const Args& args);
+    Result transpose(const Args& args);
+};
+```
+
+**Parser Options**:
+- Hand-written recursive descent (simple, no dependencies)
+- PEGTL (header-only PEG parser for C++)
+- lexy (modern C++ parser combinator)
+
+#### CFG Export for LLM Tools
+
+The engine exports grammar in formats compatible with LLM structured generation:
+
+```cpp
+// Export for OpenAI CFG-constrained generation
+std::string cfg = engine.exportCFG();
+
+// Returns Lark-format grammar:
+// start: call_chain
+// call_chain: call ("." call)*
+// call: IDENTIFIER "(" arguments? ")"
+// arguments: argument ("," argument)*
+// ...
+```
+
+This allows LLMs to generate only valid DSL code, eliminating syntax errors and hallucinated commands.
+
+#### Integration with Voice Commands
+
+Voice commands can generate DSL:
+```
+Voice: "Select all clips shorter than half a beat"
+→ STT: "select all clips shorter than half a beat"
+→ LLM: clips().filter(duration_lt=0.5).select()
+→ Runtime: Executes with full context
+→ UI: Updates selection
+```
+
 ## Development Phases
 
 ### Phase 1: Foundation (Current)
