@@ -121,6 +121,13 @@ class MainView : public juce::Component,
     std::unique_ptr<ZoomScrollBar> horizontalZoomScrollBar;
     std::unique_ptr<ZoomScrollBar> verticalZoomScrollBar;
 
+    // Fixed master track row at bottom (matching track panel style)
+    class MasterHeaderPanel;
+    class MasterContentPanel;
+    std::unique_ptr<MasterHeaderPanel> masterHeaderPanel;
+    std::unique_ptr<MasterContentPanel> masterContentPanel;
+    static constexpr int MASTER_STRIP_HEIGHT = 60;
+
     // Cached state from controller for quick access
     // These are updated when TimelineStateListener callbacks are called
     double horizontalZoom = 1.0;  // Pixels per second
@@ -235,6 +242,43 @@ class MainView::SelectionOverlayComponent : public juce::Component {
     void drawLoopRegion(juce::Graphics& g);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SelectionOverlayComponent)
+};
+
+// Master header panel - matches track header style with controls
+class MainView::MasterHeaderPanel : public juce::Component, public TrackManagerListener {
+  public:
+    MasterHeaderPanel();
+    ~MasterHeaderPanel() override;
+
+    void paint(juce::Graphics& g) override;
+    void resized() override;
+
+    // TrackManagerListener
+    void tracksChanged() override {}
+    void masterChannelChanged() override;
+
+  private:
+    std::unique_ptr<juce::Label> nameLabel;
+    std::unique_ptr<juce::TextButton> muteButton;
+    std::unique_ptr<juce::TextButton> soloButton;
+    std::unique_ptr<juce::Slider> volumeSlider;
+    std::unique_ptr<juce::Slider> panSlider;
+
+    void setupControls();
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MasterHeaderPanel)
+};
+
+// Master content panel - empty for now, will show waveform later
+class MainView::MasterContentPanel : public juce::Component {
+  public:
+    MasterContentPanel();
+    ~MasterContentPanel() override = default;
+
+    void paint(juce::Graphics& g) override;
+
+  private:
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MasterContentPanel)
 };
 
 }  // namespace magica

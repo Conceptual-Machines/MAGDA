@@ -6,7 +6,9 @@
 #include <set>
 
 #include "../themes/DarkTheme.hpp"
+#include "../themes/FontManager.hpp"
 #include "Config.hpp"
+#include "core/TrackManager.hpp"
 
 namespace magica {
 
@@ -139,6 +141,12 @@ void MainView::setupComponents() {
     playheadComponent = std::make_unique<PlayheadComponent>(*this);
     addAndMakeVisible(*playheadComponent);
     playheadComponent->toFront(false);
+
+    // Create fixed master track row at bottom (matching track panel style)
+    masterHeaderPanel = std::make_unique<MasterHeaderPanel>();
+    addAndMakeVisible(*masterHeaderPanel);
+    masterContentPanel = std::make_unique<MasterContentPanel>();
+    addAndMakeVisible(*masterContentPanel);
 
     // Create horizontal zoom scroll bar (at bottom)
     horizontalZoomScrollBar =
@@ -372,9 +380,18 @@ void MainView::resized() {
     horizontalScrollBarArea.removeFromLeft(trackHeaderWidth + layout.componentSpacing);
     horizontalZoomScrollBar->setBounds(horizontalScrollBarArea);
 
-    // Now position vertical scroll bar (after horizontal removed its bottom portion)
-    verticalScrollBarArea.removeFromBottom(ZOOM_SCROLLBAR_SIZE);  // Don't overlap corner
-    verticalScrollBarArea.removeFromTop(getTimelineHeight());     // Start below timeline
+    // Fixed master track row at the bottom (above horizontal scroll bar)
+    auto masterRowArea = bounds.removeFromBottom(MASTER_STRIP_HEIGHT);
+    // Master header on the left (same width as track headers)
+    masterHeaderPanel->setBounds(masterRowArea.removeFromLeft(trackHeaderWidth));
+    // Padding between header and content
+    masterRowArea.removeFromLeft(layout.componentSpacing);
+    // Master content takes the rest
+    masterContentPanel->setBounds(masterRowArea);
+
+    // Now position vertical scroll bar (after bottom areas removed)
+    verticalScrollBarArea.removeFromBottom(ZOOM_SCROLLBAR_SIZE + MASTER_STRIP_HEIGHT);
+    verticalScrollBarArea.removeFromTop(getTimelineHeight());  // Start below timeline
     verticalZoomScrollBar->setBounds(verticalScrollBarArea);
 
     // Timeline viewport at the top - offset by track header width
@@ -1280,6 +1297,152 @@ void MainView::SelectionOverlayComponent::drawLoopRegion(juce::Graphics& g) {
         g.drawLine(static_cast<float>(originalEndX), 0.0f, static_cast<float>(originalEndX),
                    static_cast<float>(getHeight()), 2.0f);
     }
+}
+
+// ===== MasterHeaderPanel Implementation =====
+
+MainView::MasterHeaderPanel::MasterHeaderPanel() {
+    // Register as TrackManager listener
+    TrackManager::getInstance().addListener(this);
+
+    setupControls();
+
+    // Sync initial state from master channel
+    masterChannelChanged();
+}
+
+MainView::MasterHeaderPanel::~MasterHeaderPanel() {
+    TrackManager::getInstance().removeListener(this);
+}
+
+void MainView::MasterHeaderPanel::setupControls() {
+    // Name label
+    nameLabel = std::make_unique<juce::Label>("masterName", "Master");
+    nameLabel->setColour(juce::Label::textColourId, DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
+    nameLabel->setColour(juce::Label::backgroundColourId, juce::Colours::transparentBlack);
+    nameLabel->setFont(FontManager::getInstance().getUIFont(12.0f));
+    addAndMakeVisible(*nameLabel);
+
+    // Mute button
+    muteButton = std::make_unique<juce::TextButton>("M");
+    muteButton->setColour(juce::TextButton::buttonColourId,
+                          DarkTheme::getColour(DarkTheme::SURFACE));
+    muteButton->setColour(juce::TextButton::buttonOnColourId,
+                          DarkTheme::getColour(DarkTheme::STATUS_WARNING));
+    muteButton->setColour(juce::TextButton::textColourOffId,
+                          DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
+    muteButton->setColour(juce::TextButton::textColourOnId,
+                          DarkTheme::getColour(DarkTheme::BACKGROUND));
+    muteButton->setClickingTogglesState(true);
+    muteButton->onClick = [this]() {
+        TrackManager::getInstance().setMasterMuted(muteButton->getToggleState());
+    };
+    addAndMakeVisible(*muteButton);
+
+    // Solo button (for master, this could be "dim" or just solo for consistency)
+    soloButton = std::make_unique<juce::TextButton>("S");
+    soloButton->setColour(juce::TextButton::buttonColourId,
+                          DarkTheme::getColour(DarkTheme::SURFACE));
+    soloButton->setColour(juce::TextButton::buttonOnColourId,
+                          DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
+    soloButton->setColour(juce::TextButton::textColourOffId,
+                          DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
+    soloButton->setColour(juce::TextButton::textColourOnId,
+                          DarkTheme::getColour(DarkTheme::BACKGROUND));
+    soloButton->setClickingTogglesState(true);
+    soloButton->onClick = [this]() {
+        TrackManager::getInstance().setMasterSoloed(soloButton->getToggleState());
+    };
+    addAndMakeVisible(*soloButton);
+
+    // Volume slider (horizontal fader style)
+    volumeSlider =
+        std::make_unique<juce::Slider>(juce::Slider::LinearHorizontal, juce::Slider::NoTextBox);
+    volumeSlider->setRange(0.0, 1.0);
+    volumeSlider->setValue(1.0);
+    volumeSlider->setColour(juce::Slider::trackColourId, DarkTheme::getColour(DarkTheme::SURFACE));
+    volumeSlider->setColour(juce::Slider::thumbColourId,
+                            DarkTheme::getColour(DarkTheme::ACCENT_BLUE));
+    volumeSlider->onValueChange = [this]() {
+        TrackManager::getInstance().setMasterVolume(static_cast<float>(volumeSlider->getValue()));
+    };
+    addAndMakeVisible(*volumeSlider);
+
+    // Pan slider
+    panSlider =
+        std::make_unique<juce::Slider>(juce::Slider::LinearHorizontal, juce::Slider::NoTextBox);
+    panSlider->setRange(-1.0, 1.0);
+    panSlider->setValue(0.0);
+    panSlider->setColour(juce::Slider::trackColourId, DarkTheme::getColour(DarkTheme::SURFACE));
+    panSlider->setColour(juce::Slider::thumbColourId, DarkTheme::getColour(DarkTheme::ACCENT_BLUE));
+    panSlider->onValueChange = [this]() {
+        TrackManager::getInstance().setMasterPan(static_cast<float>(panSlider->getValue()));
+    };
+    addAndMakeVisible(*panSlider);
+}
+
+void MainView::MasterHeaderPanel::paint(juce::Graphics& g) {
+    // Background - slightly different from regular tracks to distinguish
+    g.fillAll(DarkTheme::getColour(DarkTheme::PANEL_BACKGROUND));
+
+    // Border
+    g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
+    g.drawRect(getLocalBounds(), 1);
+}
+
+void MainView::MasterHeaderPanel::resized() {
+    auto contentArea = getLocalBounds().reduced(4);
+
+    // Top row: Name label and buttons
+    auto topRow = contentArea.removeFromTop(18);
+    nameLabel->setBounds(topRow.removeFromLeft(50));
+    topRow.removeFromLeft(4);
+    muteButton->setBounds(topRow.removeFromLeft(24));
+    topRow.removeFromLeft(2);
+    soloButton->setBounds(topRow.removeFromLeft(24));
+
+    contentArea.removeFromTop(4);  // Spacing
+
+    // Volume row with label
+    auto volumeRow = contentArea.removeFromTop(14);
+    volumeSlider->setBounds(volumeRow);
+
+    contentArea.removeFromTop(2);
+
+    // Pan row with label
+    auto panRow = contentArea.removeFromTop(14);
+    panSlider->setBounds(panRow);
+}
+
+void MainView::MasterHeaderPanel::masterChannelChanged() {
+    const auto& master = TrackManager::getInstance().getMasterChannel();
+
+    muteButton->setToggleState(master.muted, juce::dontSendNotification);
+    soloButton->setToggleState(master.soloed, juce::dontSendNotification);
+    volumeSlider->setValue(master.volume, juce::dontSendNotification);
+    panSlider->setValue(master.pan, juce::dontSendNotification);
+
+    repaint();
+}
+
+// ===== MasterContentPanel Implementation =====
+
+MainView::MasterContentPanel::MasterContentPanel() {
+    // Empty for now - will show waveform later
+}
+
+void MainView::MasterContentPanel::paint(juce::Graphics& g) {
+    // Background matching track content area
+    g.fillAll(DarkTheme::getColour(DarkTheme::TRACK_BACKGROUND));
+
+    // Border
+    g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
+    g.drawRect(getLocalBounds(), 1);
+
+    // Draw a subtle indicator that this is the master output area
+    g.setColour(DarkTheme::getColour(DarkTheme::TEXT_SECONDARY).withAlpha(0.3f));
+    g.setFont(FontManager::getInstance().getUIFont(11.0f));
+    g.drawText("Master Output", getLocalBounds(), juce::Justification::centred);
 }
 
 }  // namespace magica

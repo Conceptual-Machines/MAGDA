@@ -22,7 +22,6 @@ class TrackContentPanel : public juce::Component,
     static constexpr int DEFAULT_TRACK_HEIGHT = 80;
     static constexpr int MIN_TRACK_HEIGHT = 75;
     static constexpr int MAX_TRACK_HEIGHT = 200;
-    static constexpr int MASTER_TRACK_HEIGHT = 60;
 
     TrackContentPanel();
     ~TrackContentPanel() override;
@@ -117,10 +116,8 @@ class TrackContentPanel : public juce::Component,
     // Helper methods
     void paintTrackLane(juce::Graphics& g, const TrackLane& lane, juce::Rectangle<int> area,
                         bool isSelected, int trackIndex);
-    void paintMasterLane(juce::Graphics& g, juce::Rectangle<int> area);
     void paintGrid(juce::Graphics& g, juce::Rectangle<int> area);
     juce::Rectangle<int> getTrackLaneArea(int trackIndex) const;
-    juce::Rectangle<int> getMasterLaneArea() const;
 
     // Grid drawing
     void drawTimeGrid(juce::Graphics& g, juce::Rectangle<int> area);
