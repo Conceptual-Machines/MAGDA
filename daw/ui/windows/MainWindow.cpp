@@ -8,6 +8,7 @@
 #include "../panels/TransportPanel.hpp"
 #include "../themes/DarkTheme.hpp"
 #include "../views/MainView.hpp"
+#include "../views/SessionView.hpp"
 #include "core/Config.hpp"
 
 namespace magica {
@@ -104,8 +105,12 @@ MainWindow::MainComponent::MainComponent() {
     };
     addAndMakeVisible(*rightPanel);
 
+    // Create views
     mainView = std::make_unique<MainView>();
     addAndMakeVisible(*mainView);
+
+    sessionView = std::make_unique<SessionView>();
+    addChildComponent(*sessionView);  // Hidden by default
 
     // Wire up loop region updates to transport panel
     mainView->onLoopRegionChanged = [this](double start, double end, bool enabled) {
@@ -181,9 +186,18 @@ MainWindow::MainComponent::MainComponent() {
         resized();
     };
     addAndMakeVisible(*bottomResizer);
+
+    // Register for view mode changes
+    ViewModeController::getInstance().addListener(this);
+
+    // Set initial view based on current mode
+    currentViewMode = ViewModeController::getInstance().getViewMode();
+    switchToView(currentViewMode);
 }
 
-MainWindow::MainComponent::~MainComponent() = default;
+MainWindow::MainComponent::~MainComponent() {
+    ViewModeController::getInstance().removeListener(this);
+}
 
 void MainWindow::MainComponent::paint(juce::Graphics& g) {
     g.fillAll(DarkTheme::getBackgroundColour());
@@ -263,14 +277,44 @@ void MainWindow::MainComponent::resized() {
         rightResizer->setVisible(false);
     }
 
-    // Main view gets the remaining space
+    // Center view area - both views get the same bounds, visibility controls which is shown
     mainView->setBounds(contentArea);
+    sessionView->setBounds(contentArea);
 
     // Update panel visibility
     leftPanel->setVisible(leftPanelVisible);
     rightPanel->setVisible(rightPanelVisible);
     bottomPanel->setVisible(bottomPanelVisible);
     bottomResizer->setVisible(bottomPanelVisible);
+}
+
+void MainWindow::MainComponent::viewModeChanged(ViewMode mode,
+                                                const AudioEngineProfile& /*profile*/) {
+    if (mode != currentViewMode) {
+        currentViewMode = mode;
+        switchToView(mode);
+    }
+}
+
+void MainWindow::MainComponent::switchToView(ViewMode mode) {
+    // Hide all views first
+    mainView->setVisible(false);
+    sessionView->setVisible(false);
+
+    // Show the appropriate view
+    switch (mode) {
+        case ViewMode::Live:
+            sessionView->setVisible(true);
+            break;
+        case ViewMode::Arrange:
+        case ViewMode::Mix:
+        case ViewMode::Master:
+            // For now, Arrange/Mix/Master all use MainView
+            mainView->setVisible(true);
+            break;
+    }
+
+    DBG("Switched to view mode: " << getViewModeName(mode));
 }
 
 void MainWindow::setupMenuBar() {

@@ -6,6 +6,8 @@
 
 #include "../layout/LayoutConfig.hpp"
 #include "MenuManager.hpp"
+#include "core/ViewModeController.hpp"
+#include "core/ViewModeState.hpp"
 
 namespace magica {
 
@@ -14,6 +16,7 @@ class TransportPanel;
 class LeftPanel;
 class RightPanel;
 class MainView;
+class SessionView;
 class BottomPanel;
 class FooterBar;
 
@@ -37,13 +40,16 @@ class MainWindow : public juce::DocumentWindow {
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainWindow)
 };
 
-class MainWindow::MainComponent : public juce::Component {
+class MainWindow::MainComponent : public juce::Component, public ViewModeListener {
   public:
     MainComponent();
     ~MainComponent() override;
 
     void paint(juce::Graphics& g) override;
     void resized() override;
+
+    // ViewModeListener
+    void viewModeChanged(ViewMode mode, const AudioEngineProfile& profile) override;
 
     // Make these public so MainWindow can access them
     bool leftPanelVisible = true;
@@ -56,9 +62,13 @@ class MainWindow::MainComponent : public juce::Component {
 
     std::unique_ptr<TransportPanel> transportPanel;
     std::unique_ptr<MainView> mainView;
+    std::unique_ptr<SessionView> sessionView;
     std::unique_ptr<FooterBar> footerBar;
 
   private:
+    // Current view mode
+    ViewMode currentViewMode = ViewMode::Arrange;
+
     // Main layout panels
     std::unique_ptr<LeftPanel> leftPanel;
     std::unique_ptr<RightPanel> rightPanel;
@@ -86,6 +96,9 @@ class MainWindow::MainComponent : public juce::Component {
     std::unique_ptr<ResizeHandle> leftResizer;
     std::unique_ptr<ResizeHandle> rightResizer;
     std::unique_ptr<ResizeHandle> bottomResizer;
+
+    // View switching helper
+    void switchToView(ViewMode mode);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

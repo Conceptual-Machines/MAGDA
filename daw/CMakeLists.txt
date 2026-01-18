@@ -92,6 +92,7 @@ set(DAW_UI_SOURCES
     audio/AudioEngineOptimizer.cpp
     # Views
     ui/views/MainView.cpp
+    ui/views/SessionView.cpp
     # Components - Common
     ui/components/common/SvgButton.cpp
     ui/components/common/ZoomControls.cpp
@@ -142,6 +143,7 @@ set(DAW_HEADERS
     audio/AudioEngineOptimizer.hpp
     # Views
     ui/views/MainView.hpp
+    ui/views/SessionView.hpp
     ui/views/ArrangementView.hpp
     ui/views/PerformanceView.hpp
     # Layout
