@@ -45,6 +45,8 @@ PreferencesDialog::PreferencesDialog() {
     setupShortcutLabel(deleteTrackShortcut, "Delete Track", "Delete");
     setupShortcutLabel(duplicateTrackShortcut, "Duplicate Track", "Ctrl+D");
 #endif
+    setupShortcutLabel(muteTrackShortcut, "Mute Track", "M");
+    setupShortcutLabel(soloTrackShortcut, "Solo Track", "S");
 
     // Setup buttons
     okButton.setButtonText("OK");
@@ -72,7 +74,7 @@ PreferencesDialog::PreferencesDialog() {
     loadCurrentSettings();
 
     // Set preferred size (increased height for panels and shortcuts sections)
-    setSize(450, 700);
+    setSize(450, 780);
 }
 
 PreferencesDialog::~PreferencesDialog() = default;
@@ -190,6 +192,16 @@ void PreferencesDialog::resized() {
     // Duplicate Track shortcut
     row = bounds.removeFromTop(rowHeight);
     duplicateTrackShortcut.setBounds(row);
+    bounds.removeFromTop(4);
+
+    // Mute Track shortcut
+    row = bounds.removeFromTop(rowHeight);
+    muteTrackShortcut.setBounds(row);
+    bounds.removeFromTop(4);
+
+    // Solo Track shortcut
+    row = bounds.removeFromTop(rowHeight);
+    soloTrackShortcut.setBounds(row);
 
     // Button row at bottom
     auto buttonArea = getLocalBounds().reduced(20).removeFromBottom(buttonHeight);

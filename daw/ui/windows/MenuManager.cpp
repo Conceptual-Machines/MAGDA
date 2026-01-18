@@ -99,8 +99,8 @@ juce::PopupMenu MenuManager::getMenuForIndex(int topLevelMenuIndex, const juce::
         menu.addItem(DuplicateTrack, "Duplicate Track\tCtrl+D", true, false);
 #endif
         menu.addSeparator();
-        menu.addItem(MuteTrack, "Mute Track", true, false);
-        menu.addItem(SoloTrack, "Solo Track", true, false);
+        menu.addItem(MuteTrack, "Mute Track\tM", true, false);
+        menu.addItem(SoloTrack, "Solo Track\tS", true, false);
     } else if (menuName == "Window") {
         menu.addItem(Minimize, "Minimize", true, false);
         menu.addItem(Zoom, "Zoom", true, false);

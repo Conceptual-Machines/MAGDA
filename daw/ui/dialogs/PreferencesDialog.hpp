@@ -46,6 +46,8 @@ class PreferencesDialog : public juce::Component {
     juce::Label addTrackShortcut;
     juce::Label deleteTrackShortcut;
     juce::Label duplicateTrackShortcut;
+    juce::Label muteTrackShortcut;
+    juce::Label soloTrackShortcut;
 
     // Labels for each control
     juce::Label zoomInLabel;

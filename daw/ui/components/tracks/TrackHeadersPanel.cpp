@@ -13,15 +13,27 @@ TrackHeadersPanel::TrackHeader::TrackHeader(const juce::String& trackName) : nam
     nameLabel->setColour(juce::Label::backgroundColourId, juce::Colours::transparentBlack);
     nameLabel->setFont(FontManager::getInstance().getUIFont(12.0f));
 
-    muteButton = std::make_unique<juce::ToggleButton>("M");
-    muteButton->setButtonText("M");
-    muteButton->setColour(juce::ToggleButton::textColourId,
+    muteButton = std::make_unique<juce::TextButton>("M");
+    muteButton->setColour(juce::TextButton::buttonColourId,
+                          DarkTheme::getColour(DarkTheme::SURFACE));
+    muteButton->setColour(juce::TextButton::buttonOnColourId,
+                          DarkTheme::getColour(DarkTheme::STATUS_WARNING));
+    muteButton->setColour(juce::TextButton::textColourOffId,
                           DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
+    muteButton->setColour(juce::TextButton::textColourOnId,
+                          DarkTheme::getColour(DarkTheme::BACKGROUND));
+    muteButton->setClickingTogglesState(true);
 
-    soloButton = std::make_unique<juce::ToggleButton>("S");
-    soloButton->setButtonText("S");
-    soloButton->setColour(juce::ToggleButton::textColourId,
+    soloButton = std::make_unique<juce::TextButton>("S");
+    soloButton->setColour(juce::TextButton::buttonColourId,
+                          DarkTheme::getColour(DarkTheme::SURFACE));
+    soloButton->setColour(juce::TextButton::buttonOnColourId,
+                          DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
+    soloButton->setColour(juce::TextButton::textColourOffId,
                           DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
+    soloButton->setColour(juce::TextButton::textColourOnId,
+                          DarkTheme::getColour(DarkTheme::BACKGROUND));
+    soloButton->setClickingTogglesState(true);
 
     volumeSlider =
         std::make_unique<juce::Slider>(juce::Slider::LinearHorizontal, juce::Slider::NoTextBox);

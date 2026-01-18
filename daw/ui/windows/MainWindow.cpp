@@ -242,6 +242,36 @@ bool MainWindow::MainComponent::keyPressed(const juce::KeyPress& key) {
         return true;
     }
 
+    // M: Toggle mute on selected track
+    if (key == juce::KeyPress('m') || key == juce::KeyPress('M')) {
+        if (mixerView && !mixerView->isSelectedMaster()) {
+            int selectedIndex = mixerView->getSelectedChannel();
+            if (selectedIndex >= 0) {
+                const auto& tracks = TrackManager::getInstance().getTracks();
+                if (selectedIndex < static_cast<int>(tracks.size())) {
+                    const auto& track = tracks[selectedIndex];
+                    TrackManager::getInstance().setTrackMuted(track.id, !track.muted);
+                }
+            }
+        }
+        return true;
+    }
+
+    // S: Toggle solo on selected track (without modifiers - Cmd+S is Save)
+    if (key == juce::KeyPress('s') && !key.getModifiers().isCommandDown()) {
+        if (mixerView && !mixerView->isSelectedMaster()) {
+            int selectedIndex = mixerView->getSelectedChannel();
+            if (selectedIndex >= 0) {
+                const auto& tracks = TrackManager::getInstance().getTracks();
+                if (selectedIndex < static_cast<int>(tracks.size())) {
+                    const auto& track = tracks[selectedIndex];
+                    TrackManager::getInstance().setTrackSoloed(track.id, !track.soloed);
+                }
+            }
+        }
+        return true;
+    }
+
     return false;
 }
 

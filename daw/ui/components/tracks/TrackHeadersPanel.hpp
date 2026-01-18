@@ -74,8 +74,8 @@ class TrackHeadersPanel : public juce::Component, public TrackManagerListener {
 
         // UI components
         std::unique_ptr<juce::Label> nameLabel;
-        std::unique_ptr<juce::ToggleButton> muteButton;
-        std::unique_ptr<juce::ToggleButton> soloButton;
+        std::unique_ptr<juce::TextButton> muteButton;
+        std::unique_ptr<juce::TextButton> soloButton;
         std::unique_ptr<juce::Slider> volumeSlider;
         std::unique_ptr<juce::Slider> panSlider;
 
