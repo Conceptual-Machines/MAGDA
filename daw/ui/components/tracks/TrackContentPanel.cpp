@@ -405,6 +405,33 @@ int TrackContentPanel::getTrackIndexAtY(int y) const {
     return -1;  // Not in any track
 }
 
+bool TrackContentPanel::isOnExistingSelection(int x, int y) const {
+    // Check if there's an active selection in the controller
+    if (!timelineController) {
+        return false;
+    }
+
+    const auto& selection = timelineController->getState().selection;
+    if (!selection.isActive()) {
+        return false;
+    }
+
+    // Check horizontal bounds (time-based)
+    double clickTime = pixelToTime(x);
+    if (clickTime < selection.startTime || clickTime > selection.endTime) {
+        return false;
+    }
+
+    // Check vertical bounds (track-based)
+    int trackIndex = getTrackIndexAtY(y);
+    if (trackIndex < 0) {
+        return false;
+    }
+
+    // Check if this track is part of the selection
+    return selection.includesTrack(trackIndex);
+}
+
 void TrackContentPanel::mouseDown(const juce::MouseEvent& event) {
     // Store initial mouse position for click vs drag detection
     mouseDownX = event.x;
@@ -422,9 +449,22 @@ void TrackContentPanel::mouseDown(const juce::MouseEvent& event) {
         }
     }
 
+    // Check if clicking on an existing selection (to move it)
+    if (isOnExistingSelection(event.x, event.y)) {
+        const auto& selection = timelineController->getState().selection;
+        isMovingSelection = true;
+        isCreatingSelection = false;
+        moveDragStartTime = pixelToTime(event.x);
+        moveSelectionOriginalStart = selection.startTime;
+        moveSelectionOriginalEnd = selection.endTime;
+        moveSelectionOriginalTracks = selection.trackIndices;
+        return;
+    }
+
     // Start time selection tracking if in selectable area
     if (isInSelectableArea(event.x, event.y)) {
         isCreatingSelection = true;
+        isMovingSelection = false;
         selectionStartTime = juce::jmax(0.0, pixelToTime(event.x));
 
         // Apply snap to grid if callback is set
@@ -437,7 +477,39 @@ void TrackContentPanel::mouseDown(const juce::MouseEvent& event) {
 }
 
 void TrackContentPanel::mouseDrag(const juce::MouseEvent& event) {
-    if (isCreatingSelection) {
+    if (isMovingSelection) {
+        // Calculate time delta from drag start
+        double currentTime = pixelToTime(event.x);
+        double deltaTime = currentTime - moveDragStartTime;
+
+        // Calculate new selection bounds
+        double newStart = moveSelectionOriginalStart + deltaTime;
+        double newEnd = moveSelectionOriginalEnd + deltaTime;
+
+        // Apply snap to grid if callback is set
+        if (snapTimeToGrid) {
+            double snappedStart = snapTimeToGrid(newStart);
+            double snapDelta = snappedStart - newStart;
+            newStart = snappedStart;
+            newEnd += snapDelta;
+        }
+
+        // Clamp to timeline bounds
+        double duration = moveSelectionOriginalEnd - moveSelectionOriginalStart;
+        if (newStart < 0) {
+            newStart = 0;
+            newEnd = duration;
+        }
+        if (newEnd > timelineLength) {
+            newEnd = timelineLength;
+            newStart = timelineLength - duration;
+        }
+
+        // Notify about selection change (preserve original track indices)
+        if (onTimeSelectionChanged) {
+            onTimeSelectionChanged(newStart, newEnd, moveSelectionOriginalTracks);
+        }
+    } else if (isCreatingSelection) {
         // Update selection end time
         selectionEndTime = juce::jmax(0.0, juce::jmin(timelineLength, pixelToTime(event.x)));
 
@@ -464,6 +536,16 @@ void TrackContentPanel::mouseDrag(const juce::MouseEvent& event) {
 }
 
 void TrackContentPanel::mouseUp(const juce::MouseEvent& event) {
+    if (isMovingSelection) {
+        // Finalize move - the selection has already been updated via mouseDrag
+        isMovingSelection = false;
+        moveDragStartTime = -1.0;
+        moveSelectionOriginalStart = -1.0;
+        moveSelectionOriginalEnd = -1.0;
+        moveSelectionOriginalTracks.clear();
+        return;
+    }
+
     if (isCreatingSelection) {
         isCreatingSelection = false;
 
@@ -521,9 +603,22 @@ void TrackContentPanel::mouseUp(const juce::MouseEvent& event) {
     }
 }
 
+void TrackContentPanel::mouseDoubleClick(const juce::MouseEvent& event) {
+    // Double-click on empty area clears selection
+    if (!isOnExistingSelection(event.x, event.y)) {
+        if (onTimeSelectionChanged) {
+            // Clear selection by sending invalid values
+            onTimeSelectionChanged(-1.0, -1.0, {});
+        }
+    }
+}
+
 void TrackContentPanel::mouseMove(const juce::MouseEvent& event) {
     // Update cursor based on area
-    if (isInSelectableArea(event.x, event.y)) {
+    if (isOnExistingSelection(event.x, event.y)) {
+        // Show grab cursor when over an existing selection
+        setMouseCursor(juce::MouseCursor::DraggingHandCursor);
+    } else if (isInSelectableArea(event.x, event.y)) {
         setMouseCursor(juce::MouseCursor::IBeamCursor);
     } else {
         setMouseCursor(juce::MouseCursor::NormalCursor);

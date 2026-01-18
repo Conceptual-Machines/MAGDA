@@ -121,6 +121,7 @@ class TrackContentPanel : public juce::Component, public TimelineStateListener {
     void mouseDrag(const juce::MouseEvent& event) override;
     void mouseUp(const juce::MouseEvent& event) override;
     void mouseMove(const juce::MouseEvent& event) override;
+    void mouseDoubleClick(const juce::MouseEvent& event) override;
 
     // Mouse interaction constants and state
     static constexpr int DRAG_THRESHOLD = 3;  // Pixels of movement to distinguish click from drag
@@ -136,11 +137,19 @@ class TrackContentPanel : public juce::Component, public TimelineStateListener {
     bool isShiftHeld = false;
     int selectionStartTrackIndex = -1;
 
+    // Move selection state
+    bool isMovingSelection = false;
+    double moveDragStartTime = -1.0;
+    double moveSelectionOriginalStart = -1.0;
+    double moveSelectionOriginalEnd = -1.0;
+    std::set<int> moveSelectionOriginalTracks;
+
     // Helper to check if a position is in a selectable area
     bool isInSelectableArea(int x, int y) const;
     double pixelToTime(int pixel) const;
     int timeToPixel(double time) const;
     int getTrackIndexAtY(int y) const;
+    bool isOnExistingSelection(int x, int y) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TrackContentPanel)
 };
