@@ -309,13 +309,9 @@ MixerView::MixerView() {
 
     // Build channel strips from TrackManager
     rebuildChannelStrips();
-
-    // Start meter animation timer
-    startTimerHz(30);
 }
 
 MixerView::~MixerView() {
-    stopTimer();
     TrackManager::getInstance().removeListener(this);
 }
 
@@ -394,7 +390,7 @@ void MixerView::resized() {
 }
 
 void MixerView::timerCallback() {
-    simulateMeterLevels();
+    // Timer callback - meters will be driven by actual audio engine in future
 }
 
 void MixerView::selectChannel(int index, bool isMaster) {
@@ -423,34 +419,6 @@ void MixerView::selectChannel(int index, bool isMaster) {
     }
 
     DBG("Selected channel: " << (isMaster ? "Master" : juce::String(index + 1)));
-}
-
-void MixerView::simulateMeterLevels() {
-    // Simulate meter activity with random levels (for demo)
-    auto& random = juce::Random::getSystemRandom();
-
-    for (auto& strip : channelStrips) {
-        float currentLevel = strip->getMeterLevel();
-        float targetLevel = random.nextFloat() * 0.7f + 0.1f;
-
-        // Smooth attack, fast decay
-        float newLevel;
-        if (targetLevel > currentLevel) {
-            newLevel = currentLevel + (targetLevel - currentLevel) * 0.3f;  // Fast attack
-        } else {
-            newLevel = currentLevel * 0.85f;  // Smooth decay
-        }
-
-        strip->setMeterLevel(newLevel);
-    }
-
-    // Master level (slightly higher)
-    float masterLevel = masterStrip->getMeterLevel();
-    float targetMaster = random.nextFloat() * 0.8f + 0.15f;
-    float newMaster = (targetMaster > masterLevel)
-                          ? masterLevel + (targetMaster - masterLevel) * 0.3f
-                          : masterLevel * 0.85f;
-    masterStrip->setMeterLevel(newMaster);
 }
 
 }  // namespace magica

@@ -119,7 +119,6 @@ class MixerView : public juce::Component, public juce::Timer, public TrackManage
     std::unique_ptr<juce::Component> channelContainer;
 
     void rebuildChannelStrips();
-    void simulateMeterLevels();
 
     // Selection state
     int selectedChannelIndex = 0;  // Track index, -1 for no selection

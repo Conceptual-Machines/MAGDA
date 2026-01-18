@@ -120,22 +120,14 @@ void SessionView::rebuildTracks() {
     // Create clip slots for each track
     for (int track = 0; track < numTracks; ++track) {
         std::array<std::unique_ptr<juce::TextButton>, NUM_SCENES> trackSlots;
-        juce::Colour trackColour = tracks[track].colour;
 
         for (size_t scene = 0; scene < NUM_SCENES; ++scene) {
             auto slot = std::make_unique<juce::TextButton>();
 
-            // Some slots have clips, some are empty (for demo)
-            bool hasClip = ((track + scene) % 3 != 0);
-
-            if (hasClip) {
-                slot->setButtonText("");
-                slot->setColour(juce::TextButton::buttonColourId, trackColour);
-            } else {
-                slot->setButtonText("");
-                slot->setColour(juce::TextButton::buttonColourId,
-                                DarkTheme::getColour(DarkTheme::SURFACE));
-            }
+            // Empty clip slot
+            slot->setButtonText("");
+            slot->setColour(juce::TextButton::buttonColourId,
+                            DarkTheme::getColour(DarkTheme::SURFACE));
 
             slot->setColour(juce::TextButton::textColourOffId,
                             DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));

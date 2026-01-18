@@ -33,6 +33,19 @@ PreferencesDialog::PreferencesDialog() {
     setupToggle(showRightPanelToggle, "Show Right Panel (Inspector)");
     setupToggle(showBottomPanelToggle, "Show Bottom Panel (Mixer)");
 
+    // Setup keyboard shortcuts section
+    setupSectionHeader(shortcutsHeader, "Keyboard Shortcuts");
+#if JUCE_MAC
+    setupShortcutLabel(addTrackShortcut, "Add Track", juce::String::fromUTF8("\u2318T"));
+    setupShortcutLabel(deleteTrackShortcut, "Delete Track", juce::String::fromUTF8("\u232B"));
+    setupShortcutLabel(duplicateTrackShortcut, "Duplicate Track",
+                       juce::String::fromUTF8("\u2318D"));
+#else
+    setupShortcutLabel(addTrackShortcut, "Add Track", "Ctrl+T");
+    setupShortcutLabel(deleteTrackShortcut, "Delete Track", "Delete");
+    setupShortcutLabel(duplicateTrackShortcut, "Duplicate Track", "Ctrl+D");
+#endif
+
     // Setup buttons
     okButton.setButtonText("OK");
     okButton.onClick = [this]() {
@@ -58,8 +71,8 @@ PreferencesDialog::PreferencesDialog() {
     // Load current settings
     loadCurrentSettings();
 
-    // Set preferred size (increased height for panels section)
-    setSize(450, 580);
+    // Set preferred size (increased height for panels and shortcuts sections)
+    setSize(450, 700);
 }
 
 PreferencesDialog::~PreferencesDialog() = default;
@@ -156,6 +169,27 @@ void PreferencesDialog::resized() {
     // Show bottom panel toggle
     row = bounds.removeFromTop(toggleHeight + 8);
     showBottomPanelToggle.setBounds(row.reduced(0, 4));
+
+    bounds.removeFromTop(sectionSpacing);
+
+    // Keyboard Shortcuts section
+    auto shortcutsHeaderBounds = bounds.removeFromTop(headerHeight);
+    shortcutsHeader.setBounds(shortcutsHeaderBounds);
+    bounds.removeFromTop(4);
+
+    // Add Track shortcut
+    row = bounds.removeFromTop(rowHeight);
+    addTrackShortcut.setBounds(row);
+    bounds.removeFromTop(4);
+
+    // Delete Track shortcut
+    row = bounds.removeFromTop(rowHeight);
+    deleteTrackShortcut.setBounds(row);
+    bounds.removeFromTop(4);
+
+    // Duplicate Track shortcut
+    row = bounds.removeFromTop(rowHeight);
+    duplicateTrackShortcut.setBounds(row);
 
     // Button row at bottom
     auto buttonArea = getLocalBounds().reduced(20).removeFromBottom(buttonHeight);
@@ -275,6 +309,14 @@ void PreferencesDialog::setupSectionHeader(juce::Label& header, const juce::Stri
     header.setFont(juce::Font(14.0f, juce::Font::bold));
     header.setJustificationType(juce::Justification::centredLeft);
     addAndMakeVisible(header);
+}
+
+void PreferencesDialog::setupShortcutLabel(juce::Label& label, const juce::String& action,
+                                           const juce::String& shortcut) {
+    label.setText(action + ":  " + shortcut, juce::dontSendNotification);
+    label.setColour(juce::Label::textColourId, DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
+    label.setJustificationType(juce::Justification::centredLeft);
+    addAndMakeVisible(label);
 }
 
 }  // namespace magica

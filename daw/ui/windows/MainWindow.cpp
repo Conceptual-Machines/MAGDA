@@ -82,6 +82,9 @@ void MainWindow::closeButtonPressed() {
 
 // MainComponent implementation
 MainWindow::MainComponent::MainComponent() {
+    // Enable keyboard focus for shortcuts
+    setWantsKeyboardFocus(true);
+
     // Initialize panel visibility from Config
     auto& config = Config::getInstance();
     leftPanelVisible = config.getShowLeftPanel();
@@ -202,6 +205,44 @@ MainWindow::MainComponent::MainComponent() {
 
 MainWindow::MainComponent::~MainComponent() {
     ViewModeController::getInstance().removeListener(this);
+}
+
+bool MainWindow::MainComponent::keyPressed(const juce::KeyPress& key) {
+    // Cmd/Ctrl+T: Add Track
+    if (key == juce::KeyPress('t', juce::ModifierKeys::commandModifier, 0)) {
+        TrackManager::getInstance().createTrack();
+        return true;
+    }
+
+    // Delete or Backspace: Delete selected track
+    if (key == juce::KeyPress::deleteKey || key == juce::KeyPress::backspaceKey) {
+        if (mixerView && !mixerView->isSelectedMaster()) {
+            int selectedIndex = mixerView->getSelectedChannel();
+            if (selectedIndex >= 0) {
+                const auto& tracks = TrackManager::getInstance().getTracks();
+                if (selectedIndex < static_cast<int>(tracks.size())) {
+                    TrackManager::getInstance().deleteTrack(tracks[selectedIndex].id);
+                }
+            }
+        }
+        return true;
+    }
+
+    // Cmd/Ctrl+D: Duplicate selected track
+    if (key == juce::KeyPress('d', juce::ModifierKeys::commandModifier, 0)) {
+        if (mixerView && !mixerView->isSelectedMaster()) {
+            int selectedIndex = mixerView->getSelectedChannel();
+            if (selectedIndex >= 0) {
+                const auto& tracks = TrackManager::getInstance().getTracks();
+                if (selectedIndex < static_cast<int>(tracks.size())) {
+                    TrackManager::getInstance().duplicateTrack(tracks[selectedIndex].id);
+                }
+            }
+        }
+        return true;
+    }
+
+    return false;
 }
 
 void MainWindow::MainComponent::paint(juce::Graphics& g) {

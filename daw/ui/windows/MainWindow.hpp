@@ -49,6 +49,9 @@ class MainWindow::MainComponent : public juce::Component, public ViewModeListene
     void paint(juce::Graphics& g) override;
     void resized() override;
 
+    // Keyboard handling
+    bool keyPressed(const juce::KeyPress& key) override;
+
     // ViewModeListener
     void viewModeChanged(ViewMode mode, const AudioEngineProfile& profile) override;
 

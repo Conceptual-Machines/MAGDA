@@ -83,13 +83,24 @@ juce::PopupMenu MenuManager::getMenuForIndex(int topLevelMenuIndex, const juce::
         menu.addItem(GoToStart, "Go to Start", true, false);
         menu.addItem(GoToEnd, "Go to End", true, false);
     } else if (menuName == "Track") {
-        menu.addItem(AddTrack, "Add Track", true, false);
+#if JUCE_MAC
+        menu.addItem(AddTrack, juce::String("Add Track") + juce::String::fromUTF8("\t\u2318T"),
+                     true, false);
         menu.addSeparator();
-        menu.addItem(DeleteTrack, "Delete Track", hasSelection_, false);
-        menu.addItem(DuplicateTrack, "Duplicate Track", hasSelection_, false);
+        menu.addItem(DeleteTrack, juce::String("Delete Track") + juce::String::fromUTF8("\t\u232B"),
+                     true, false);
+        menu.addItem(DuplicateTrack,
+                     juce::String("Duplicate Track") + juce::String::fromUTF8("\t\u2318D"), true,
+                     false);
+#else
+        menu.addItem(AddTrack, "Add Track\tCtrl+T", true, false);
         menu.addSeparator();
-        menu.addItem(MuteTrack, "Mute Track", hasSelection_, false);
-        menu.addItem(SoloTrack, "Solo Track", hasSelection_, false);
+        menu.addItem(DeleteTrack, "Delete Track\tDelete", true, false);
+        menu.addItem(DuplicateTrack, "Duplicate Track\tCtrl+D", true, false);
+#endif
+        menu.addSeparator();
+        menu.addItem(MuteTrack, "Mute Track", true, false);
+        menu.addItem(SoloTrack, "Solo Track", true, false);
     } else if (menuName == "Window") {
         menu.addItem(Minimize, "Minimize", true, false);
         menu.addItem(Zoom, "Zoom", true, false);

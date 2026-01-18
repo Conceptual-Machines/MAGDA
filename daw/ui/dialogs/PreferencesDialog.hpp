@@ -41,6 +41,12 @@ class PreferencesDialog : public juce::Component {
     juce::ToggleButton showRightPanelToggle;
     juce::ToggleButton showBottomPanelToggle;
 
+    // Keyboard shortcuts section (read-only display for now)
+    juce::Label shortcutsHeader;
+    juce::Label addTrackShortcut;
+    juce::Label deleteTrackShortcut;
+    juce::Label duplicateTrackShortcut;
+
     // Labels for each control
     juce::Label zoomInLabel;
     juce::Label zoomOutLabel;
@@ -67,6 +73,8 @@ class PreferencesDialog : public juce::Component {
                      double min, double max, double interval, const juce::String& suffix = "");
     void setupToggle(juce::ToggleButton& toggle, const juce::String& text);
     void setupSectionHeader(juce::Label& header, const juce::String& text);
+    void setupShortcutLabel(juce::Label& label, const juce::String& action,
+                            const juce::String& shortcut);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PreferencesDialog)
 };
