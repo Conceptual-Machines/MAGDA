@@ -1099,15 +1099,19 @@ void TimelineComponent::drawTimeSelection(juce::Graphics& g) {
         return;
     }
 
-    // Draw selection highlight covering entire timeline height
+    // Get ruler top (below arrangement bar) to match loop region
+    auto& layout = LayoutConfig::getInstance();
+    int rulerTop = layout.arrangementBarHeight;
+
+    // Draw selection highlight covering ruler area (not arrangement bar)
     g.setColour(DarkTheme::getColour(DarkTheme::TIME_SELECTION));
-    g.fillRect(startX, 0, endX - startX, getHeight());
+    g.fillRect(startX, rulerTop, endX - startX, getHeight() - rulerTop);
 
     // Draw selection edges (use drawLine for consistency with grid)
     g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_BLUE).withAlpha(0.6f));
-    g.drawLine(static_cast<float>(startX), 0, static_cast<float>(startX),
+    g.drawLine(static_cast<float>(startX), static_cast<float>(rulerTop), static_cast<float>(startX),
                static_cast<float>(getHeight()), 1.0f);
-    g.drawLine(static_cast<float>(endX), 0, static_cast<float>(endX),
+    g.drawLine(static_cast<float>(endX), static_cast<float>(rulerTop), static_cast<float>(endX),
                static_cast<float>(getHeight()), 1.0f);
 }
 
