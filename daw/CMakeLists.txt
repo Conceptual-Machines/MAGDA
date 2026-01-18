@@ -108,6 +108,8 @@ set(DAW_UI_SOURCES
     # Components - Tracks
     ui/components/tracks/TrackHeadersPanel.cpp
     ui/components/tracks/TrackContentPanel.cpp
+    # Components - Mixer
+    ui/components/mixer/MasterChannelStrip.cpp
 )
 
 # All DAW headers
@@ -171,6 +173,8 @@ set(DAW_HEADERS
     # Components - Tracks
     ui/components/tracks/TrackHeadersPanel.hpp
     ui/components/tracks/TrackContentPanel.hpp
+    # Components - Mixer
+    ui/components/mixer/MasterChannelStrip.hpp
 )
 
 # Create DAW library (core functionality)

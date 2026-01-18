@@ -6,6 +6,7 @@
 #include <memory>
 #include <vector>
 
+#include "../components/mixer/MasterChannelStrip.hpp"
 #include "core/TrackManager.hpp"
 
 namespace magica {
@@ -112,7 +113,7 @@ class MixerView : public juce::Component, public juce::Timer, public TrackManage
 
     // Channel strips (dynamic based on TrackManager)
     std::vector<std::unique_ptr<ChannelStrip>> channelStrips;
-    std::unique_ptr<ChannelStrip> masterStrip;
+    std::unique_ptr<MasterChannelStrip> masterStrip;
 
     // Scrollable area for channels
     std::unique_ptr<juce::Viewport> channelViewport;

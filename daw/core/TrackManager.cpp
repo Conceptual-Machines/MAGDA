@@ -139,6 +139,33 @@ void TrackManager::setTrackRecordArmed(int trackId, bool armed) {
     }
 }
 
+// Master channel methods
+void TrackManager::setMasterVolume(float volume) {
+    masterChannel_.volume = volume;
+    notifyMasterChannelChanged();
+}
+
+void TrackManager::setMasterPan(float pan) {
+    masterChannel_.pan = pan;
+    notifyMasterChannelChanged();
+}
+
+void TrackManager::setMasterMuted(bool muted) {
+    masterChannel_.muted = muted;
+    notifyMasterChannelChanged();
+}
+
+void TrackManager::setMasterSoloed(bool soloed) {
+    masterChannel_.soloed = soloed;
+    notifyMasterChannelChanged();
+}
+
+void TrackManager::notifyMasterChannelChanged() {
+    for (auto* listener : listeners_) {
+        listener->masterChannelChanged();
+    }
+}
+
 void TrackManager::addListener(TrackManagerListener* listener) {
     if (listener && std::find(listeners_.begin(), listeners_.end(), listener) == listeners_.end()) {
         listeners_.push_back(listener);

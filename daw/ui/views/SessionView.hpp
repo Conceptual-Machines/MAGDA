@@ -6,6 +6,7 @@
 #include <memory>
 #include <vector>
 
+#include "../components/mixer/MasterChannelStrip.hpp"
 #include "core/TrackManager.hpp"
 
 namespace magica {
@@ -71,6 +72,9 @@ class SessionView : public juce::Component,
     class SceneContainer;
     std::unique_ptr<HeaderContainer> headerContainer;
     std::unique_ptr<SceneContainer> sceneContainer;
+
+    // Master channel strip
+    std::unique_ptr<MasterChannelStrip> masterStrip;
 
     void rebuildTracks();
     void setupSceneButtons();

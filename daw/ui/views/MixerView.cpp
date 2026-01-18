@@ -295,13 +295,8 @@ MixerView::MixerView() {
     channelViewport->setScrollBarsShown(false, true);  // Horizontal scroll only
     addAndMakeVisible(*channelViewport);
 
-    // Create master strip (using a dummy track info for master)
-    TrackInfo masterTrack;
-    masterTrack.id = -1;
-    masterTrack.name = "Master";
-    masterTrack.colour = DarkTheme::getColour(DarkTheme::ACCENT_BLUE);
-    masterStrip = std::make_unique<ChannelStrip>(masterTrack, true);
-    masterStrip->onClicked = [this](int /*id*/, bool isMaster) { selectChannel(-1, isMaster); };
+    // Create master strip (uses shared MasterChannelStrip component)
+    masterStrip = std::make_unique<MasterChannelStrip>(MasterChannelStrip::Orientation::Vertical);
     addAndMakeVisible(*masterStrip);
 
     // Register as TrackManager listener
@@ -394,15 +389,14 @@ void MixerView::timerCallback() {
 }
 
 void MixerView::selectChannel(int index, bool isMaster) {
-    // Deselect all channels
+    // Deselect all channel strips
     for (auto& strip : channelStrips) {
         strip->setSelected(false);
     }
-    masterStrip->setSelected(false);
 
     // Select the clicked channel
     if (isMaster) {
-        masterStrip->setSelected(true);
+        // Master strip selection is visual-only (no setSelected on MasterChannelStrip)
         selectedChannelIndex = -1;
         selectedIsMaster = true;
     } else {

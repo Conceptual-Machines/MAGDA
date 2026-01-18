@@ -77,6 +77,10 @@ SessionView::SessionView() {
 
     setupSceneButtons();
 
+    // Create master channel strip (vertical orientation for Session view)
+    masterStrip = std::make_unique<MasterChannelStrip>(MasterChannelStrip::Orientation::Vertical);
+    addAndMakeVisible(*masterStrip);
+
     // Register as TrackManager listener
     TrackManager::getInstance().addListener(this);
 
@@ -171,6 +175,10 @@ void SessionView::resized() {
     // Calculate track column width (clip + separator)
     int trackColumnWidth = CLIP_SLOT_SIZE + TRACK_SEPARATOR_WIDTH;
     int sceneRowHeight = CLIP_SLOT_SIZE + CLIP_SLOT_MARGIN;
+
+    // Master channel strip on the far right
+    static constexpr int MASTER_STRIP_WIDTH = 80;
+    masterStrip->setBounds(bounds.removeFromRight(MASTER_STRIP_WIDTH));
 
     // Scene container on the right (below header area)
     auto sceneArea = bounds.removeFromRight(SCENE_BUTTON_WIDTH);

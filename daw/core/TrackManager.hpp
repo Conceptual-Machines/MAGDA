@@ -8,6 +8,16 @@
 namespace magica {
 
 /**
+ * @brief Master channel state
+ */
+struct MasterChannelState {
+    float volume = 1.0f;
+    float pan = 0.0f;
+    bool muted = false;
+    bool soloed = false;
+};
+
+/**
  * @brief Listener interface for track changes
  */
 class TrackManagerListener {
@@ -21,6 +31,9 @@ class TrackManagerListener {
     virtual void trackPropertyChanged(int trackId) {
         juce::ignoreUnused(trackId);
     }
+
+    // Called when master channel properties change
+    virtual void masterChannelChanged() {}
 };
 
 /**
@@ -62,6 +75,15 @@ class TrackManager {
     void setTrackSoloed(int trackId, bool soloed);
     void setTrackRecordArmed(int trackId, bool armed);
 
+    // Master channel
+    const MasterChannelState& getMasterChannel() const {
+        return masterChannel_;
+    }
+    void setMasterVolume(float volume);
+    void setMasterPan(float pan);
+    void setMasterMuted(bool muted);
+    void setMasterSoloed(bool soloed);
+
     // Listener management
     void addListener(TrackManagerListener* listener);
     void removeListener(TrackManagerListener* listener);
@@ -77,9 +99,11 @@ class TrackManager {
     std::vector<TrackInfo> tracks_;
     std::vector<TrackManagerListener*> listeners_;
     int nextTrackId_ = 1;
+    MasterChannelState masterChannel_;
 
     void notifyTracksChanged();
     void notifyTrackPropertyChanged(int trackId);
+    void notifyMasterChannelChanged();
 
     juce::String generateTrackName() const;
 };
