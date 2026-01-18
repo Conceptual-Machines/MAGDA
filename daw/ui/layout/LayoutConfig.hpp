@@ -12,14 +12,14 @@ namespace magica {
  */
 struct LayoutConfig {
     // Timeline area heights
-    int arrangementBarHeight = 30;
-    int timeRulerHeight = 40;
+    int arrangementBarHeight = 18;  // Reduced to give more space for time labels
+    int timeRulerHeight = 52;       // Increased to accommodate labels
 
     // Time ruler details
-    int rulerMajorTickHeight = 16;
-    int rulerMinorTickHeight = 8;
+    int rulerMajorTickHeight = 14;  // Shortened to avoid overlap with loop markers
+    int rulerMinorTickHeight = 6;   // Shortened to avoid overlap with loop markers
     int rulerLabelFontSize = 11;
-    int rulerLabelTopMargin = 4;
+    int rulerLabelTopMargin = 10;  // Space between separator line and time labels
 
     // Debug mode
     bool showDebugOverlay = false;

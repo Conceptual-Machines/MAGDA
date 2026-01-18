@@ -48,10 +48,13 @@ void TimelineComponent::paint(juce::Graphics& g) {
     // Draw time selection first (background layer)
     drawTimeSelection(g);
 
+    // Draw loop markers (background - shaded region behind time labels)
+    drawLoopMarkers(g);
+
     // Draw arrangement sections (in top section)
     drawArrangementSections(g);
 
-    // Draw time markers (in time ruler section)
+    // Draw time markers (in time ruler section) - ON TOP of loop region
     drawTimeMarkers(g);
 
     // Draw separator line between arrangement and time ruler
@@ -59,8 +62,8 @@ void TimelineComponent::paint(juce::Graphics& g) {
     g.drawLine(0, static_cast<float>(arrangementHeight), static_cast<float>(getWidth()),
                static_cast<float>(arrangementHeight), 1.0f);
 
-    // Draw loop markers (on top of everything else)
-    drawLoopMarkers(g);
+    // Draw loop marker flags on top (triangular indicators)
+    drawLoopMarkerFlags(g);
 
     // Note: Playhead is now drawn by MainView's unified playhead component
 }
@@ -161,30 +164,47 @@ void TimelineComponent::mouseDown(const juce::MouseEvent& event) {
     isPendingPlayheadClick = false;
     isDraggingLoopStart = false;
     isDraggingLoopEnd = false;
+    isDraggingTimeSelection = false;
 
     // Get layout configuration for zone calculations
     auto& layout = LayoutConfig::getInstance();
     int arrangementHeight = layout.arrangementBarHeight;
-    int timeRulerEnd = arrangementHeight + layout.timeRulerHeight;
+    int timeRulerHeight = layout.timeRulerHeight;
+    int timeRulerEnd = arrangementHeight + timeRulerHeight;
+    int rulerMidpoint = arrangementHeight + (timeRulerHeight / 2);
 
     // Define zones based on LayoutConfig
     bool inSectionsArea = event.y <= arrangementHeight;
     bool inTimeRulerArea = event.y > arrangementHeight && event.y <= timeRulerEnd;
+    bool inTimeSelectionZone = event.y >= rulerMidpoint && event.y <= timeRulerEnd;
 
     // Check for loop marker dragging first - works in both arrangement and ruler areas
-    if (loopEnabled) {
-        bool isStartMarker;
-        if (isOnLoopMarker(event.x, event.y, isStartMarker)) {
-            if (isStartMarker) {
-                isDraggingLoopStart = true;
-            } else {
-                isDraggingLoopEnd = true;
-            }
-            return;
+    bool isStartMarker;
+    if (isOnLoopMarker(event.x, event.y, isStartMarker)) {
+        if (isStartMarker) {
+            isDraggingLoopStart = true;
+        } else {
+            isDraggingLoopEnd = true;
         }
+        return;
     }
 
-    // Zone 1: Time ruler area - prepare for click (playhead) or drag (zoom)
+    // Zone 1a: Lower ruler area (near tick labels) - start time selection
+    if (inTimeSelectionZone) {
+        isDraggingTimeSelection = true;
+        double startTime = pixelToTime(event.x);
+        startTime = juce::jlimit(0.0, timelineLength, startTime);
+        if (snapEnabled) {
+            startTime = snapTimeToGrid(startTime);
+        }
+        timeSelectionDragStart = startTime;
+        timeSelectionStart = startTime;
+        timeSelectionEnd = startTime;
+        repaint();
+        return;
+    }
+
+    // Zone 1b: Upper ruler area - prepare for click (playhead) or drag (zoom)
     // Don't set playhead yet - wait for mouseUp to distinguish click from drag
     if (inTimeRulerArea) {
         isPendingPlayheadClick = true;
@@ -221,14 +241,13 @@ void TimelineComponent::mouseMove(const juce::MouseEvent& event) {
     // Update cursor based on zone
     auto& layout = LayoutConfig::getInstance();
     int arrangementHeight = layout.arrangementBarHeight;
+    int timeRulerHeight = layout.timeRulerHeight;
 
     // Check for loop markers first - they span both arrangement and ruler areas
-    if (loopEnabled) {
-        bool isStartMarker;
-        if (isOnLoopMarker(event.x, event.y, isStartMarker)) {
-            setMouseCursor(juce::MouseCursor::LeftRightResizeCursor);
-            return;
-        }
+    bool isStartMarker;
+    if (isOnLoopMarker(event.x, event.y, isStartMarker)) {
+        setMouseCursor(juce::MouseCursor::LeftRightResizeCursor);
+        return;
     }
 
     if (event.y <= arrangementHeight) {
@@ -245,13 +264,46 @@ void TimelineComponent::mouseMove(const juce::MouseEvent& event) {
         }
         setMouseCursor(juce::MouseCursor::NormalCursor);
     } else {
-        // In time ruler area - show magnifying glass for zoom
-        setMouseCursor(juce::MouseCursor::CrosshairCursor);
+        // In time ruler area - split into two zones
+        // Upper half: zoom (crosshair), Lower half: time selection (I-beam)
+        int rulerMidpoint = arrangementHeight + (timeRulerHeight / 2);
+
+        if (event.y < rulerMidpoint) {
+            // Upper ruler area - zoom cursor
+            setMouseCursor(juce::MouseCursor::CrosshairCursor);
+        } else {
+            // Lower ruler area (near tick labels) - time selection cursor
+            setMouseCursor(juce::MouseCursor::IBeamCursor);
+        }
     }
 }
 
 void TimelineComponent::mouseDrag(const juce::MouseEvent& event) {
-    // Handle loop marker dragging first
+    // Handle time selection dragging first
+    if (isDraggingTimeSelection) {
+        double currentTime = pixelToTime(event.x);
+        currentTime = juce::jlimit(0.0, timelineLength, currentTime);
+        if (snapEnabled) {
+            currentTime = snapTimeToGrid(currentTime);
+        }
+
+        // Update selection based on drag direction
+        if (currentTime < timeSelectionDragStart) {
+            timeSelectionStart = currentTime;
+            timeSelectionEnd = timeSelectionDragStart;
+        } else {
+            timeSelectionStart = timeSelectionDragStart;
+            timeSelectionEnd = currentTime;
+        }
+
+        if (onTimeSelectionChanged) {
+            onTimeSelectionChanged(timeSelectionStart, timeSelectionEnd);
+        }
+        repaint();
+        return;
+    }
+
+    // Handle loop marker dragging
     if (isDraggingLoopStart || isDraggingLoopEnd) {
         double newTime = juce::jmax(0.0, juce::jmin(timelineLength, pixelToTime(event.x)));
 
@@ -391,6 +443,21 @@ void TimelineComponent::mouseDoubleClick(const juce::MouseEvent& event) {
 }
 
 void TimelineComponent::mouseUp(const juce::MouseEvent& event) {
+    // Finalize time selection if we were dragging
+    if (isDraggingTimeSelection) {
+        // If selection is too small (just a click), clear it
+        if (std::abs(timeSelectionEnd - timeSelectionStart) < 0.01) {
+            timeSelectionStart = -1.0;
+            timeSelectionEnd = -1.0;
+            if (onTimeSelectionChanged) {
+                onTimeSelectionChanged(-1.0, -1.0);
+            }
+        }
+        isDraggingTimeSelection = false;
+        repaint();
+        return;
+    }
+
     // Reset all dragging states
     isDraggingSection = false;
     isDraggingEdge = false;
@@ -542,10 +609,23 @@ void TimelineComponent::drawTimeMarkers(juce::Graphics& g) {
 
                 int tickHeight = isMajor ? majorTickHeight : minorTickHeight;
 
-                g.setColour(DarkTheme::getColour(isMajor ? DarkTheme::TEXT_SECONDARY
-                                                         : DarkTheme::TEXT_DIM));
-                g.drawVerticalLine(x, static_cast<float>(rulerBottom - tickHeight),
-                                   static_cast<float>(rulerBottom));
+                // Check if tick is inside loop region - use green color and thicker line
+                bool insideLoop = (loopStartTime >= 0 && loopEndTime > loopStartTime &&
+                                   time >= loopStartTime && time <= loopEndTime);
+
+                if (insideLoop) {
+                    g.setColour(DarkTheme::getColour(DarkTheme::LOOP_MARKER)
+                                    .withAlpha(isMajor ? 0.9f : 0.5f));
+                    // Use x + 0.5f to align 2px line center with pixel grid
+                    g.drawLine(static_cast<float>(x) + 0.5f,
+                               static_cast<float>(rulerBottom - tickHeight),
+                               static_cast<float>(x) + 0.5f, static_cast<float>(rulerBottom), 2.0f);
+                } else {
+                    g.setColour(DarkTheme::getColour(isMajor ? DarkTheme::TEXT_SECONDARY
+                                                             : DarkTheme::TEXT_DIM));
+                    g.drawVerticalLine(x, static_cast<float>(rulerBottom - tickHeight),
+                                       static_cast<float>(rulerBottom));
+                }
 
                 if (isMajor) {
                     juce::String timeStr;
@@ -642,15 +722,29 @@ void TimelineComponent::drawTimeMarkers(juce::Graphics& g) {
                 int tickHeight = isMajor ? majorTickHeight
                                          : (isMedium ? (majorTickHeight * 2 / 3) : minorTickHeight);
 
-                if (isMajor) {
-                    g.setColour(DarkTheme::getColour(DarkTheme::TEXT_SECONDARY));
-                } else if (isMedium) {
-                    g.setColour(DarkTheme::getColour(DarkTheme::TEXT_SECONDARY).withAlpha(0.7f));
+                // Check if tick is inside loop region - use green color and thicker line
+                bool insideLoop = (loopStartTime >= 0 && loopEndTime > loopStartTime &&
+                                   time >= loopStartTime && time <= loopEndTime);
+
+                if (insideLoop) {
+                    float alpha = isMajor ? 0.9f : (isMedium ? 0.7f : 0.5f);
+                    g.setColour(DarkTheme::getColour(DarkTheme::LOOP_MARKER).withAlpha(alpha));
+                    // Use x + 0.5f to align 2px line center with pixel grid
+                    g.drawLine(static_cast<float>(x) + 0.5f,
+                               static_cast<float>(rulerBottom - tickHeight),
+                               static_cast<float>(x) + 0.5f, static_cast<float>(rulerBottom), 2.0f);
                 } else {
-                    g.setColour(DarkTheme::getColour(DarkTheme::TEXT_DIM));
+                    if (isMajor) {
+                        g.setColour(DarkTheme::getColour(DarkTheme::TEXT_SECONDARY));
+                    } else if (isMedium) {
+                        g.setColour(
+                            DarkTheme::getColour(DarkTheme::TEXT_SECONDARY).withAlpha(0.7f));
+                    } else {
+                        g.setColour(DarkTheme::getColour(DarkTheme::TEXT_DIM));
+                    }
+                    g.drawVerticalLine(x, static_cast<float>(rulerBottom - tickHeight),
+                                       static_cast<float>(rulerBottom));
                 }
-                g.drawVerticalLine(x, static_cast<float>(rulerBottom - tickHeight),
-                                   static_cast<float>(rulerBottom));
 
                 // Label on bar starts, and on beats when zoomed in enough
                 bool showLabel = false;
@@ -830,7 +924,8 @@ void TimelineComponent::setLoopEnabled(bool enabled) {
 }
 
 void TimelineComponent::drawLoopMarkers(juce::Graphics& g) {
-    // Always draw if there's a valid loop region, but use grey when disabled
+    // Draw background elements: shaded region and vertical lines
+    // Time markers will be drawn on top of this
     if (loopStartTime < 0 || loopEndTime <= loopStartTime) {
         return;
     }
@@ -859,32 +954,70 @@ void TimelineComponent::drawLoopMarkers(juce::Graphics& g) {
     g.setColour(regionColour);
     g.fillRect(startX, rulerTop, endX - startX, totalHeight - rulerTop);
 
-    // Draw connecting line across top of ruler
-    g.setColour(markerColour);
-    g.drawLine(static_cast<float>(startX), static_cast<float>(rulerTop + 2),
-               static_cast<float>(endX), static_cast<float>(rulerTop + 2), 2.0f);
+    // Draw subtle vertical lines (very transparent, behind time markers)
+    // Only draw thin dashed lines - the triangular flags provide the main visual indicator
+    g.setColour(markerColour.withAlpha(0.3f));
 
-    // Draw start flag (pointing right) at top of ruler
+    // Draw dashed vertical lines
+    const float dashLength = 4.0f;
+    const float gapLength = 3.0f;
+    float y = static_cast<float>(rulerTop);
+    float bottom = static_cast<float>(totalHeight);
+
+    while (y < bottom) {
+        float dashEnd = juce::jmin(y + dashLength, bottom);
+        g.drawLine(static_cast<float>(startX), y, static_cast<float>(startX), dashEnd, 1.0f);
+        g.drawLine(static_cast<float>(endX), y, static_cast<float>(endX), dashEnd, 1.0f);
+        y += dashLength + gapLength;
+    }
+}
+
+void TimelineComponent::drawLoopMarkerFlags(juce::Graphics& g) {
+    // Draw foreground elements: triangular flags and connecting line
+    // Positioned at the very top of the timeline component
+    if (loopStartTime < 0 || loopEndTime <= loopStartTime) {
+        return;
+    }
+
+    // Get arrangement bar height for positioning
+    auto& layout = LayoutConfig::getInstance();
+    int arrangementHeight = layout.arrangementBarHeight;
+
+    // Position line on the separator (ruler top border), triangles just below in ruler area
+    int lineY = arrangementHeight;        // Connecting line aligns with ruler top border
+    int flagTop = arrangementHeight + 2;  // Triangles just below the line
+
+    int startX = timeToPixel(loopStartTime) + LEFT_PADDING;
+    int endX = timeToPixel(loopEndTime) + LEFT_PADDING;
+
+    // Skip if completely out of view
+    if (endX < 0 || startX > getWidth()) {
+        return;
+    }
+
+    // Use different colors based on enabled state
+    juce::Colour markerColour = loopEnabled ? DarkTheme::getColour(DarkTheme::LOOP_MARKER)
+                                            : juce::Colour(0xFF606060);  // Medium grey
+
+    g.setColour(markerColour);
+
+    // Draw connecting line at top border
+    g.drawLine(static_cast<float>(startX), static_cast<float>(lineY), static_cast<float>(endX),
+               static_cast<float>(lineY), 2.0f);
+
+    // Draw start flag (pointing down) at top
     juce::Path startFlag;
-    startFlag.addTriangle(static_cast<float>(startX), static_cast<float>(rulerTop),
-                          static_cast<float>(startX), static_cast<float>(rulerTop + 12),
-                          static_cast<float>(startX + 8), static_cast<float>(rulerTop + 6));
+    startFlag.addTriangle(static_cast<float>(startX), static_cast<float>(flagTop),
+                          static_cast<float>(startX), static_cast<float>(flagTop + 10),
+                          static_cast<float>(startX + 7), static_cast<float>(flagTop + 5));
     g.fillPath(startFlag);
 
-    // Draw start vertical line through ruler area only
-    g.drawLine(static_cast<float>(startX), static_cast<float>(rulerTop), static_cast<float>(startX),
-               static_cast<float>(totalHeight), 2.0f);
-
-    // Draw end flag (pointing left) at top of ruler
+    // Draw end flag (pointing down) at top
     juce::Path endFlag;
-    endFlag.addTriangle(static_cast<float>(endX), static_cast<float>(rulerTop),
-                        static_cast<float>(endX), static_cast<float>(rulerTop + 12),
-                        static_cast<float>(endX - 8), static_cast<float>(rulerTop + 6));
+    endFlag.addTriangle(static_cast<float>(endX), static_cast<float>(flagTop),
+                        static_cast<float>(endX), static_cast<float>(flagTop + 10),
+                        static_cast<float>(endX - 7), static_cast<float>(flagTop + 5));
     g.fillPath(endFlag);
-
-    // Draw end vertical line through ruler area only
-    g.drawLine(static_cast<float>(endX), static_cast<float>(rulerTop), static_cast<float>(endX),
-               static_cast<float>(totalHeight), 2.0f);
 }
 
 bool TimelineComponent::isOnLoopMarker(int x, int y, bool& isStartMarker) const {

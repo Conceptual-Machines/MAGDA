@@ -127,6 +127,8 @@ class TimelineComponent : public juce::Component {
     std::function<void(double, double)> onLoopRegionChanged;  // Callback when loop region changes
     std::function<void(float deltaX, float deltaY)>
         onScrollRequested;  // Callback for scroll requests from mouse wheel
+    std::function<void(double, double)>
+        onTimeSelectionChanged;  // Callback when time selection changes in ruler
 
   private:
     // Layout constants
@@ -164,6 +166,8 @@ class TimelineComponent : public juce::Component {
     // Time selection state (for ruler highlight)
     double timeSelectionStart = -1.0;
     double timeSelectionEnd = -1.0;
+    bool isDraggingTimeSelection = false;
+    double timeSelectionDragStart = -1.0;  // Initial drag position for time selection
 
     // Mouse interaction state
     bool isZooming = false;
@@ -183,7 +187,8 @@ class TimelineComponent : public juce::Component {
     void drawPlayhead(juce::Graphics& g);
     void drawArrangementSections(juce::Graphics& g);
     void drawSection(juce::Graphics& g, const ArrangementSection& section, bool isSelected) const;
-    void drawLoopMarkers(juce::Graphics& g);
+    void drawLoopMarkers(juce::Graphics& g);      // Draws shaded region (background)
+    void drawLoopMarkerFlags(juce::Graphics& g);  // Draws triangular flags (foreground)
     void drawTimeSelection(juce::Graphics& g);
 
     // Arrangement interaction helpers

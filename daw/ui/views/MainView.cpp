@@ -202,6 +202,21 @@ void MainView::setupCallbacks() {
         updateHorizontalZoomScrollBar();
     };
 
+    // Handle time selection from timeline ruler
+    timeline->onTimeSelectionChanged = [this](double start, double end) {
+        if (start < 0 || end < 0) {
+            // Clear selection
+            timeSelection.clear();
+        } else {
+            timeSelection.startTime = start;
+            timeSelection.endTime = end;
+        }
+        // Update selection overlay in track area
+        if (selectionOverlay) {
+            selectionOverlay->repaint();
+        }
+    };
+
     // Set up selection and loop callbacks
     setupSelectionCallbacks();
 }
