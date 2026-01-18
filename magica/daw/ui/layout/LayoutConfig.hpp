@@ -59,6 +59,24 @@ struct LayoutConfig {
     int zoomButtonSize = 24;
     int zoomSliderMinWidth = 60;
 
+    // Main window panels
+    int defaultTransportHeight = 60;
+    int minTransportHeight = 40;
+    int maxTransportHeight = 120;
+
+    int footerHeight = 40;
+
+    int defaultLeftPanelWidth = 250;
+    int defaultRightPanelWidth = 300;
+    int minPanelWidth = 200;
+    int collapsedPanelWidth = 24;
+    int panelCollapseThreshold = 50;
+
+    int defaultBottomPanelHeight = 200;
+    int minBottomPanelHeight = 100;
+
+    int resizeHandleSize = 3;
+
     // Toggle debug overlay (F11)
     void toggleDebugOverlay() {
         showDebugOverlay = !showDebugOverlay;

@@ -82,8 +82,14 @@ void MainWindow::closeButtonPressed() {
 
 // MainComponent implementation
 MainWindow::MainComponent::MainComponent() {
-    // Enable keyboard focus for shortcuts
     setWantsKeyboardFocus(true);
+
+    // Initialize panel sizes from LayoutConfig
+    auto& layout = LayoutConfig::getInstance();
+    transportHeight = layout.defaultTransportHeight;
+    leftPanelWidth = layout.defaultLeftPanelWidth;
+    rightPanelWidth = layout.defaultRightPanelWidth;
+    bottomPanelHeight = layout.defaultBottomPanelHeight;
 
     // Initialize panel visibility from Config
     auto& config = Config::getInstance();
@@ -91,11 +97,10 @@ MainWindow::MainComponent::MainComponent() {
     rightPanelVisible = config.getShowRightPanel();
     bottomPanelVisible = config.getShowBottomPanel();
 
-    // Create all panels
+    // Create panels
     transportPanel = std::make_unique<TransportPanel>();
     addAndMakeVisible(*transportPanel);
 
-    // Create side panels
     leftPanel = std::make_unique<LeftPanel>();
     leftPanel->onCollapseChanged = [this](bool collapsed) {
         leftPanelCollapsed = collapsed;
@@ -110,104 +115,97 @@ MainWindow::MainComponent::MainComponent() {
     };
     addAndMakeVisible(*rightPanel);
 
+    bottomPanel = std::make_unique<BottomPanel>();
+    addAndMakeVisible(*bottomPanel);
+
+    footerBar = std::make_unique<FooterBar>();
+    addAndMakeVisible(*footerBar);
+
     // Create views
     mainView = std::make_unique<MainView>();
     addAndMakeVisible(*mainView);
 
     sessionView = std::make_unique<SessionView>();
-    addChildComponent(*sessionView);  // Hidden by default
+    addChildComponent(*sessionView);
 
     mixerView = std::make_unique<MixerView>();
-    addChildComponent(*mixerView);  // Hidden by default
+    addChildComponent(*mixerView);
 
-    // Wire up loop region updates to transport panel
+    // Wire up callbacks between views and transport
     mainView->onLoopRegionChanged = [this](double start, double end, bool enabled) {
         transportPanel->setLoopRegion(start, end, enabled);
     };
-
-    // Wire up playhead position updates to transport panel
     mainView->onPlayheadPositionChanged = [this](double position) {
         transportPanel->setPlayheadPosition(position);
     };
-
-    // Wire up time selection updates to transport panel
     mainView->onTimeSelectionChanged = [this](double start, double end, bool hasSelection) {
         transportPanel->setTimeSelection(start, end, hasSelection);
     };
-
-    // Wire up transport loop button to main view
     transportPanel->onLoop = [this](bool enabled) { mainView->setLoopEnabled(enabled); };
 
-    bottomPanel = std::make_unique<BottomPanel>();
-    addAndMakeVisible(*bottomPanel);
+    setupResizeHandles();
+    setupViewModeListener();
+}
 
-    // Create footer bar
-    footerBar = std::make_unique<FooterBar>();
-    addAndMakeVisible(*footerBar);
+void MainWindow::MainComponent::setupResizeHandles() {
+    auto& layout = LayoutConfig::getInstance();
 
-    // Create resize handles
-    static constexpr int COLLAPSE_THRESHOLD = 50;  // Collapse when dragged below this width
+    // Transport resizer
+    transportResizer = std::make_unique<ResizeHandle>(ResizeHandle::Vertical);
+    transportResizer->onResize = [this, &layout](int delta) {
+        transportHeight = juce::jlimit(layout.minTransportHeight, layout.maxTransportHeight,
+                                       transportHeight + delta);
+        resized();
+    };
+    addAndMakeVisible(*transportResizer);
 
+    // Left panel resizer
     leftResizer = std::make_unique<ResizeHandle>(ResizeHandle::Horizontal);
-    leftResizer->onResize = [this](int delta) {
+    leftResizer->onResize = [this, &layout](int delta) {
         int newWidth = leftPanelWidth + delta;
-        if (newWidth < COLLAPSE_THRESHOLD) {
-            // Collapse the panel
+        if (newWidth < layout.panelCollapseThreshold) {
             leftPanelCollapsed = true;
             leftPanel->setCollapsed(true);
         } else {
-            // Expand if was collapsed
             if (leftPanelCollapsed) {
                 leftPanelCollapsed = false;
                 leftPanel->setCollapsed(false);
             }
-            // Allow continuous resize (minimum just prevents negative)
-            leftPanelWidth = juce::jmax(COLLAPSE_THRESHOLD, newWidth);
+            leftPanelWidth = juce::jmax(layout.panelCollapseThreshold, newWidth);
         }
         resized();
     };
     addAndMakeVisible(*leftResizer);
 
+    // Right panel resizer
     rightResizer = std::make_unique<ResizeHandle>(ResizeHandle::Horizontal);
-    rightResizer->onResize = [this](int delta) {
+    rightResizer->onResize = [this, &layout](int delta) {
         int newWidth = rightPanelWidth - delta;
-        if (newWidth < COLLAPSE_THRESHOLD) {
-            // Collapse the panel
+        if (newWidth < layout.panelCollapseThreshold) {
             rightPanelCollapsed = true;
             rightPanel->setCollapsed(true);
         } else {
-            // Expand if was collapsed
             if (rightPanelCollapsed) {
                 rightPanelCollapsed = false;
                 rightPanel->setCollapsed(false);
             }
-            // Allow continuous resize (minimum just prevents negative)
-            rightPanelWidth = juce::jmax(COLLAPSE_THRESHOLD, newWidth);
+            rightPanelWidth = juce::jmax(layout.panelCollapseThreshold, newWidth);
         }
         resized();
     };
     addAndMakeVisible(*rightResizer);
 
+    // Bottom panel resizer
     bottomResizer = std::make_unique<ResizeHandle>(ResizeHandle::Vertical);
-    bottomResizer->onResize = [this](int delta) {
-        bottomPanelHeight = juce::jmax(MIN_BOTTOM_HEIGHT, bottomPanelHeight - delta);
+    bottomResizer->onResize = [this, &layout](int delta) {
+        bottomPanelHeight = juce::jmax(layout.minBottomPanelHeight, bottomPanelHeight - delta);
         resized();
     };
     addAndMakeVisible(*bottomResizer);
+}
 
-    // Transport panel resizer (below transport)
-    transportResizer = std::make_unique<ResizeHandle>(ResizeHandle::Vertical);
-    transportResizer->onResize = [this](int delta) {
-        transportHeight =
-            juce::jlimit(MIN_TRANSPORT_HEIGHT, MAX_TRANSPORT_HEIGHT, transportHeight + delta);
-        resized();
-    };
-    addAndMakeVisible(*transportResizer);
-
-    // Register for view mode changes
+void MainWindow::MainComponent::setupViewModeListener() {
     ViewModeController::getInstance().addListener(this);
-
-    // Set initial view based on current mode
     currentViewMode = ViewModeController::getInstance().getViewMode();
     switchToView(currentViewMode);
 }
@@ -291,48 +289,52 @@ void MainWindow::MainComponent::paint(juce::Graphics& g) {
 void MainWindow::MainComponent::resized() {
     auto bounds = getLocalBounds();
 
-    // Transport panel at the top (resizable height)
-    auto transportArea = bounds.removeFromTop(transportHeight);
-    transportPanel->setBounds(transportArea);
+    layoutTransportArea(bounds);
+    layoutFooterArea(bounds);
+    layoutBottomPanel(bounds);
+    layoutSidePanels(bounds);
+    layoutContentArea(bounds);
+}
 
-    // Transport resizer (3px handle below transport)
-    auto transportResizerArea = bounds.removeFromTop(3);
-    transportResizer->setBounds(transportResizerArea);
+void MainWindow::MainComponent::layoutTransportArea(juce::Rectangle<int>& bounds) {
+    auto& layout = LayoutConfig::getInstance();
 
-    // Footer bar at the bottom (fixed height)
-    auto footerArea = bounds.removeFromBottom(FOOTER_HEIGHT);
-    footerBar->setBounds(footerArea);
+    transportPanel->setBounds(bounds.removeFromTop(transportHeight));
+    transportResizer->setBounds(bounds.removeFromTop(layout.resizeHandleSize));
+}
 
-    // Calculate available space for main content
-    auto contentArea = bounds;
+void MainWindow::MainComponent::layoutFooterArea(juce::Rectangle<int>& bounds) {
+    auto& layout = LayoutConfig::getInstance();
 
-    // Bottom panel (if visible)
-    juce::Rectangle<int> bottomArea;
+    footerBar->setBounds(bounds.removeFromBottom(layout.footerHeight));
+}
+
+void MainWindow::MainComponent::layoutBottomPanel(juce::Rectangle<int>& bounds) {
+    auto& layout = LayoutConfig::getInstance();
+
     if (bottomPanelVisible) {
-        bottomArea = contentArea.removeFromBottom(bottomPanelHeight);
-        bottomPanel->setBounds(bottomArea);
-
-        // Bottom resizer
-        auto bottomResizerArea = contentArea.removeFromBottom(3);
-        bottomResizer->setBounds(bottomResizerArea);
+        bottomPanel->setBounds(bounds.removeFromBottom(bottomPanelHeight));
+        bottomResizer->setBounds(bounds.removeFromBottom(layout.resizeHandleSize));
+        bottomPanel->setVisible(true);
+        bottomResizer->setVisible(true);
     } else {
         bottomPanel->setVisible(false);
         bottomResizer->setVisible(false);
     }
+}
 
-    // Left panel (if visible)
-    juce::Rectangle<int> leftArea;
+void MainWindow::MainComponent::layoutSidePanels(juce::Rectangle<int>& bounds) {
+    auto& layout = LayoutConfig::getInstance();
+
+    // Left panel
     if (leftPanelVisible) {
-        // Use collapsed width if collapsed, otherwise full width
-        int effectiveLeftWidth = leftPanelCollapsed ? COLLAPSED_PANEL_WIDTH : leftPanelWidth;
-        leftArea = contentArea.removeFromLeft(effectiveLeftWidth);
-        leftPanel->setBounds(leftArea);
+        int effectiveWidth = leftPanelCollapsed ? layout.collapsedPanelWidth : leftPanelWidth;
+        leftPanel->setBounds(bounds.removeFromLeft(effectiveWidth));
         leftPanel->setCollapsed(leftPanelCollapsed);
+        leftPanel->setVisible(true);
 
-        // Only show resizer when not collapsed
         if (!leftPanelCollapsed) {
-            auto leftResizerArea = contentArea.removeFromLeft(3);
-            leftResizer->setBounds(leftResizerArea);
+            leftResizer->setBounds(bounds.removeFromLeft(layout.resizeHandleSize));
             leftResizer->setVisible(true);
         } else {
             leftResizer->setVisible(false);
@@ -342,19 +344,15 @@ void MainWindow::MainComponent::resized() {
         leftResizer->setVisible(false);
     }
 
-    // Right panel (if visible)
-    juce::Rectangle<int> rightArea;
+    // Right panel
     if (rightPanelVisible) {
-        // Use collapsed width if collapsed, otherwise full width
-        int effectiveRightWidth = rightPanelCollapsed ? COLLAPSED_PANEL_WIDTH : rightPanelWidth;
-        rightArea = contentArea.removeFromRight(effectiveRightWidth);
-        rightPanel->setBounds(rightArea);
+        int effectiveWidth = rightPanelCollapsed ? layout.collapsedPanelWidth : rightPanelWidth;
+        rightPanel->setBounds(bounds.removeFromRight(effectiveWidth));
         rightPanel->setCollapsed(rightPanelCollapsed);
+        rightPanel->setVisible(true);
 
-        // Only show resizer when not collapsed
         if (!rightPanelCollapsed) {
-            auto rightResizerArea = contentArea.removeFromRight(3);
-            rightResizer->setBounds(rightResizerArea);
+            rightResizer->setBounds(bounds.removeFromRight(layout.resizeHandleSize));
             rightResizer->setVisible(true);
         } else {
             rightResizer->setVisible(false);
@@ -363,17 +361,12 @@ void MainWindow::MainComponent::resized() {
         rightPanel->setVisible(false);
         rightResizer->setVisible(false);
     }
+}
 
-    // Center view area - all views get the same bounds, visibility controls which is shown
-    mainView->setBounds(contentArea);
-    sessionView->setBounds(contentArea);
-    mixerView->setBounds(contentArea);
-
-    // Update panel visibility
-    leftPanel->setVisible(leftPanelVisible);
-    rightPanel->setVisible(rightPanelVisible);
-    bottomPanel->setVisible(bottomPanelVisible);
-    bottomResizer->setVisible(bottomPanelVisible);
+void MainWindow::MainComponent::layoutContentArea(juce::Rectangle<int>& bounds) {
+    mainView->setBounds(bounds);
+    sessionView->setBounds(bounds);
+    mixerView->setBounds(bounds);
 }
 
 void MainWindow::MainComponent::viewModeChanged(ViewMode mode,
