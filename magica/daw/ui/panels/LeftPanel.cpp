@@ -40,10 +40,13 @@ void LeftPanel::setCollapsed(bool collapsed) {
 void LeftPanel::paint(juce::Graphics& g) {
     g.fillAll(DarkTheme::getPanelBackgroundColour());
 
-    // Draw a border on the right edge only
     g.setColour(DarkTheme::getBorderColour());
-    g.drawLine(static_cast<float>(getWidth() - 1), 0.0f, static_cast<float>(getWidth() - 1),
-               static_cast<float>(getHeight()), 1.0f);
+
+    // Top border
+    g.fillRect(0, 0, getWidth(), 1);
+
+    // Right edge border
+    g.fillRect(getWidth() - 1, 0, 1, getHeight());
 
     // Only draw content if not collapsed
     if (!collapsed_) {

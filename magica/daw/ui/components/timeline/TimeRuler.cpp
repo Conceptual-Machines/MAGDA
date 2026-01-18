@@ -12,10 +12,14 @@ void TimeRuler::paint(juce::Graphics& g) {
     // Background
     g.fillAll(DarkTheme::getColour(DarkTheme::BACKGROUND_ALT));
 
-    // Bottom border line
     g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
-    g.drawLine(0.0f, static_cast<float>(getHeight() - 1), static_cast<float>(getWidth()),
-               static_cast<float>(getHeight() - 1));
+
+    // Border line above ticks (separates labels from ticks)
+    int tickAreaTop = getHeight() - TICK_HEIGHT_MAJOR;
+    g.fillRect(0, tickAreaTop, getWidth(), 1);
+
+    // Bottom border line
+    g.fillRect(0, getHeight() - 1, getWidth(), 1);
 
     // Draw based on mode
     if (displayMode == DisplayMode::Seconds) {

@@ -155,6 +155,12 @@ void TimelineComponent::paint(juce::Graphics& g) {
     g.drawLine(0, static_cast<float>(arrangementHeight), static_cast<float>(getWidth()),
                static_cast<float>(arrangementHeight), 1.0f);
 
+    // Draw separator line above ticks (separates time labels from tick area)
+    int tickAreaTop = arrangementHeight + layout.timeRulerHeight - layout.rulerMajorTickHeight;
+    g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
+    g.drawLine(0, static_cast<float>(tickAreaTop), static_cast<float>(getWidth()),
+               static_cast<float>(tickAreaTop), 1.0f);
+
     // Draw loop marker flags on top (triangular indicators)
     drawLoopMarkerFlags(g);
 
