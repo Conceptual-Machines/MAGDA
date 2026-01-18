@@ -382,6 +382,8 @@ void MainView::resized() {
     horizontalZoomScrollBar->setBounds(horizontalScrollBarArea);
 
     // Fixed master track row at the bottom (above horizontal scroll bar)
+    // First remove space for the resize handle
+    bounds.removeFromBottom(MASTER_RESIZE_HANDLE_HEIGHT);
     auto masterRowArea = bounds.removeFromBottom(masterStripHeight);
     // Master header on the left (same width as track headers)
     masterHeaderPanel->setBounds(masterRowArea.removeFromLeft(trackHeaderWidth));
@@ -391,7 +393,8 @@ void MainView::resized() {
     masterContentPanel->setBounds(masterRowArea);
 
     // Now position vertical scroll bar (after bottom areas removed)
-    verticalScrollBarArea.removeFromBottom(ZOOM_SCROLLBAR_SIZE + masterStripHeight);
+    verticalScrollBarArea.removeFromBottom(ZOOM_SCROLLBAR_SIZE + masterStripHeight +
+                                           MASTER_RESIZE_HANDLE_HEIGHT);
     verticalScrollBarArea.removeFromTop(getTimelineHeight());  // Start below timeline
     verticalZoomScrollBar->setBounds(verticalScrollBarArea);
 
@@ -1121,11 +1124,11 @@ void MainView::paintResizeHandle(juce::Graphics& g) {
 }
 
 juce::Rectangle<int> MainView::getMasterResizeHandleArea() const {
-    // Position the resize handle at the top edge of the master strip
+    // Position the resize handle in the gap between track content and master strip
     static constexpr int ZOOM_SCROLLBAR_SIZE = 20;
-    int masterTopY = getHeight() - ZOOM_SCROLLBAR_SIZE - masterStripHeight;
-    return juce::Rectangle<int>(0, masterTopY - MASTER_RESIZE_HANDLE_HEIGHT / 2, getWidth(),
-                                MASTER_RESIZE_HANDLE_HEIGHT);
+    int masterTopY =
+        getHeight() - ZOOM_SCROLLBAR_SIZE - masterStripHeight - MASTER_RESIZE_HANDLE_HEIGHT;
+    return juce::Rectangle<int>(0, masterTopY, getWidth(), MASTER_RESIZE_HANDLE_HEIGHT);
 }
 
 void MainView::paintMasterResizeHandle(juce::Graphics& g) {
