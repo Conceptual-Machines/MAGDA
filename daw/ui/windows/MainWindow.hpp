@@ -15,6 +15,7 @@ class LeftPanel;
 class RightPanel;
 class MainView;
 class BottomPanel;
+class FooterBar;
 
 class MainWindow : public juce::DocumentWindow {
   public:
@@ -55,6 +56,7 @@ class MainWindow::MainComponent : public juce::Component {
 
     std::unique_ptr<TransportPanel> transportPanel;
     std::unique_ptr<MainView> mainView;
+    std::unique_ptr<FooterBar> footerBar;
 
   private:
     // Main layout panels
@@ -64,6 +66,7 @@ class MainWindow::MainComponent : public juce::Component {
 
     // Layout constants
     static constexpr int TRANSPORT_HEIGHT = 60;
+    static constexpr int FOOTER_HEIGHT = 40;
     static constexpr int ARRANGEMENT_HEIGHT = 30;
     static constexpr int TIMELINE_HEIGHT = 80;
     static constexpr int MIN_PANEL_WIDTH = 200;

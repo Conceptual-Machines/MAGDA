@@ -55,6 +55,7 @@ set(DAW_CORE_SOURCES
     command.cpp
     magica.cpp
     core/Config.cpp
+    core/ViewModeController.cpp
     engine/tracktion_engine_wrapper.cpp
     # UI components needed by tests
     ui/components/timeline/TimelineComponent.cpp
@@ -81,6 +82,9 @@ set(DAW_UI_SOURCES
     ui/panels/LeftPanel.cpp
     ui/panels/RightPanel.cpp
     ui/panels/BottomPanel.cpp
+    ui/panels/FooterBar.cpp
+    # Audio
+    audio/AudioEngineOptimizer.cpp
     # Views
     ui/views/MainView.cpp
     # Components - Common
@@ -103,6 +107,9 @@ set(DAW_HEADERS
     command.hpp
     magica.hpp
     core/Config.hpp
+    core/ViewModeState.hpp
+    core/ViewModeEvents.hpp
+    core/ViewModeController.hpp
     engine/tracktion_engine_wrapper.hpp
     # Interfaces
     interfaces/clip_interface.hpp
@@ -125,6 +132,9 @@ set(DAW_HEADERS
     ui/panels/LeftPanel.hpp
     ui/panels/RightPanel.hpp
     ui/panels/BottomPanel.hpp
+    ui/panels/FooterBar.hpp
+    # Audio
+    audio/AudioEngineOptimizer.hpp
     # Views
     ui/views/MainView.hpp
     ui/views/ArrangementView.hpp
@@ -203,6 +213,7 @@ target_include_directories(magica_daw_app
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/audio
     ${CMAKE_CURRENT_SOURCE_DIR}/ui
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/themes
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/windows

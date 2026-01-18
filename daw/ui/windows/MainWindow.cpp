@@ -2,6 +2,7 @@
 
 #include "../dialogs/PreferencesDialog.hpp"
 #include "../panels/BottomPanel.hpp"
+#include "../panels/FooterBar.hpp"
 #include "../panels/LeftPanel.hpp"
 #include "../panels/RightPanel.hpp"
 #include "../panels/TransportPanel.hpp"
@@ -127,6 +128,10 @@ MainWindow::MainComponent::MainComponent() {
     bottomPanel = std::make_unique<BottomPanel>();
     addAndMakeVisible(*bottomPanel);
 
+    // Create footer bar
+    footerBar = std::make_unique<FooterBar>();
+    addAndMakeVisible(*footerBar);
+
     // Create resize handles
     static constexpr int COLLAPSE_THRESHOLD = 50;  // Collapse when dragged below this width
 
@@ -190,6 +195,10 @@ void MainWindow::MainComponent::resized() {
     // Transport panel at the top (fixed height)
     auto transportArea = bounds.removeFromTop(TRANSPORT_HEIGHT);
     transportPanel->setBounds(transportArea);
+
+    // Footer bar at the bottom (fixed height)
+    auto footerArea = bounds.removeFromBottom(FOOTER_HEIGHT);
+    footerBar->setBounds(footerArea);
 
     // Remove timeline header panel - we'll use fillers instead
 
