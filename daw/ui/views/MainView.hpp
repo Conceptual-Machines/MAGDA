@@ -126,7 +126,9 @@ class MainView : public juce::Component,
     class MasterContentPanel;
     std::unique_ptr<MasterHeaderPanel> masterHeaderPanel;
     std::unique_ptr<MasterContentPanel> masterContentPanel;
-    static constexpr int MASTER_STRIP_HEIGHT = 60;
+    int masterStripHeight = 60;
+    static constexpr int MIN_MASTER_STRIP_HEIGHT = 40;
+    static constexpr int MAX_MASTER_STRIP_HEIGHT = 150;
 
     // Cached state from controller for quick access
     // These are updated when TimelineStateListener callbacks are called
@@ -153,12 +155,18 @@ class MainView : public juce::Component,
     }
     int trackHeaderWidth = LayoutConfig::getInstance().defaultTrackHeaderWidth;
 
-    // Resize handle state
+    // Resize handle state (horizontal - track header width)
     bool isResizingHeaders = false;
     int resizeStartX = 0;
     int resizeStartWidth = 0;
     static constexpr int RESIZE_HANDLE_WIDTH = 4;
     int lastMouseX = 0;
+
+    // Resize handle state (vertical - master strip height)
+    bool isResizingMasterStrip = false;
+    int resizeStartY = 0;
+    int resizeStartHeight = 0;
+    static constexpr int MASTER_RESIZE_HANDLE_HEIGHT = 4;
 
     // Time selection and loop region are now managed by TimelineController
     // Local caches for quick access (updated via listener callbacks)
@@ -180,7 +188,9 @@ class MainView : public juce::Component,
 
     // Resize handle helper methods
     juce::Rectangle<int> getResizeHandleArea() const;
+    juce::Rectangle<int> getMasterResizeHandleArea() const;
     void paintResizeHandle(juce::Graphics& g);
+    void paintMasterResizeHandle(juce::Graphics& g);
 
     // Selection and loop helper methods
     void setupSelectionCallbacks();

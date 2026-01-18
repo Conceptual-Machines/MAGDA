@@ -360,8 +360,9 @@ void MainView::loopStateChanged(const TimelineState& state) {
 void MainView::paint(juce::Graphics& g) {
     g.fillAll(DarkTheme::getColour(DarkTheme::BACKGROUND));
 
-    // Draw resize handle
+    // Draw resize handles
     paintResizeHandle(g);
+    paintMasterResizeHandle(g);
 }
 
 void MainView::resized() {
@@ -381,7 +382,7 @@ void MainView::resized() {
     horizontalZoomScrollBar->setBounds(horizontalScrollBarArea);
 
     // Fixed master track row at the bottom (above horizontal scroll bar)
-    auto masterRowArea = bounds.removeFromBottom(MASTER_STRIP_HEIGHT);
+    auto masterRowArea = bounds.removeFromBottom(masterStripHeight);
     // Master header on the left (same width as track headers)
     masterHeaderPanel->setBounds(masterRowArea.removeFromLeft(trackHeaderWidth));
     // Padding between header and content
@@ -390,7 +391,7 @@ void MainView::resized() {
     masterContentPanel->setBounds(masterRowArea);
 
     // Now position vertical scroll bar (after bottom areas removed)
-    verticalScrollBarArea.removeFromBottom(ZOOM_SCROLLBAR_SIZE + MASTER_STRIP_HEIGHT);
+    verticalScrollBarArea.removeFromBottom(ZOOM_SCROLLBAR_SIZE + masterStripHeight);
     verticalScrollBarArea.removeFromTop(getTimelineHeight());  // Start below timeline
     verticalZoomScrollBar->setBounds(verticalScrollBarArea);
 
@@ -1003,6 +1004,14 @@ void MainView::mouseDown(const juce::MouseEvent& event) {
         return;
     }
 
+    if (getMasterResizeHandleArea().contains(event.getPosition())) {
+        isResizingMasterStrip = true;
+        resizeStartY = event.y;
+        resizeStartHeight = masterStripHeight;
+        setMouseCursor(juce::MouseCursor::UpDownResizeCursor);
+        return;
+    }
+
     // Removed timeline zoom handling - let timeline component handle its own zoom
     // The timeline component now handles zoom gestures in its lower half
 }
@@ -1021,6 +1030,18 @@ void MainView::mouseDrag(const juce::MouseEvent& event) {
 
         lastMouseX = event.x;  // Update for next drag event
     }
+
+    if (isResizingMasterStrip) {
+        // Dragging up (negative deltaY) should increase height
+        int deltaY = resizeStartY - event.y;
+        int newHeight = juce::jlimit(MIN_MASTER_STRIP_HEIGHT, MAX_MASTER_STRIP_HEIGHT,
+                                     resizeStartHeight + deltaY);
+
+        if (newHeight != masterStripHeight) {
+            masterStripHeight = newHeight;
+            resized();  // Trigger layout update
+        }
+    }
 }
 
 void MainView::mouseUp([[maybe_unused]] const juce::MouseEvent& event) {
@@ -1030,24 +1051,36 @@ void MainView::mouseUp([[maybe_unused]] const juce::MouseEvent& event) {
         return;
     }
 
+    if (isResizingMasterStrip) {
+        isResizingMasterStrip = false;
+        setMouseCursor(juce::MouseCursor::NormalCursor);
+        return;
+    }
+
     // Removed zoom handling - timeline component handles its own zoom
 }
 
 void MainView::mouseMove(const juce::MouseEvent& event) {
     auto handleArea = getResizeHandleArea();
+    auto masterHandleArea = getMasterResizeHandleArea();
 
     if (handleArea.contains(event.getPosition())) {
         setMouseCursor(juce::MouseCursor::LeftRightResizeCursor);
         repaint(handleArea);  // Repaint to show hover effect
+    } else if (masterHandleArea.contains(event.getPosition())) {
+        setMouseCursor(juce::MouseCursor::UpDownResizeCursor);
+        repaint(masterHandleArea);  // Repaint to show hover effect
     } else {
         setMouseCursor(juce::MouseCursor::NormalCursor);
-        repaint(handleArea);  // Repaint to remove hover effect
+        repaint(handleArea);        // Repaint to remove hover effect
+        repaint(masterHandleArea);  // Repaint to remove hover effect
     }
 }
 
 void MainView::mouseExit([[maybe_unused]] const juce::MouseEvent& event) {
     setMouseCursor(juce::MouseCursor::NormalCursor);
-    repaint(getResizeHandleArea());  // Remove hover effect
+    repaint(getResizeHandleArea());        // Remove hover effect
+    repaint(getMasterResizeHandleArea());  // Remove hover effect
 }
 
 // Resize handle helper methods
@@ -1083,6 +1116,43 @@ void MainView::paintResizeHandle(juce::Graphics& g) {
 
         for (int i = -1; i <= 1; ++i) {
             g.fillEllipse(centerX - 1, centerY + i * 4 - 1, 2, 2);
+        }
+    }
+}
+
+juce::Rectangle<int> MainView::getMasterResizeHandleArea() const {
+    // Position the resize handle at the top edge of the master strip
+    static constexpr int ZOOM_SCROLLBAR_SIZE = 20;
+    int masterTopY = getHeight() - ZOOM_SCROLLBAR_SIZE - masterStripHeight;
+    return juce::Rectangle<int>(0, masterTopY - MASTER_RESIZE_HANDLE_HEIGHT / 2, getWidth(),
+                                MASTER_RESIZE_HANDLE_HEIGHT);
+}
+
+void MainView::paintMasterResizeHandle(juce::Graphics& g) {
+    auto handleArea = getMasterResizeHandleArea();
+
+    // Check if mouse is over the handle for hover effect
+    auto mousePos = getMouseXYRelative();
+    bool isHovered = handleArea.contains(mousePos);
+
+    // Draw subtle resize handle with hover effect
+    if (isHovered || isResizingMasterStrip) {
+        g.setColour(DarkTheme::getColour(DarkTheme::BORDER).brighter(0.3f));
+    } else {
+        g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
+    }
+
+    // Draw a horizontal line
+    int centerY = handleArea.getCentreY();
+    g.fillRect(handleArea.getX(), centerY - 1, handleArea.getWidth(), 2);
+
+    // Draw resize indicator dots when hovered or resizing
+    if (isHovered || isResizingMasterStrip) {
+        g.setColour(DarkTheme::getColour(DarkTheme::TEXT_SECONDARY).brighter(0.2f));
+        int centerX = handleArea.getCentreX();
+
+        for (int i = -1; i <= 1; ++i) {
+            g.fillEllipse(centerX + i * 4 - 1, centerY - 1, 2, 2);
         }
     }
 }
