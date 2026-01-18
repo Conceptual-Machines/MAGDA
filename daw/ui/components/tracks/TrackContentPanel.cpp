@@ -394,6 +394,10 @@ int TrackContentPanel::timeToPixel(double time) const {
 }
 
 void TrackContentPanel::mouseDown(const juce::MouseEvent& event) {
+    // Store initial mouse position for click vs drag detection
+    mouseDownX = event.x;
+    mouseDownY = event.y;
+
     // Select track based on click position
     for (size_t i = 0; i < trackLanes.size(); ++i) {
         if (getTrackLaneArea(static_cast<int>(i)).contains(event.getPosition())) {
@@ -402,10 +406,9 @@ void TrackContentPanel::mouseDown(const juce::MouseEvent& event) {
         }
     }
 
-    // Start time selection if in selectable area
+    // Start time selection tracking if in selectable area
     if (isInSelectableArea(event.x, event.y)) {
         isCreatingSelection = true;
-        selectionStartX = event.x;
         selectionStartTime = juce::jmax(0.0, pixelToTime(event.x));
 
         // Apply snap to grid if callback is set
@@ -440,27 +443,42 @@ void TrackContentPanel::mouseUp(const juce::MouseEvent& event) {
     if (isCreatingSelection) {
         isCreatingSelection = false;
 
-        // Finalize selection
-        selectionEndTime = juce::jmax(0.0, juce::jmin(timelineLength, pixelToTime(event.x)));
+        // Check if this was a click or a drag using pixel-based threshold
+        int deltaX = std::abs(event.x - mouseDownX);
+        int deltaY = std::abs(event.y - mouseDownY);
 
-        // Apply snap to grid if callback is set
-        if (snapTimeToGrid) {
-            selectionEndTime = snapTimeToGrid(selectionEndTime);
-        }
+        if (deltaX <= DRAG_THRESHOLD && deltaY <= DRAG_THRESHOLD) {
+            // It was a click - set playhead to clicked position
+            double clickTime = pixelToTime(mouseDownX);
+            clickTime = juce::jlimit(0.0, timelineLength, clickTime);
 
-        // Normalize so start < end
-        double start = juce::jmin(selectionStartTime, selectionEndTime);
-        double end = juce::jmax(selectionStartTime, selectionEndTime);
+            // Apply snap to grid if callback is set
+            if (snapTimeToGrid) {
+                clickTime = snapTimeToGrid(clickTime);
+            }
 
-        // Only create selection if it has meaningful duration
-        if (end - start > 0.01) {  // At least 10ms selection
-            if (onTimeSelectionChanged) {
-                onTimeSelectionChanged(start, end);
+            // Notify via callback (like TimelineComponent does)
+            if (onPlayheadPositionChanged) {
+                onPlayheadPositionChanged(clickTime);
             }
         } else {
-            // Clear selection if too small (just a click)
-            if (onTimeSelectionChanged) {
-                onTimeSelectionChanged(-1.0, -1.0);
+            // It was a drag - finalize selection
+            selectionEndTime = juce::jmax(0.0, juce::jmin(timelineLength, pixelToTime(event.x)));
+
+            // Apply snap to grid if callback is set
+            if (snapTimeToGrid) {
+                selectionEndTime = snapTimeToGrid(selectionEndTime);
+            }
+
+            // Normalize so start < end
+            double start = juce::jmin(selectionStartTime, selectionEndTime);
+            double end = juce::jmax(selectionStartTime, selectionEndTime);
+
+            // Only create selection if it has meaningful duration
+            if (end - start > 0.01) {  // At least 10ms selection
+                if (onTimeSelectionChanged) {
+                    onTimeSelectionChanged(start, end);
+                }
             }
         }
 

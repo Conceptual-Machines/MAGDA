@@ -1101,6 +1101,11 @@ void MainView::setupSelectionCallbacks() {
         }
     };
 
+    // Set up playhead position callback from track content panel (click to set playhead)
+    trackContentPanel->onPlayheadPositionChanged = [this](double position) {
+        timelineController->dispatch(SetPlayheadPositionEvent{position});
+    };
+
     // Set up loop region callback from timeline
     timeline->onLoopRegionChanged = [this](double start, double end) {
         // Prevent recursive updates - only dispatch if user changed it, not programmatic update

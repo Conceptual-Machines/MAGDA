@@ -73,6 +73,7 @@ class TrackContentPanel : public juce::Component, public TimelineStateListener {
     std::function<void(int)> onTrackSelected;
     std::function<void(int, int)> onTrackHeightChanged;
     std::function<void(double, double)> onTimeSelectionChanged;  // startTime, endTime
+    std::function<void(double)> onPlayheadPositionChanged;  // Called when playhead is set via click
     std::function<double(double)>
         snapTimeToGrid;  // Callback to snap time to grid (provided by MainView)
 
@@ -119,11 +120,15 @@ class TrackContentPanel : public juce::Component, public TimelineStateListener {
     void mouseUp(const juce::MouseEvent& event) override;
     void mouseMove(const juce::MouseEvent& event) override;
 
+    // Mouse interaction constants and state
+    static constexpr int DRAG_THRESHOLD = 3;  // Pixels of movement to distinguish click from drag
+    int mouseDownX = 0;
+    int mouseDownY = 0;
+
     // Selection state
     bool isCreatingSelection = false;
     double selectionStartTime = -1.0;
     double selectionEndTime = -1.0;
-    int selectionStartX = 0;
 
     // Helper to check if a position is in a selectable area
     bool isInSelectableArea(int x, int y) const;
