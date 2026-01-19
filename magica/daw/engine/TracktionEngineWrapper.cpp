@@ -1,4 +1,4 @@
-#include "tracktion_engine_wrapper.hpp"
+#include "TracktionEngineWrapper.hpp"
 
 #include <iostream>
 
@@ -234,6 +234,52 @@ bool TracktionEngineWrapper::isMetronomeEnabled() const {
         return currentEdit_->clickTrackEnabled;
     }
     return false;
+}
+
+// ===== AudioEngineListener Implementation =====
+// These methods are called by TimelineController when UI state changes
+
+void TracktionEngineWrapper::onTransportPlay(double position) {
+    locate(position);
+    play();
+}
+
+void TracktionEngineWrapper::onTransportStop(double returnPosition) {
+    stop();
+    locate(returnPosition);
+}
+
+void TracktionEngineWrapper::onTransportPause() {
+    pause();
+}
+
+void TracktionEngineWrapper::onTransportRecord(double position) {
+    locate(position);
+    record();
+}
+
+void TracktionEngineWrapper::onEditPositionChanged(double position) {
+    // Only seek if not currently playing
+    if (!isPlaying()) {
+        locate(position);
+    }
+}
+
+void TracktionEngineWrapper::onTempoChanged(double bpm) {
+    setTempo(bpm);
+}
+
+void TracktionEngineWrapper::onTimeSignatureChanged(int numerator, int denominator) {
+    setTimeSignature(numerator, denominator);
+}
+
+void TracktionEngineWrapper::onLoopRegionChanged(double startTime, double endTime, bool enabled) {
+    setLoopRegion(startTime, endTime);
+    setLooping(enabled);
+}
+
+void TracktionEngineWrapper::onLoopEnabledChanged(bool enabled) {
+    setLooping(enabled);
 }
 
 // TrackInterface implementation

@@ -3,7 +3,7 @@
 #include <iostream>
 #include <memory>
 
-#include "engine/tracktion_engine_wrapper.hpp"
+#include "engine/TracktionEngineWrapper.hpp"
 
 // Global engine instance
 static std::unique_ptr<magica::TracktionEngineWrapper> g_engine;

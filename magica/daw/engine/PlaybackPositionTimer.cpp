@@ -1,13 +1,12 @@
 #include "PlaybackPositionTimer.hpp"
 
-#include "tracktion_engine_wrapper.hpp"
+#include "AudioEngine.hpp"
 #include "ui/state/TimelineController.hpp"
 #include "ui/state/TimelineEvents.hpp"
 
 namespace magica {
 
-PlaybackPositionTimer::PlaybackPositionTimer(TracktionEngineWrapper& engine,
-                                             TimelineController& timeline)
+PlaybackPositionTimer::PlaybackPositionTimer(AudioEngine& engine, TimelineController& timeline)
     : engine_(engine), timeline_(timeline) {}
 
 PlaybackPositionTimer::~PlaybackPositionTimer() {

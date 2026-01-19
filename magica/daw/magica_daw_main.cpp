@@ -5,7 +5,7 @@
 #include <iostream>
 #include <memory>
 
-#include "engine/tracktion_engine_wrapper.hpp"
+#include "engine/TracktionEngineWrapper.hpp"
 #include "ui/themes/DarkTheme.hpp"
 #include "ui/themes/FontManager.hpp"
 #include "ui/windows/MainWindow.hpp"

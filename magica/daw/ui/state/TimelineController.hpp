@@ -8,6 +8,7 @@
 
 #include "TimelineEvents.hpp"
 #include "TimelineState.hpp"
+#include "TransportStateListener.hpp"
 
 namespace magica {
 
@@ -126,6 +127,19 @@ class TimelineController {
      */
     void removeListener(TimelineStateListener* listener);
 
+    // ===== Audio Engine Listener Management =====
+
+    /**
+     * Add an audio engine listener to receive state changes.
+     * The audio engine implements this to respond to transport, tempo, loop changes.
+     */
+    void addAudioEngineListener(AudioEngineListener* listener);
+
+    /**
+     * Remove a previously added audio engine listener.
+     */
+    void removeAudioEngineListener(AudioEngineListener* listener);
+
     // ===== Undo/Redo =====
 
     /**
@@ -196,6 +210,7 @@ class TimelineController {
 
     // Listeners
     std::vector<TimelineStateListener*> listeners;
+    std::vector<AudioEngineListener*> audioEngineListeners;
 
     // Undo/redo stacks
     std::deque<TimelineState> undoStack;

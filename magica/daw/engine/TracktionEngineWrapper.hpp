@@ -7,16 +7,22 @@
 #include "../interfaces/mixer_interface.hpp"
 #include "../interfaces/track_interface.hpp"
 #include "../interfaces/transport_interface.hpp"
+#include "AudioEngine.hpp"
 
 namespace magica {
 
 /**
- * @brief Wrapper around Tracktion Engine providing our DAW interfaces
+ * @brief Tracktion Engine implementation of AudioEngine
  *
  * This class bridges our command-based interface with the actual Tracktion Engine,
  * providing real audio functionality to our multi-agent DAW system.
+ *
+ * Inherits from AudioEngine (which includes AudioEngineListener) so it can:
+ * - Be used as a generic audio engine
+ * - Receive state change notifications from TimelineController
  */
-class TracktionEngineWrapper : public TransportInterface,
+class TracktionEngineWrapper : public AudioEngine,
+                               public TransportInterface,
                                public TrackInterface,
                                public ClipInterface,
                                public MixerInterface {
@@ -25,8 +31,8 @@ class TracktionEngineWrapper : public TransportInterface,
     ~TracktionEngineWrapper();
 
     // Initialize the engine
-    bool initialize();
-    void shutdown();
+    bool initialize() override;
+    void shutdown() override;
 
     // Process commands from MCP agents
     CommandResponse processCommand(const Command& command);
@@ -51,8 +57,19 @@ class TracktionEngineWrapper : public TransportInterface,
     bool isLooping() const override;
 
     // Metronome/click track control
-    void setMetronomeEnabled(bool enabled);
-    bool isMetronomeEnabled() const;
+    void setMetronomeEnabled(bool enabled) override;
+    bool isMetronomeEnabled() const override;
+
+    // AudioEngineListener implementation (receives state changes from UI)
+    void onTransportPlay(double position) override;
+    void onTransportStop(double returnPosition) override;
+    void onTransportPause() override;
+    void onTransportRecord(double position) override;
+    void onEditPositionChanged(double position) override;
+    void onTempoChanged(double bpm) override;
+    void onTimeSignatureChanged(int numerator, int denominator) override;
+    void onLoopRegionChanged(double startTime, double endTime, bool enabled) override;
+    void onLoopEnabledChanged(bool enabled) override;
 
     // TrackInterface implementation
     std::string createAudioTrack(const std::string& name) override;

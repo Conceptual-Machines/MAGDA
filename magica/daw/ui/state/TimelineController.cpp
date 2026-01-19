@@ -72,6 +72,19 @@ void TimelineController::removeListener(TimelineStateListener* listener) {
     listeners.erase(std::remove(listeners.begin(), listeners.end(), listener), listeners.end());
 }
 
+void TimelineController::addAudioEngineListener(AudioEngineListener* listener) {
+    if (listener && std::find(audioEngineListeners.begin(), audioEngineListeners.end(), listener) ==
+                        audioEngineListeners.end()) {
+        audioEngineListeners.push_back(listener);
+    }
+}
+
+void TimelineController::removeAudioEngineListener(AudioEngineListener* listener) {
+    audioEngineListeners.erase(
+        std::remove(audioEngineListeners.begin(), audioEngineListeners.end(), listener),
+        audioEngineListeners.end());
+}
+
 void TimelineController::pushUndoState() {
     undoStack.push_back(state);
 
@@ -259,6 +272,12 @@ TimelineController::ChangeFlags TimelineController::handleEvent(const SetEditPos
     if (!state.playhead.isPlaying) {
         state.playhead.playbackPosition = newPos;
     }
+
+    // Notify transport listeners of edit position change
+    for (auto* listener : audioEngineListeners) {
+        listener->onEditPositionChanged(newPos);
+    }
+
     return ChangeFlags::Playhead;
 }
 
@@ -286,6 +305,12 @@ TimelineController::ChangeFlags TimelineController::handleEvent(const StartPlayb
     state.playhead.isPlaying = true;
     // Sync playbackPosition to editPosition at start of playback
     state.playhead.playbackPosition = state.playhead.editPosition;
+
+    // Notify transport listeners to start playback
+    for (auto* listener : audioEngineListeners) {
+        listener->onTransportPlay(state.playhead.editPosition);
+    }
+
     return ChangeFlags::Playhead;
 }
 
@@ -298,6 +323,12 @@ TimelineController::ChangeFlags TimelineController::handleEvent(const StopPlayba
     state.playhead.isRecording = false;
     // Reset playbackPosition to editPosition (Bitwig behavior)
     state.playhead.playbackPosition = state.playhead.editPosition;
+
+    // Notify transport listeners to stop playback
+    for (auto* listener : audioEngineListeners) {
+        listener->onTransportStop(state.playhead.editPosition);
+    }
+
     return ChangeFlags::Playhead;
 }
 
@@ -381,6 +412,11 @@ TimelineController::ChangeFlags TimelineController::handleEvent(
     // Hide selection visually but keep data for transport display
     state.selection.hideVisually();
 
+    // Notify audio engine of loop region change
+    for (auto* listener : audioEngineListeners) {
+        listener->onLoopRegionChanged(state.loop.startTime, state.loop.endTime, true);
+    }
+
     return ChangeFlags::Selection | ChangeFlags::Loop;
 }
 
@@ -401,6 +437,11 @@ TimelineController::ChangeFlags TimelineController::handleEvent(const SetLoopReg
     // Enable loop if it wasn't valid before
     if (!state.loop.enabled && state.loop.isValid()) {
         state.loop.enabled = true;
+    }
+
+    // Notify audio engine of loop region change
+    for (auto* listener : audioEngineListeners) {
+        listener->onLoopRegionChanged(start, end, state.loop.enabled);
     }
 
     return ChangeFlags::Loop;
@@ -425,6 +466,12 @@ TimelineController::ChangeFlags TimelineController::handleEvent(const SetLoopEna
     }
 
     state.loop.enabled = e.enabled;
+
+    // Notify audio engine of loop enabled change
+    for (auto* listener : audioEngineListeners) {
+        listener->onLoopEnabledChanged(e.enabled);
+    }
+
     return ChangeFlags::Loop;
 }
 
@@ -454,6 +501,12 @@ TimelineController::ChangeFlags TimelineController::handleEvent(const SetTempoEv
     }
 
     state.tempo.bpm = newBpm;
+
+    // Notify audio engine of tempo change
+    for (auto* listener : audioEngineListeners) {
+        listener->onTempoChanged(newBpm);
+    }
+
     return ChangeFlags::Tempo;
 }
 
@@ -467,6 +520,12 @@ TimelineController::ChangeFlags TimelineController::handleEvent(const SetTimeSig
 
     state.tempo.timeSignatureNumerator = num;
     state.tempo.timeSignatureDenominator = den;
+
+    // Notify audio engine of time signature change
+    for (auto* listener : audioEngineListeners) {
+        listener->onTimeSignatureChanged(num, den);
+    }
+
     return ChangeFlags::Tempo;
 }
 

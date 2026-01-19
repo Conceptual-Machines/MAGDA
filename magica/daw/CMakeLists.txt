@@ -71,7 +71,7 @@ set(DAW_CORE_SOURCES
     core/TrackManager.cpp
     core/ClipManager.cpp
     core/SelectionManager.cpp
-    engine/tracktion_engine_wrapper.cpp
+    engine/TracktionEngineWrapper.cpp
     # UI components needed by tests
     ui/components/timeline/TimelineComponent.cpp
     # State management
@@ -156,7 +156,8 @@ set(DAW_HEADERS
     core/ClipInfo.hpp
     core/ClipManager.hpp
     core/SelectionManager.hpp
-    engine/tracktion_engine_wrapper.hpp
+    engine/AudioEngine.hpp
+    engine/TracktionEngineWrapper.hpp
     engine/PlaybackPositionTimer.hpp
     # Interfaces
     interfaces/clip_interface.hpp
