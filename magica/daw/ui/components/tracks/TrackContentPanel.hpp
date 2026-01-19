@@ -8,6 +8,7 @@
 
 #include "../../state/TimelineController.hpp"
 #include "core/TrackManager.hpp"
+#include "core/ViewModeController.hpp"
 
 namespace magica {
 
@@ -17,6 +18,7 @@ class TimelineController;
 class TrackContentPanel : public juce::Component,
                           public TimelineStateListener,
                           public TrackManagerListener,
+                          public ViewModeListener,
                           private juce::Timer {
   public:
     static constexpr int DEFAULT_TRACK_HEIGHT = 80;
@@ -35,6 +37,9 @@ class TrackContentPanel : public juce::Component,
 
     // TrackManagerListener implementation
     void tracksChanged() override;
+
+    // ViewModeListener implementation
+    void viewModeChanged(ViewMode mode, const AudioEngineProfile& profile) override;
 
     // Set the controller reference (called by MainView after construction)
     void setController(TimelineController* controller);
@@ -102,10 +107,12 @@ class TrackContentPanel : public juce::Component,
     };
 
     std::vector<std::unique_ptr<TrackLane>> trackLanes;
+    std::vector<TrackId> visibleTrackIds_;  // Track IDs in display order
     int selectedTrackIndex = -1;
     double currentZoom = 1.0;     // pixels per second (horizontal zoom)
     double verticalZoom = 1.0;    // track height multiplier
     double timelineLength = 0.0;  // Will be loaded from config
+    ViewMode currentViewMode_ = ViewMode::Arrange;
 
     // Time display mode and tempo (for grid drawing)
     TimeDisplayMode displayMode = TimeDisplayMode::BarsBeats;

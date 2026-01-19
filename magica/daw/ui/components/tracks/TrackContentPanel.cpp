@@ -1,5 +1,6 @@
 #include "TrackContentPanel.hpp"
 
+#include <functional>
 #include <iostream>
 
 #include "../../layout/LayoutConfig.hpp"
@@ -21,6 +22,10 @@ TrackContentPanel::TrackContentPanel() {
     // Register as TrackManager listener
     TrackManager::getInstance().addListener(this);
 
+    // Register as ViewModeController listener
+    ViewModeController::getInstance().addListener(this);
+    currentViewMode_ = ViewModeController::getInstance().getViewMode();
+
     // Build tracks from TrackManager
     tracksChanged();
 }
@@ -29,21 +34,54 @@ TrackContentPanel::~TrackContentPanel() {
     // Unregister from TrackManager
     TrackManager::getInstance().removeListener(this);
 
+    // Unregister from ViewModeController
+    ViewModeController::getInstance().removeListener(this);
+
     // Unregister from controller if we have one
     if (timelineController) {
         timelineController->removeListener(this);
     }
 }
 
+void TrackContentPanel::viewModeChanged(ViewMode mode, const AudioEngineProfile& /*profile*/) {
+    currentViewMode_ = mode;
+    tracksChanged();  // Rebuild with new visibility settings
+}
+
 void TrackContentPanel::tracksChanged() {
     // Rebuild track lanes from TrackManager
     trackLanes.clear();
+    visibleTrackIds_.clear();
     selectedTrackIndex = -1;
 
-    const auto& tracks = TrackManager::getInstance().getTracks();
-    for (size_t i = 0; i < tracks.size(); ++i) {
+    // Build visible tracks list (respecting hierarchy)
+    auto& trackManager = TrackManager::getInstance();
+    auto topLevelTracks = trackManager.getVisibleTopLevelTracks(currentViewMode_);
+
+    // Helper lambda to add track and its visible children recursively
+    std::function<void(TrackId, int)> addTrackRecursive = [&](TrackId trackId, int depth) {
+        const auto* track = trackManager.getTrack(trackId);
+        if (!track || !track->isVisibleIn(currentViewMode_))
+            return;
+
+        visibleTrackIds_.push_back(trackId);
+
         auto lane = std::make_unique<TrackLane>();
+        // Use height from view settings
+        lane->height = track->viewSettings.getHeight(currentViewMode_);
         trackLanes.push_back(std::move(lane));
+
+        // Add children if group is not collapsed
+        if (track->isGroup() && !track->isCollapsedIn(currentViewMode_)) {
+            for (auto childId : track->childIds) {
+                addTrackRecursive(childId, depth + 1);
+            }
+        }
+    };
+
+    // Add all visible top-level tracks (and their children)
+    for (auto trackId : topLevelTracks) {
+        addTrackRecursive(trackId, 0);
     }
 
     resized();

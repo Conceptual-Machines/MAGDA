@@ -86,6 +86,9 @@ juce::PopupMenu MenuManager::getMenuForIndex(int topLevelMenuIndex, const juce::
 #if JUCE_MAC
         menu.addItem(AddTrack, juce::String("Add Track") + juce::String::fromUTF8("\t\u2318T"),
                      true, false);
+        menu.addItem(AddGroupTrack,
+                     juce::String("Add Group Track") + juce::String::fromUTF8("\t\u21E7\u2318T"),
+                     true, false);
         menu.addSeparator();
         menu.addItem(DeleteTrack, juce::String("Delete Track") + juce::String::fromUTF8("\t\u232B"),
                      true, false);
@@ -94,6 +97,7 @@ juce::PopupMenu MenuManager::getMenuForIndex(int topLevelMenuIndex, const juce::
                      false);
 #else
         menu.addItem(AddTrack, "Add Track\tCtrl+T", true, false);
+        menu.addItem(AddGroupTrack, "Add Group Track\tCtrl+Shift+T", true, false);
         menu.addSeparator();
         menu.addItem(DeleteTrack, "Delete Track\tDelete", true, false);
         menu.addItem(DuplicateTrack, "Duplicate Track\tCtrl+D", true, false);
@@ -241,6 +245,10 @@ void MenuManager::menuItemSelected(int menuItemID, int topLevelMenuIndex) {
         case AddTrack:
             if (callbacks_.onAddTrack)
                 callbacks_.onAddTrack();
+            break;
+        case AddGroupTrack:
+            if (callbacks_.onAddGroupTrack)
+                callbacks_.onAddGroupTrack();
             break;
         case DeleteTrack:
             if (callbacks_.onDeleteTrack)

@@ -608,6 +608,8 @@ void MainWindow::setupMenuCallbacks() {
     // Track menu callbacks
     callbacks.onAddTrack = []() { TrackManager::getInstance().createTrack(); };
 
+    callbacks.onAddGroupTrack = []() { TrackManager::getInstance().createGroupTrack(); };
+
     callbacks.onDeleteTrack = [this]() {
         // Delete the selected track from MixerView
         if (mainComponent && mainComponent->mixerView) {

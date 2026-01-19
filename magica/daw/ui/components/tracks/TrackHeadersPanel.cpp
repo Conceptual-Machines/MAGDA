@@ -1,5 +1,7 @@
 #include "TrackHeadersPanel.hpp"
 
+#include <functional>
+
 #include "../../themes/DarkTheme.hpp"
 #include "../../themes/FontManager.hpp"
 
@@ -57,12 +59,22 @@ TrackHeadersPanel::TrackHeadersPanel() {
     // Register as TrackManager listener
     TrackManager::getInstance().addListener(this);
 
+    // Register as ViewModeController listener
+    ViewModeController::getInstance().addListener(this);
+    currentViewMode_ = ViewModeController::getInstance().getViewMode();
+
     // Build tracks from TrackManager
     tracksChanged();
 }
 
 TrackHeadersPanel::~TrackHeadersPanel() {
     TrackManager::getInstance().removeListener(this);
+    ViewModeController::getInstance().removeListener(this);
+}
+
+void TrackHeadersPanel::viewModeChanged(ViewMode mode, const AudioEngineProfile& /*profile*/) {
+    currentViewMode_ = mode;
+    tracksChanged();  // Rebuild with new visibility settings
 }
 
 void TrackHeadersPanel::tracksChanged() {
@@ -75,20 +87,31 @@ void TrackHeadersPanel::tracksChanged() {
         removeChildComponent(header->panSlider.get());
     }
     trackHeaders.clear();
+    visibleTrackIds_.clear();
     selectedTrackIndex = -1;
 
-    // Rebuild from TrackManager
-    const auto& tracks = TrackManager::getInstance().getTracks();
-    for (size_t i = 0; i < tracks.size(); ++i) {
-        const auto& track = tracks[i];
-        auto header = std::make_unique<TrackHeader>(track.name);
-        header->muted = track.muted;
-        header->solo = track.soloed;
-        header->volume = track.volume;
-        header->pan = track.pan;
+    // Build visible tracks list (respecting hierarchy)
+    auto& trackManager = TrackManager::getInstance();
+    auto topLevelTracks = trackManager.getVisibleTopLevelTracks(currentViewMode_);
+
+    // Helper lambda to add track and its visible children recursively
+    std::function<void(TrackId, int)> addTrackRecursive = [&](TrackId trackId, int depth) {
+        const auto* track = trackManager.getTrack(trackId);
+        if (!track || !track->isVisibleIn(currentViewMode_))
+            return;
+
+        visibleTrackIds_.push_back(trackId);
+
+        auto header = std::make_unique<TrackHeader>(track->name);
+        header->muted = track->muted;
+        header->solo = track->soloed;
+        header->volume = track->volume;
+        header->pan = track->pan;
+
+        // Use height from view settings
+        header->height = track->viewSettings.getHeight(currentViewMode_);
 
         // Set up callbacks with track ID (not index)
-        int trackId = track.id;
         setupTrackHeaderWithId(*header, trackId);
 
         // Add components
@@ -99,12 +122,24 @@ void TrackHeadersPanel::tracksChanged() {
         addAndMakeVisible(*header->panSlider);
 
         // Update UI state
-        header->muteButton->setToggleState(track.muted, juce::dontSendNotification);
-        header->soloButton->setToggleState(track.soloed, juce::dontSendNotification);
-        header->volumeSlider->setValue(track.volume, juce::dontSendNotification);
-        header->panSlider->setValue(track.pan, juce::dontSendNotification);
+        header->muteButton->setToggleState(track->muted, juce::dontSendNotification);
+        header->soloButton->setToggleState(track->soloed, juce::dontSendNotification);
+        header->volumeSlider->setValue(track->volume, juce::dontSendNotification);
+        header->panSlider->setValue(track->pan, juce::dontSendNotification);
 
         trackHeaders.push_back(std::move(header));
+
+        // Add children if group is not collapsed
+        if (track->isGroup() && !track->isCollapsedIn(currentViewMode_)) {
+            for (auto childId : track->childIds) {
+                addTrackRecursive(childId, depth + 1);
+            }
+        }
+    };
+
+    // Add all visible top-level tracks (and their children)
+    for (auto trackId : topLevelTracks) {
+        addTrackRecursive(trackId, 0);
     }
 
     updateTrackHeaderLayout();
@@ -116,7 +151,15 @@ void TrackHeadersPanel::trackPropertyChanged(int trackId) {
     if (!track)
         return;
 
-    int index = TrackManager::getInstance().getTrackIndex(trackId);
+    // Find the index in our visible tracks list
+    int index = -1;
+    for (size_t i = 0; i < visibleTrackIds_.size(); ++i) {
+        if (visibleTrackIds_[i] == trackId) {
+            index = static_cast<int>(i);
+            break;
+        }
+    }
+
     if (index >= 0 && index < static_cast<int>(trackHeaders.size())) {
         auto& header = *trackHeaders[index];
         header.name = track->name;
@@ -125,12 +168,16 @@ void TrackHeadersPanel::trackPropertyChanged(int trackId) {
         header.volume = track->volume;
         header.pan = track->pan;
 
+        // Update height from view settings
+        header.height = track->viewSettings.getHeight(currentViewMode_);
+
         header.nameLabel->setText(track->name, juce::dontSendNotification);
         header.muteButton->setToggleState(track->muted, juce::dontSendNotification);
         header.soloButton->setToggleState(track->soloed, juce::dontSendNotification);
         header.volumeSlider->setValue(track->volume, juce::dontSendNotification);
         header.panSlider->setValue(track->pan, juce::dontSendNotification);
 
+        updateTrackHeaderLayout();
         repaint();
     }
 }

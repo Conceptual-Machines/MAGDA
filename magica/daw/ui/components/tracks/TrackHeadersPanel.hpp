@@ -6,10 +6,13 @@
 #include <vector>
 
 #include "core/TrackManager.hpp"
+#include "core/ViewModeController.hpp"
 
 namespace magica {
 
-class TrackHeadersPanel : public juce::Component, public TrackManagerListener {
+class TrackHeadersPanel : public juce::Component,
+                          public TrackManagerListener,
+                          public ViewModeListener {
   public:
     static constexpr int TRACK_HEADER_WIDTH = 200;
     static constexpr int DEFAULT_TRACK_HEIGHT = 80;
@@ -22,6 +25,9 @@ class TrackHeadersPanel : public juce::Component, public TrackManagerListener {
     // TrackManagerListener
     void tracksChanged() override;
     void trackPropertyChanged(int trackId) override;
+
+    // ViewModeListener
+    void viewModeChanged(ViewMode mode, const AudioEngineProfile& profile) override;
 
     void paint(juce::Graphics& g) override;
     void resized() override;
@@ -84,8 +90,10 @@ class TrackHeadersPanel : public juce::Component, public TrackManagerListener {
     };
 
     std::vector<std::unique_ptr<TrackHeader>> trackHeaders;
+    std::vector<TrackId> visibleTrackIds_;  // Track IDs in display order
     int selectedTrackIndex = -1;
     double verticalZoom = 1.0;  // Track height multiplier
+    ViewMode currentViewMode_ = ViewMode::Arrange;
 
     // Resize functionality
     bool isResizing = false;
