@@ -71,6 +71,10 @@ class TrackHeadersPanel : public juce::Component,
   private:
     struct TrackHeader {
         juce::String name;
+        TrackId trackId = INVALID_TRACK_ID;
+        int depth = 0;             // Hierarchy depth for indentation
+        bool isGroup = false;      // Is this a group track?
+        bool isCollapsed = false;  // Is group collapsed?
         bool selected = false;
         bool muted = false;
         bool solo = false;
@@ -84,6 +88,7 @@ class TrackHeadersPanel : public juce::Component,
         std::unique_ptr<juce::TextButton> soloButton;
         std::unique_ptr<juce::Slider> volumeSlider;
         std::unique_ptr<juce::Slider> panSlider;
+        std::unique_ptr<juce::TextButton> collapseButton;  // For groups
 
         TrackHeader(const juce::String& trackName);
         ~TrackHeader() = default;
@@ -118,6 +123,14 @@ class TrackHeadersPanel : public juce::Component,
     void mouseDrag(const juce::MouseEvent& event) override;
     void mouseMove(const juce::MouseEvent& event) override;
     void mouseUp(const juce::MouseEvent& event) override;
+
+    // Context menu
+    void showContextMenu(int trackIndex, juce::Point<int> position);
+    void handleCollapseToggle(TrackId trackId);
+
+    // Indentation
+    static constexpr int INDENT_WIDTH = 20;
+    static constexpr int COLLAPSE_BUTTON_SIZE = 16;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TrackHeadersPanel)
 };

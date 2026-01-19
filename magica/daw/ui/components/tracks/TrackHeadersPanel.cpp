@@ -1,5 +1,6 @@
 #include "TrackHeadersPanel.hpp"
 
+#include <algorithm>
 #include <functional>
 
 #include "../../themes/DarkTheme.hpp"
@@ -51,6 +52,13 @@ TrackHeadersPanel::TrackHeader::TrackHeader(const juce::String& trackName) : nam
     panSlider->setValue(pan);
     panSlider->setColour(juce::Slider::trackColourId, DarkTheme::getColour(DarkTheme::SURFACE));
     panSlider->setColour(juce::Slider::thumbColourId, DarkTheme::getColour(DarkTheme::ACCENT_BLUE));
+
+    // Collapse button for groups (triangle indicator)
+    collapseButton = std::make_unique<juce::TextButton>();
+    collapseButton->setColour(juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
+    collapseButton->setColour(juce::TextButton::buttonOnColourId, juce::Colours::transparentBlack);
+    collapseButton->setColour(juce::TextButton::textColourOffId,
+                              DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
 }
 
 TrackHeadersPanel::TrackHeadersPanel() {
@@ -85,6 +93,7 @@ void TrackHeadersPanel::tracksChanged() {
         removeChildComponent(header->soloButton.get());
         removeChildComponent(header->volumeSlider.get());
         removeChildComponent(header->panSlider.get());
+        removeChildComponent(header->collapseButton.get());
     }
     trackHeaders.clear();
     visibleTrackIds_.clear();
@@ -103,6 +112,10 @@ void TrackHeadersPanel::tracksChanged() {
         visibleTrackIds_.push_back(trackId);
 
         auto header = std::make_unique<TrackHeader>(track->name);
+        header->trackId = trackId;
+        header->depth = depth;
+        header->isGroup = track->isGroup();
+        header->isCollapsed = track->isCollapsedIn(currentViewMode_);
         header->muted = track->muted;
         header->solo = track->soloed;
         header->volume = track->volume;
@@ -120,6 +133,13 @@ void TrackHeadersPanel::tracksChanged() {
         addAndMakeVisible(*header->soloButton);
         addAndMakeVisible(*header->volumeSlider);
         addAndMakeVisible(*header->panSlider);
+
+        // Add collapse button for groups
+        if (header->isGroup) {
+            header->collapseButton->setButtonText(header->isCollapsed ? "▶" : "▼");
+            header->collapseButton->onClick = [this, trackId]() { handleCollapseToggle(trackId); };
+            addAndMakeVisible(*header->collapseButton);
+        }
 
         // Update UI state
         header->muteButton->setToggleState(track->muted, juce::dontSendNotification);
@@ -418,16 +438,38 @@ void TrackHeadersPanel::setupTrackHeaderWithId(TrackHeader& header, int trackId)
 
 void TrackHeadersPanel::paintTrackHeader(juce::Graphics& g, const TrackHeader& header,
                                          juce::Rectangle<int> area, bool isSelected) {
-    // Background
-    g.setColour(isSelected ? DarkTheme::getColour(DarkTheme::TRACK_SELECTED)
-                           : DarkTheme::getColour(DarkTheme::TRACK_BACKGROUND));
-    g.fillRect(area);
+    // Calculate indent
+    int indent = header.depth * INDENT_WIDTH;
+
+    // Draw indent guide lines for nested tracks
+    if (header.depth > 0) {
+        g.setColour(DarkTheme::getColour(DarkTheme::BORDER).withAlpha(0.5f));
+        for (int d = 0; d < header.depth; ++d) {
+            int x = d * INDENT_WIDTH + INDENT_WIDTH / 2;
+            g.drawLine(x, area.getY(), x, area.getBottom(), 1.0f);
+        }
+    }
+
+    // Background - groups have slightly different color
+    auto bgArea = area.withTrimmedLeft(indent);
+    if (header.isGroup) {
+        g.setColour(isSelected ? DarkTheme::getColour(DarkTheme::TRACK_SELECTED)
+                               : DarkTheme::getColour(DarkTheme::SURFACE).brighter(0.05f));
+    } else {
+        g.setColour(isSelected ? DarkTheme::getColour(DarkTheme::TRACK_SELECTED)
+                               : DarkTheme::getColour(DarkTheme::TRACK_BACKGROUND));
+    }
+    g.fillRect(bgArea);
 
     // Border
     g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
-    g.drawRect(area, 1);
+    g.drawRect(bgArea, 1);
 
-    // Track number removed - track names are sufficient identification
+    // Group indicator color strip on the left
+    if (header.isGroup) {
+        g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE).withAlpha(0.7f));
+        g.fillRect(bgArea.getX(), bgArea.getY(), 3, bgArea.getHeight());
+    }
 }
 
 void TrackHeadersPanel::paintResizeHandle(juce::Graphics& g, juce::Rectangle<int> area) {
@@ -482,11 +524,23 @@ void TrackHeadersPanel::updateTrackHeaderLayout() {
         auto headerArea = getTrackHeaderArea(static_cast<int>(i));
 
         if (!headerArea.isEmpty()) {
-            // Layout UI components within the header area
-            auto contentArea = headerArea.reduced(5);
+            // Apply indentation based on depth
+            int indent = header.depth * INDENT_WIDTH;
+            auto contentArea = headerArea.withTrimmedLeft(indent).reduced(5);
 
-            // Name label at top (always visible)
-            header.nameLabel->setBounds(contentArea.removeFromTop(20));
+            // Top row: collapse button (if group) + name label
+            auto topRow = contentArea.removeFromTop(20);
+
+            if (header.isGroup) {
+                // Collapse button for groups
+                header.collapseButton->setBounds(topRow.removeFromLeft(COLLAPSE_BUTTON_SIZE));
+                topRow.removeFromLeft(3);  // Spacing
+                header.collapseButton->setVisible(true);
+            } else {
+                header.collapseButton->setVisible(false);
+            }
+
+            header.nameLabel->setBounds(topRow);
             contentArea.removeFromTop(5);  // Spacing
 
             // Mute and Solo buttons (always visible)
@@ -528,10 +582,15 @@ void TrackHeadersPanel::mouseDown(const juce::MouseEvent& event) {
         resizeStartHeight = trackHeaders[trackIndex]->height;
         setMouseCursor(juce::MouseCursor::UpDownResizeCursor);
     } else {
-        // Select track
-        for (int i = 0; i < trackHeaders.size(); ++i) {
+        // Find which track was clicked
+        for (int i = 0; i < static_cast<int>(trackHeaders.size()); ++i) {
             if (getTrackHeaderArea(i).contains(event.getPosition())) {
                 selectTrack(i);
+
+                // Right-click shows context menu
+                if (event.mods.isPopupMenu()) {
+                    showContextMenu(i, event.getPosition());
+                }
                 break;
             }
         }
@@ -601,6 +660,91 @@ void TrackHeadersPanel::setTrackPan(int trackIndex, float pan) {
         trackHeaders[trackIndex]->pan = pan;
         trackHeaders[trackIndex]->panSlider->setValue(pan, juce::dontSendNotification);
     }
+}
+
+void TrackHeadersPanel::handleCollapseToggle(TrackId trackId) {
+    auto& trackManager = TrackManager::getInstance();
+    const auto* track = trackManager.getTrack(trackId);
+    if (track && track->isGroup()) {
+        bool currentlyCollapsed = track->isCollapsedIn(currentViewMode_);
+        trackManager.setTrackCollapsed(trackId, currentViewMode_, !currentlyCollapsed);
+    }
+}
+
+void TrackHeadersPanel::showContextMenu(int trackIndex, juce::Point<int> position) {
+    if (trackIndex < 0 || trackIndex >= static_cast<int>(trackHeaders.size()))
+        return;
+
+    auto& header = *trackHeaders[trackIndex];
+    auto& trackManager = TrackManager::getInstance();
+    const auto* track = trackManager.getTrack(header.trackId);
+    if (!track)
+        return;
+
+    juce::PopupMenu menu;
+
+    // Track type info
+    menu.addSectionHeader(track->name);
+    menu.addSeparator();
+
+    // Group operations
+    if (track->isGroup()) {
+        // Collapse/expand
+        menu.addItem(1, track->isCollapsedIn(currentViewMode_) ? "Expand Group" : "Collapse Group");
+        menu.addSeparator();
+    }
+
+    // Move to group submenu
+    juce::PopupMenu moveToGroupMenu;
+    const auto& allTracks = trackManager.getTracks();
+    bool hasGroups = false;
+
+    for (const auto& t : allTracks) {
+        if (t.isGroup() && t.id != header.trackId) {
+            // Don't allow moving a group into its own descendants
+            if (track->isGroup()) {
+                auto descendants = trackManager.getAllDescendants(header.trackId);
+                if (std::find(descendants.begin(), descendants.end(), t.id) != descendants.end())
+                    continue;
+            }
+            moveToGroupMenu.addItem(100 + t.id, t.name);
+            hasGroups = true;
+        }
+    }
+
+    if (hasGroups) {
+        menu.addSubMenu("Move to Group", moveToGroupMenu);
+    }
+
+    // Remove from group (if track has a parent)
+    if (!track->isTopLevel()) {
+        menu.addItem(2, "Remove from Group");
+    }
+
+    menu.addSeparator();
+
+    // Delete track
+    menu.addItem(3, "Delete Track");
+
+    // Show menu and handle result
+    menu.showMenuAsync(juce::PopupMenu::Options().withTargetScreenArea(
+                           localAreaToGlobal(juce::Rectangle<int>(position.x, position.y, 1, 1))),
+                       [this, trackId = header.trackId](int result) {
+                           if (result == 1) {
+                               // Toggle collapse
+                               handleCollapseToggle(trackId);
+                           } else if (result == 2) {
+                               // Remove from group
+                               TrackManager::getInstance().removeTrackFromGroup(trackId);
+                           } else if (result == 3) {
+                               // Delete track
+                               TrackManager::getInstance().deleteTrack(trackId);
+                           } else if (result >= 100) {
+                               // Move to group
+                               TrackId groupId = result - 100;
+                               TrackManager::getInstance().addTrackToGroup(trackId, groupId);
+                           }
+                       });
 }
 
 }  // namespace magica
