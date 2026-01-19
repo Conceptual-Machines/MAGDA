@@ -381,6 +381,11 @@ void TrackManager::setMasterSoloed(bool soloed) {
     notifyMasterChannelChanged();
 }
 
+void TrackManager::setMasterVisible(ViewMode mode, bool visible) {
+    masterChannel_.viewSettings.setVisible(mode, visible);
+    notifyMasterChannelChanged();
+}
+
 // ============================================================================
 // Listener Management
 // ============================================================================

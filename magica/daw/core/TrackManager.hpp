@@ -17,6 +17,11 @@ struct MasterChannelState {
     float pan = 0.0f;
     bool muted = false;
     bool soloed = false;
+    TrackViewSettingsMap viewSettings;  // Visibility per view mode
+
+    bool isVisibleIn(ViewMode mode) const {
+        return viewSettings.isVisible(mode);
+    }
 };
 
 /**
@@ -106,6 +111,7 @@ class TrackManager {
     void setMasterPan(float pan);
     void setMasterMuted(bool muted);
     void setMasterSoloed(bool soloed);
+    void setMasterVisible(ViewMode mode, bool visible);
 
     // Listener management
     void addListener(TrackManagerListener* listener);

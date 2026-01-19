@@ -95,6 +95,25 @@ class TrackManagerDialog::ContentComponent : public juce::Component,
             return;
 
         const auto& row = trackRows_[rowNumber];
+
+        // Handle master track specially
+        if (row.isMaster) {
+            if (columnId == TrackName) {
+                // Draw master track name with special styling
+                g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
+                g.drawText("Master", 5, 0, width - 10, height, juce::Justification::centredLeft);
+            } else {
+                // Draw checkbox for view mode columns
+                ViewMode mode = columnIdToViewMode(columnId);
+                const auto& master = TrackManager::getInstance().getMasterChannel();
+                bool isVisible = master.isVisibleIn(mode);
+
+                drawCheckbox(g, width, height, isVisible);
+            }
+            return;
+        }
+
+        // Regular track handling
         const auto* track = TrackManager::getInstance().getTrack(row.trackId);
         if (!track)
             return;
@@ -117,27 +136,31 @@ class TrackManagerDialog::ContentComponent : public juce::Component,
             ViewMode mode = columnIdToViewMode(columnId);
             bool isVisible = track->isVisibleIn(mode);
 
-            auto checkBounds = juce::Rectangle<int>((width - 16) / 2, (height - 16) / 2, 16, 16);
+            drawCheckbox(g, width, height, isVisible);
+        }
+    }
 
-            // Checkbox border
-            g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
-            g.drawRect(checkBounds, 1);
+    void drawCheckbox(juce::Graphics& g, int width, int height, bool isChecked) {
+        auto checkBounds = juce::Rectangle<int>((width - 16) / 2, (height - 16) / 2, 16, 16);
 
-            // Checked state
-            if (isVisible) {
-                g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_BLUE));
-                g.fillRect(checkBounds.reduced(3));
+        // Checkbox border
+        g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
+        g.drawRect(checkBounds, 1);
 
-                // Draw checkmark
-                g.setColour(DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
-                juce::Path checkPath;
-                float cx = checkBounds.getCentreX();
-                float cy = checkBounds.getCentreY();
-                checkPath.startNewSubPath(cx - 4, cy);
-                checkPath.lineTo(cx - 1, cy + 3);
-                checkPath.lineTo(cx + 4, cy - 3);
-                g.strokePath(checkPath, juce::PathStrokeType(2.0f));
-            }
+        // Checked state
+        if (isChecked) {
+            g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_BLUE));
+            g.fillRect(checkBounds.reduced(3));
+
+            // Draw checkmark
+            g.setColour(DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
+            juce::Path checkPath;
+            float cx = checkBounds.getCentreX();
+            float cy = checkBounds.getCentreY();
+            checkPath.startNewSubPath(cx - 4, cy);
+            checkPath.lineTo(cx - 1, cy + 3);
+            checkPath.lineTo(cx + 4, cy - 3);
+            g.strokePath(checkPath, juce::PathStrokeType(2.0f));
         }
     }
 
@@ -148,11 +171,22 @@ class TrackManagerDialog::ContentComponent : public juce::Component,
             return;  // Don't toggle on name column
 
         const auto& row = trackRows_[rowNumber];
+        ViewMode mode = columnIdToViewMode(columnId);
+
+        // Handle master track
+        if (row.isMaster) {
+            const auto& master = TrackManager::getInstance().getMasterChannel();
+            bool currentlyVisible = master.isVisibleIn(mode);
+            TrackManager::getInstance().setMasterVisible(mode, !currentlyVisible);
+            table_.repaint();
+            return;
+        }
+
+        // Regular track
         const auto* track = TrackManager::getInstance().getTrack(row.trackId);
         if (!track)
             return;
 
-        ViewMode mode = columnIdToViewMode(columnId);
         bool currentlyVisible = track->isVisibleIn(mode);
         TrackManager::getInstance().setTrackVisible(row.trackId, mode, !currentlyVisible);
 
@@ -163,6 +197,7 @@ class TrackManagerDialog::ContentComponent : public juce::Component,
     struct TrackRow {
         TrackId trackId;
         int depth;
+        bool isMaster = false;  // Special flag for master track
     };
 
     void rebuildTrackList() {
@@ -175,7 +210,7 @@ class TrackManagerDialog::ContentComponent : public juce::Component,
             if (!track)
                 return;
 
-            trackRows_.push_back({trackId, depth});
+            trackRows_.push_back({trackId, depth, false});
 
             // Add children if it's a group
             if (track->isGroup()) {
@@ -192,16 +227,14 @@ class TrackManagerDialog::ContentComponent : public juce::Component,
             }
         }
 
+        // Add master track at the end
+        trackRows_.push_back({INVALID_TRACK_ID, 0, true});
+
         table_.updateContent();
         table_.repaint();
 
-        if (trackRows_.empty()) {
-            infoLabel_.setText("No tracks. Use Track > Add Track to create one.",
-                               juce::dontSendNotification);
-        } else {
-            infoLabel_.setText("Click checkboxes to toggle track visibility per view mode",
-                               juce::dontSendNotification);
-        }
+        infoLabel_.setText("Click checkboxes to toggle track visibility per view mode",
+                           juce::dontSendNotification);
     }
 
     static ViewMode columnIdToViewMode(int columnId) {
