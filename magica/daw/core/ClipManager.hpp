@@ -69,6 +69,11 @@ class ClipManager {
     void deleteClip(ClipId clipId);
 
     /**
+     * @brief Restore a clip from full ClipInfo (used by undo system)
+     */
+    void restoreClip(const ClipInfo& clipInfo);
+
+    /**
      * @brief Duplicate a clip (places copy right after original)
      * @return The ID of the new clip
      */

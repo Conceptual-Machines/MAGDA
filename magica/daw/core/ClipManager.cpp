@@ -71,6 +71,27 @@ void ClipManager::deleteClip(ClipId clipId) {
     }
 }
 
+void ClipManager::restoreClip(const ClipInfo& clipInfo) {
+    // Check if a clip with this ID already exists
+    auto it = std::find_if(clips_.begin(), clips_.end(),
+                           [&clipInfo](const ClipInfo& c) { return c.id == clipInfo.id; });
+
+    if (it != clips_.end()) {
+        DBG("Warning: Clip with id=" << clipInfo.id << " already exists, skipping restore");
+        return;
+    }
+
+    clips_.push_back(clipInfo);
+
+    // Ensure nextClipId_ is beyond any restored clip IDs
+    if (clipInfo.id >= nextClipId_) {
+        nextClipId_ = clipInfo.id + 1;
+    }
+
+    notifyClipsChanged();
+    DBG("Restored clip: " << clipInfo.name << " (id=" << clipInfo.id << ")");
+}
+
 ClipId ClipManager::duplicateClip(ClipId clipId) {
     auto it = std::find_if(clips_.begin(), clips_.end(),
                            [clipId](const ClipInfo& c) { return c.id == clipId; });
