@@ -186,6 +186,17 @@ void ClipComponent::resized() {
     // Nothing to do - clip bounds are set by parent
 }
 
+bool ClipComponent::hitTest(int x, int y) {
+    // Only respond to clicks in the upper half of the clip
+    // (which corresponds to the upper zone of the track for clip operations)
+    // Lower half clicks pass through to TrackContentPanel for time selection
+    int midY = getHeight() / 2;
+    if (y >= midY) {
+        return false;  // Let parent handle lower zone clicks
+    }
+    return x >= 0 && x < getWidth() && y >= 0;
+}
+
 // ============================================================================
 // Mouse Handling
 // ============================================================================

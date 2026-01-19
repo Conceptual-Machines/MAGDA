@@ -383,32 +383,64 @@ void TrackContentPanel::mouseDown(const juce::MouseEvent& event) {
         }
     }
 
-    // Check if clicking on an existing time selection (to move it)
-    if (isOnExistingSelection(event.x, event.y)) {
-        const auto& selection = timelineController->getState().selection;
-        isMovingSelection = true;
-        isCreatingSelection = false;
-        currentDragType_ = DragType::MoveSelection;
-        moveDragStartTime = pixelToTime(event.x);
-        moveSelectionOriginalStart = selection.startTime;
-        moveSelectionOriginalEnd = selection.endTime;
-        moveSelectionOriginalTracks = selection.trackIndices;
-        return;
-    }
+    // Zone-based behavior:
+    // Upper half of track = clip operations
+    // Lower half of track = time selection operations
+    bool inUpperZone = isInUpperTrackZone(event.y);
+    bool onClip = getClipComponentAt(event.x, event.y) != nullptr;
 
-    // Start time/marquee selection tracking if in selectable area (not on a clip)
-    // Clips handle their own mouse events
-    if (isInSelectableArea(event.x, event.y) && getClipComponentAt(event.x, event.y) == nullptr) {
-        isCreatingSelection = true;
-        isMovingSelection = false;
-        selectionStartTime = juce::jmax(0.0, pixelToTime(event.x));
-
-        // Apply snap to grid if callback is set
-        if (snapTimeToGrid) {
-            selectionStartTime = snapTimeToGrid(selectionStartTime);
+    if (inUpperZone) {
+        // UPPER ZONE: Clip operations
+        if (!onClip) {
+            // Clicked empty space in upper zone - deselect clips (unless Cmd held)
+            if (!event.mods.isCommandDown()) {
+                SelectionManager::getInstance().clearSelection();
+            }
         }
+        // If on clip, the ClipComponent handles mouse events
+        // Prepare for potential marquee if they drag
+        if (!onClip && isInSelectableArea(event.x, event.y)) {
+            isCreatingSelection = true;
+            isMovingSelection = false;
+        }
+    } else {
+        // LOWER ZONE: Time selection operations
+        if (isOnExistingSelection(event.x, event.y)) {
+            // Clicked inside existing time selection - prepare to move it
+            const auto& selection = timelineController->getState().selection;
+            isMovingSelection = true;
+            isCreatingSelection = false;
+            currentDragType_ = DragType::MoveSelection;
+            moveDragStartTime = pixelToTime(event.x);
+            moveSelectionOriginalStart = selection.startTime;
+            moveSelectionOriginalEnd = selection.endTime;
+            moveSelectionOriginalTracks = selection.trackIndices;
 
-        selectionEndTime = selectionStartTime;
+            // Capture all clips within the time selection
+            captureClipsInTimeSelection();
+            return;
+        } else {
+            // Clicked outside time selection in lower zone - clear it and start new one
+            if (timelineController && timelineController->getState().selection.isActive()) {
+                // Clear existing time selection
+                if (onTimeSelectionChanged) {
+                    onTimeSelectionChanged(-1.0, -1.0, {});
+                }
+            }
+            // Prepare for new time selection
+            if (isInSelectableArea(event.x, event.y)) {
+                isCreatingSelection = true;
+                isMovingSelection = false;
+                selectionStartTime = juce::jmax(0.0, pixelToTime(event.x));
+
+                // Apply snap to grid if callback is set
+                if (snapTimeToGrid) {
+                    selectionStartTime = snapTimeToGrid(selectionStartTime);
+                }
+
+                selectionEndTime = selectionStartTime;
+            }
+        }
     }
 }
 
@@ -428,6 +460,7 @@ void TrackContentPanel::mouseDrag(const juce::MouseEvent& event) {
             double snapDelta = snappedStart - newStart;
             newStart = snappedStart;
             newEnd += snapDelta;
+            deltaTime += snapDelta;  // Adjust delta for clip movement
         }
 
         // Clamp to timeline bounds
@@ -435,11 +468,16 @@ void TrackContentPanel::mouseDrag(const juce::MouseEvent& event) {
         if (newStart < 0) {
             newStart = 0;
             newEnd = duration;
+            deltaTime = -moveSelectionOriginalStart;
         }
         if (newEnd > timelineLength) {
             newEnd = timelineLength;
             newStart = timelineLength - duration;
+            deltaTime = newStart - moveSelectionOriginalStart;
         }
+
+        // Move clips visually along with the time selection
+        moveClipsWithTimeSelection(deltaTime);
 
         // Notify about selection change (preserve original track indices)
         if (onTimeSelectionChanged) {
@@ -513,6 +551,32 @@ void TrackContentPanel::mouseDrag(const juce::MouseEvent& event) {
 
 void TrackContentPanel::mouseUp(const juce::MouseEvent& event) {
     if (isMovingSelection) {
+        // Calculate final delta time to commit clips
+        double currentTime = pixelToTime(event.x);
+        double deltaTime = currentTime - moveDragStartTime;
+
+        // Apply same snap logic as in mouseDrag
+        double newStart = moveSelectionOriginalStart + deltaTime;
+        if (snapTimeToGrid) {
+            double snappedStart = snapTimeToGrid(newStart);
+            double snapDelta = snappedStart - newStart;
+            deltaTime += snapDelta;
+        }
+
+        // Clamp to timeline bounds
+        double duration = moveSelectionOriginalEnd - moveSelectionOriginalStart;
+        newStart = moveSelectionOriginalStart + deltaTime;
+        double newEnd = moveSelectionOriginalEnd + deltaTime;
+        if (newStart < 0) {
+            deltaTime = -moveSelectionOriginalStart;
+        }
+        if (newEnd > timelineLength) {
+            deltaTime = (timelineLength - duration) - moveSelectionOriginalStart;
+        }
+
+        // Commit clip positions
+        commitClipsInTimeSelection(deltaTime);
+
         // Finalize move - the selection has already been updated via mouseDrag
         isMovingSelection = false;
         moveDragStartTime = -1.0;
@@ -656,20 +720,20 @@ void TrackContentPanel::updateCursorForPosition(int x, int y) {
         return;
     }
 
-    // Check if over an existing time selection
-    if (isOnExistingSelection(x, y)) {
-        setMouseCursor(juce::MouseCursor::DraggingHandCursor);
-        return;
-    }
-
     // Check track zone
     if (isInSelectableArea(x, y)) {
         if (isInUpperTrackZone(y)) {
-            // Upper half - marquee/crosshair cursor
+            // Upper half - marquee/crosshair cursor (clip operations)
             setMouseCursor(juce::MouseCursor::CrosshairCursor);
         } else {
-            // Lower half - time selection/I-beam cursor
-            setMouseCursor(juce::MouseCursor::IBeamCursor);
+            // Lower half - time selection operations
+            if (isOnExistingSelection(x, y)) {
+                // Over existing time selection - show grab cursor
+                setMouseCursor(juce::MouseCursor::DraggingHandCursor);
+            } else {
+                // Empty space - I-beam for creating time selection
+                setMouseCursor(juce::MouseCursor::IBeamCursor);
+            }
         }
     } else {
         setMouseCursor(juce::MouseCursor::NormalCursor);
@@ -1111,6 +1175,92 @@ void TrackContentPanel::cancelMultiClipDrag() {
     isMovingMultipleClips_ = false;
     anchorClipId_ = INVALID_CLIP_ID;
     multiClipDragInfos_.clear();
+}
+
+// ============================================================================
+// Time Selection with Clips
+// ============================================================================
+
+void TrackContentPanel::captureClipsInTimeSelection() {
+    clipsInTimeSelection_.clear();
+
+    if (!timelineController) {
+        return;
+    }
+
+    const auto& selection = timelineController->getState().selection;
+    if (!selection.isActive()) {
+        return;
+    }
+
+    // Get all clips and check if they overlap with the time selection
+    const auto& clips = ClipManager::getInstance().getClips();
+
+    for (const auto& clip : clips) {
+        // Check if clip's track is in the selection
+        auto it = std::find(visibleTrackIds_.begin(), visibleTrackIds_.end(), clip.trackId);
+        if (it == visibleTrackIds_.end()) {
+            continue;  // Track not visible
+        }
+
+        int trackIndex = static_cast<int>(std::distance(visibleTrackIds_.begin(), it));
+        if (!selection.includesTrack(trackIndex)) {
+            continue;  // Track not in selection
+        }
+
+        // Check if clip overlaps with selection time range
+        double clipEnd = clip.startTime + clip.length;
+        if (clip.startTime < selection.endTime && clipEnd > selection.startTime) {
+            // Clip overlaps with selection - capture it
+            TimeSelectionClipInfo info;
+            info.clipId = clip.id;
+            info.originalStartTime = clip.startTime;
+            clipsInTimeSelection_.push_back(info);
+        }
+    }
+}
+
+void TrackContentPanel::moveClipsWithTimeSelection(double deltaTime) {
+    if (clipsInTimeSelection_.empty()) {
+        return;
+    }
+
+    // Update all clip components visually
+    for (const auto& info : clipsInTimeSelection_) {
+        double newStartTime = juce::jmax(0.0, info.originalStartTime + deltaTime);
+
+        // Find the clip component and update its position
+        for (auto& clipComp : clipComponents_) {
+            if (clipComp->getClipId() == info.clipId) {
+                const auto* clip = ClipManager::getInstance().getClip(info.clipId);
+                if (clip) {
+                    int newX = timeToPixel(newStartTime);
+                    int clipWidth = static_cast<int>(clip->length * currentZoom);
+                    clipComp->setBounds(newX, clipComp->getY(), juce::jmax(10, clipWidth),
+                                        clipComp->getHeight());
+                }
+                break;
+            }
+        }
+    }
+}
+
+void TrackContentPanel::commitClipsInTimeSelection(double deltaTime) {
+    if (clipsInTimeSelection_.empty()) {
+        return;
+    }
+
+    // Commit all clip moves to ClipManager
+    for (const auto& info : clipsInTimeSelection_) {
+        double newStartTime = juce::jmax(0.0, info.originalStartTime + deltaTime);
+        ClipManager::getInstance().moveClip(info.clipId, newStartTime);
+    }
+
+    // Clear the captured clips
+    clipsInTimeSelection_.clear();
+
+    // Refresh positions from ClipManager
+    updateClipComponentPositions();
 }
 
 // ============================================================================

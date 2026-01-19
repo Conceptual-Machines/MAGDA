@@ -32,6 +32,7 @@ class ClipComponent : public juce::Component, public ClipManagerListener {
     // Component overrides
     void paint(juce::Graphics& g) override;
     void resized() override;
+    bool hitTest(int x, int y) override;
 
     // Mouse handling
     void mouseDown(const juce::MouseEvent& e) override;

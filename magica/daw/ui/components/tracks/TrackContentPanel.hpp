@@ -176,6 +176,16 @@ class TrackContentPanel : public juce::Component,
     double moveSelectionOriginalEnd = -1.0;
     std::set<int> moveSelectionOriginalTracks;
 
+    // Clips being moved with time selection
+    struct TimeSelectionClipInfo {
+        ClipId clipId = INVALID_CLIP_ID;
+        double originalStartTime = 0.0;
+    };
+    std::vector<TimeSelectionClipInfo> clipsInTimeSelection_;
+    void captureClipsInTimeSelection();
+    void moveClipsWithTimeSelection(double deltaTime);
+    void commitClipsInTimeSelection(double deltaTime);
+
     // Pending playhead state (for double-click detection)
     double pendingPlayheadTime = -1.0;
     static constexpr int DOUBLE_CLICK_DELAY_MS = 250;
