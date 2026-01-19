@@ -1,6 +1,7 @@
 #include "MixerView.hpp"
 
 #include "../themes/DarkTheme.hpp"
+#include "core/ViewModeController.hpp"
 
 namespace magica {
 
@@ -286,6 +287,9 @@ void MixerView::ChannelStrip::mouseDown(const juce::MouseEvent& /*event*/) {
 
 // MixerView implementation
 MixerView::MixerView() {
+    // Get current view mode
+    currentViewMode_ = ViewModeController::getInstance().getViewMode();
+
     // Create channel container
     channelContainer = std::make_unique<juce::Component>();
 
@@ -302,12 +306,16 @@ MixerView::MixerView() {
     // Register as TrackManager listener
     TrackManager::getInstance().addListener(this);
 
+    // Register as ViewModeController listener
+    ViewModeController::getInstance().addListener(this);
+
     // Build channel strips from TrackManager
     rebuildChannelStrips();
 }
 
 MixerView::~MixerView() {
     TrackManager::getInstance().removeListener(this);
+    ViewModeController::getInstance().removeListener(this);
 }
 
 void MixerView::rebuildChannelStrips() {
@@ -317,15 +325,29 @@ void MixerView::rebuildChannelStrips() {
     const auto& tracks = TrackManager::getInstance().getTracks();
 
     for (const auto& track : tracks) {
+        // Only show tracks visible in the current view mode
+        if (!track.isVisibleIn(currentViewMode_)) {
+            continue;
+        }
+
         auto strip = std::make_unique<ChannelStrip>(track, false);
         strip->onClicked = [this](int trackId, bool isMaster) {
-            // Find the index of this track
-            int index = TrackManager::getInstance().getTrackIndex(trackId);
-            selectChannel(index, isMaster);
+            // Find the index of this track in the visible strips
+            for (size_t i = 0; i < channelStrips.size(); ++i) {
+                if (channelStrips[i]->getTrackId() == trackId) {
+                    selectChannel(static_cast<int>(i), isMaster);
+                    break;
+                }
+            }
         };
         channelContainer->addAndMakeVisible(*strip);
         channelStrips.push_back(std::move(strip));
     }
+
+    // Update master strip visibility
+    const auto& master = TrackManager::getInstance().getMasterChannel();
+    bool masterVisible = master.isVisibleIn(currentViewMode_);
+    masterStrip->setVisible(masterVisible);
 
     // Restore selection if valid
     if (selectedChannelIndex >= 0 &&
@@ -345,15 +367,30 @@ void MixerView::tracksChanged() {
 }
 
 void MixerView::trackPropertyChanged(int trackId) {
-    // Update the specific channel strip
+    // Update the specific channel strip - find it by track ID since indices may differ
     const auto* track = TrackManager::getInstance().getTrack(trackId);
     if (!track)
         return;
 
-    int index = TrackManager::getInstance().getTrackIndex(trackId);
-    if (index >= 0 && index < static_cast<int>(channelStrips.size())) {
-        channelStrips[index]->updateFromTrack(*track);
+    for (auto& strip : channelStrips) {
+        if (strip->getTrackId() == trackId) {
+            strip->updateFromTrack(*track);
+            break;
+        }
     }
+}
+
+void MixerView::viewModeChanged(ViewMode mode, const AudioEngineProfile& /*profile*/) {
+    currentViewMode_ = mode;
+    rebuildChannelStrips();
+}
+
+void MixerView::masterChannelChanged() {
+    // Update master strip visibility
+    const auto& master = TrackManager::getInstance().getMasterChannel();
+    bool masterVisible = master.isVisibleIn(currentViewMode_);
+    masterStrip->setVisible(masterVisible);
+    resized();
 }
 
 void MixerView::paint(juce::Graphics& g) {
@@ -363,11 +400,12 @@ void MixerView::paint(juce::Graphics& g) {
 void MixerView::resized() {
     auto bounds = getLocalBounds();
 
-    // Master strip on the right
-    masterStrip->setBounds(bounds.removeFromRight(MASTER_WIDTH));
-
-    // Separator between channels and master
-    bounds.removeFromRight(2);
+    // Master strip on the right (only if visible)
+    if (masterStrip->isVisible()) {
+        masterStrip->setBounds(bounds.removeFromRight(MASTER_WIDTH));
+        // Separator between channels and master
+        bounds.removeFromRight(2);
+    }
 
     // Channel viewport takes remaining space
     channelViewport->setBounds(bounds);

@@ -8,6 +8,7 @@
 
 #include "../components/mixer/MasterChannelStrip.hpp"
 #include "core/TrackManager.hpp"
+#include "core/ViewModeController.hpp"
 
 namespace magica {
 
@@ -22,7 +23,8 @@ namespace magica {
  */
 class SessionView : public juce::Component,
                     private juce::ScrollBar::Listener,
-                    public TrackManagerListener {
+                    public TrackManagerListener,
+                    public ViewModeListener {
   public:
     SessionView();
     ~SessionView() override;
@@ -33,6 +35,10 @@ class SessionView : public juce::Component,
     // TrackManagerListener
     void tracksChanged() override;
     void trackPropertyChanged(int trackId) override;
+    void masterChannelChanged() override;
+
+    // ViewModeListener
+    void viewModeChanged(ViewMode mode, const AudioEngineProfile& profile) override;
 
   private:
     // ScrollBar::Listener
@@ -50,8 +56,8 @@ class SessionView : public juce::Component,
     static constexpr int CLIP_SLOT_MARGIN = 2;
     static constexpr int TRACK_SEPARATOR_WIDTH = 3;
 
-    // Track headers (dynamic based on TrackManager)
-    std::vector<std::unique_ptr<juce::Label>> trackHeaders;
+    // Track headers (dynamic based on TrackManager) - TextButton for clickable groups
+    std::vector<std::unique_ptr<juce::TextButton>> trackHeaders;
 
     // Clip slots grid [track][scene] - dynamic number of tracks
     std::vector<std::array<std::unique_ptr<juce::TextButton>, NUM_SCENES>> clipSlots;
@@ -82,6 +88,10 @@ class SessionView : public juce::Component,
     void onClipSlotClicked(int trackIndex, int sceneIndex);
     void onSceneLaunched(int sceneIndex);
     void onStopAllClicked();
+
+    // View mode state
+    ViewMode currentViewMode_ = ViewMode::Live;
+    std::vector<TrackId> visibleTrackIds_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SessionView)
 };

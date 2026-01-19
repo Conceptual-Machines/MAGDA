@@ -1,6 +1,9 @@
 #include "SessionView.hpp"
 
+#include <functional>
+
 #include "../themes/DarkTheme.hpp"
+#include "core/ViewModeController.hpp"
 
 namespace magica {
 
@@ -58,6 +61,9 @@ class SessionView::SceneContainer : public juce::Component {
 };
 
 SessionView::SessionView() {
+    // Get current view mode
+    currentViewMode_ = ViewModeController::getInstance().getViewMode();
+
     // Create header container for clipping
     headerContainer = std::make_unique<HeaderContainer>();
     addAndMakeVisible(*headerContainer);
@@ -84,12 +90,16 @@ SessionView::SessionView() {
     // Register as TrackManager listener
     TrackManager::getInstance().addListener(this);
 
+    // Register as ViewModeController listener
+    ViewModeController::getInstance().addListener(this);
+
     // Build tracks from TrackManager
     rebuildTracks();
 }
 
 SessionView::~SessionView() {
     TrackManager::getInstance().removeListener(this);
+    ViewModeController::getInstance().removeListener(this);
     gridViewport->getHorizontalScrollBar().removeListener(this);
     gridViewport->getVerticalScrollBar().removeListener(this);
 }
@@ -99,40 +109,123 @@ void SessionView::tracksChanged() {
 }
 
 void SessionView::trackPropertyChanged(int trackId) {
-    // Update the track header label when track properties change
-    int index = TrackManager::getInstance().getTrackIndex(trackId);
-    if (index >= 0 && index < static_cast<int>(trackHeaders.size())) {
-        const auto* track = TrackManager::getInstance().getTrack(trackId);
-        if (track) {
-            trackHeaders[index]->setText(track->name, juce::dontSendNotification);
+    // Find the track in our visible list
+    const auto* track = TrackManager::getInstance().getTrack(trackId);
+    if (!track)
+        return;
+
+    // Find index in visible track IDs
+    int index = -1;
+    for (size_t i = 0; i < visibleTrackIds_.size(); ++i) {
+        if (visibleTrackIds_[i] == trackId) {
+            index = static_cast<int>(i);
+            break;
         }
     }
+
+    if (index >= 0 && index < static_cast<int>(trackHeaders.size())) {
+        // Update header text with collapse indicator for groups
+        juce::String headerText = track->name;
+        if (track->isGroup()) {
+            bool collapsed = track->isCollapsedIn(currentViewMode_);
+            headerText = (collapsed ? juce::String(juce::CharPointer_UTF8("\xe2\x96\xb6 "))
+                                    : juce::String(juce::CharPointer_UTF8("\xe2\x96\xbc "))) +
+                         track->name;
+        }
+        trackHeaders[index]->setButtonText(headerText);
+    }
+}
+
+void SessionView::viewModeChanged(ViewMode mode, const AudioEngineProfile& /*profile*/) {
+    currentViewMode_ = mode;
+    rebuildTracks();
+}
+
+void SessionView::masterChannelChanged() {
+    // Update master strip visibility
+    const auto& master = TrackManager::getInstance().getMasterChannel();
+    bool masterVisible = master.isVisibleIn(currentViewMode_);
+    masterStrip->setVisible(masterVisible);
+    resized();
 }
 
 void SessionView::rebuildTracks() {
     // Clear existing track headers and clip slots
     trackHeaders.clear();
     clipSlots.clear();
+    visibleTrackIds_.clear();
 
-    const auto& tracks = TrackManager::getInstance().getTracks();
-    int numTracks = static_cast<int>(tracks.size());
+    auto& trackManager = TrackManager::getInstance();
+
+    // Build hierarchical list of visible track IDs (respecting collapse state)
+    std::function<void(TrackId)> addTrackRecursive = [&](TrackId trackId) {
+        const auto* track = trackManager.getTrack(trackId);
+        if (!track || !track->isVisibleIn(currentViewMode_))
+            return;
+
+        visibleTrackIds_.push_back(trackId);
+
+        // Add children if group is not collapsed
+        if (track->isGroup() && !track->isCollapsedIn(currentViewMode_)) {
+            for (auto childId : track->childIds) {
+                addTrackRecursive(childId);
+            }
+        }
+    };
+
+    // Start with visible top-level tracks
+    auto topLevelTracks = trackManager.getVisibleTopLevelTracks(currentViewMode_);
+    for (auto trackId : topLevelTracks) {
+        addTrackRecursive(trackId);
+    }
+
+    int numTracks = static_cast<int>(visibleTrackIds_.size());
 
     // Update grid content track count
     gridContent->setNumTracks(numTracks);
 
-    // Create track headers
+    // Create track headers for visible tracks only
     for (int i = 0; i < numTracks; ++i) {
-        auto header = std::make_unique<juce::Label>();
-        header->setText(tracks[i].name, juce::dontSendNotification);
-        header->setJustificationType(juce::Justification::centred);
-        header->setColour(juce::Label::textColourId, DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
-        header->setColour(juce::Label::backgroundColourId,
-                          DarkTheme::getColour(DarkTheme::PANEL_BACKGROUND));
+        const auto* track = trackManager.getTrack(visibleTrackIds_[i]);
+        if (!track)
+            continue;
+
+        auto header = std::make_unique<juce::TextButton>();
+
+        // Show collapse indicator for groups
+        juce::String headerText = track->name;
+        if (track->isGroup()) {
+            bool collapsed = track->isCollapsedIn(currentViewMode_);
+            headerText = (collapsed ? juce::String(juce::CharPointer_UTF8("\xe2\x96\xb6 "))   // ▶
+                                    : juce::String(juce::CharPointer_UTF8("\xe2\x96\xbc ")))  // ▼
+                         + track->name;
+            header->setColour(juce::TextButton::buttonColourId,
+                              DarkTheme::getColour(DarkTheme::ACCENT_ORANGE).withAlpha(0.3f));
+        } else {
+            header->setColour(juce::TextButton::buttonColourId,
+                              DarkTheme::getColour(DarkTheme::PANEL_BACKGROUND));
+        }
+
+        header->setButtonText(headerText);
+        header->setColour(juce::TextButton::textColourOffId,
+                          DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
+
+        // Click to toggle collapse for groups
+        TrackId trackId = track->id;
+        header->onClick = [this, trackId]() {
+            const auto* t = TrackManager::getInstance().getTrack(trackId);
+            if (t && t->isGroup()) {
+                bool collapsed = t->isCollapsedIn(currentViewMode_);
+                TrackManager::getInstance().setTrackCollapsed(trackId, currentViewMode_,
+                                                              !collapsed);
+            }
+        };
+
         headerContainer->addAndMakeVisible(*header);
         trackHeaders.push_back(std::move(header));
     }
 
-    // Create clip slots for each track
+    // Create clip slots for each visible track
     for (int track = 0; track < numTracks; ++track) {
         std::array<std::unique_ptr<juce::TextButton>, NUM_SCENES> trackSlots;
 
@@ -160,6 +253,11 @@ void SessionView::rebuildTracks() {
         clipSlots.push_back(std::move(trackSlots));
     }
 
+    // Update master strip visibility
+    const auto& master = TrackManager::getInstance().getMasterChannel();
+    bool masterVisible = master.isVisibleIn(currentViewMode_);
+    masterStrip->setVisible(masterVisible);
+
     resized();
 }
 
@@ -176,9 +274,11 @@ void SessionView::resized() {
     int trackColumnWidth = CLIP_SLOT_SIZE + TRACK_SEPARATOR_WIDTH;
     int sceneRowHeight = CLIP_SLOT_SIZE + CLIP_SLOT_MARGIN;
 
-    // Master channel strip on the far right
+    // Master channel strip on the far right (only if visible)
     static constexpr int MASTER_STRIP_WIDTH = 80;
-    masterStrip->setBounds(bounds.removeFromRight(MASTER_STRIP_WIDTH));
+    if (masterStrip->isVisible()) {
+        masterStrip->setBounds(bounds.removeFromRight(MASTER_STRIP_WIDTH));
+    }
 
     // Scene container on the right (below header area)
     auto sceneArea = bounds.removeFromRight(SCENE_BUTTON_WIDTH);

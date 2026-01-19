@@ -8,6 +8,7 @@
 
 #include "../components/mixer/MasterChannelStrip.hpp"
 #include "core/TrackManager.hpp"
+#include "core/ViewModeController.hpp"
 
 namespace magica {
 
@@ -19,7 +20,10 @@ namespace magica {
  * - Mute/Solo/Record arm buttons per channel
  * - Master channel on the right
  */
-class MixerView : public juce::Component, public juce::Timer, public TrackManagerListener {
+class MixerView : public juce::Component,
+                  public juce::Timer,
+                  public TrackManagerListener,
+                  public ViewModeListener {
   public:
     MixerView();
     ~MixerView() override;
@@ -33,6 +37,10 @@ class MixerView : public juce::Component, public juce::Timer, public TrackManage
     // TrackManagerListener
     void tracksChanged() override;
     void trackPropertyChanged(int trackId) override;
+    void masterChannelChanged() override;
+
+    // ViewModeListener
+    void viewModeChanged(ViewMode mode, const AudioEngineProfile& profile) override;
 
     // Selection
     void selectChannel(int index, bool isMaster = false);
@@ -124,6 +132,9 @@ class MixerView : public juce::Component, public juce::Timer, public TrackManage
     // Selection state
     int selectedChannelIndex = 0;  // Track index, -1 for no selection
     bool selectedIsMaster = false;
+
+    // View mode state
+    ViewMode currentViewMode_ = ViewMode::Mix;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MixerView)
 };
