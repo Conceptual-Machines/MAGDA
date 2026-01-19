@@ -81,6 +81,9 @@ class ClipComponent : public juce::Component, public ClipManagerListener {
     double previewLength_ = 0.0;
     bool isDragging_ = false;
 
+    // Magnetic snap threshold in pixels
+    static constexpr int SNAP_THRESHOLD_PIXELS = 10;
+
     // Hover state for resize handles
     bool hoverLeftEdge_ = false;
     bool hoverRightEdge_ = false;

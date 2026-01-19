@@ -243,11 +243,26 @@ void ClipComponent::mouseDrag(const juce::MouseEvent& e) {
 
     switch (dragMode_) {
         case DragMode::Move: {
-            // Update preview time (no snapping during drag for smooth movement)
-            previewStartTime_ = juce::jmax(0.0, dragStartTime_ + deltaTime);
+            // Calculate raw position
+            double rawStartTime = juce::jmax(0.0, dragStartTime_ + deltaTime);
+            previewStartTime_ = rawStartTime;
 
-            // Update visual position directly (don't go through ClipManager)
+            // Calculate visual position - use magnetic snapping
             int newX = dragStartBoundsPos_.x + deltaX;
+
+            // Check for magnetic snap if snap callback is available
+            if (snapTimeToGrid) {
+                double snappedTime = snapTimeToGrid(rawStartTime);
+                int snappedX = static_cast<int>(snappedTime * pixelsPerSecond);
+                int rawX = static_cast<int>(rawStartTime * pixelsPerSecond);
+
+                // If within threshold, snap visually
+                if (std::abs(snappedX - rawX) <= SNAP_THRESHOLD_PIXELS) {
+                    newX = snappedX;
+                    previewStartTime_ = snappedTime;  // Update preview to snapped position
+                }
+            }
+
             newX = juce::jmax(0, newX);
             setBounds(newX, getY(), getWidth(), getHeight());
 
@@ -273,12 +288,28 @@ void ClipComponent::mouseDrag(const juce::MouseEvent& e) {
         }
 
         case DragMode::ResizeLeft: {
-            // Update preview values (no snapping during drag)
-            previewStartTime_ = juce::jmax(0.0, dragStartTime_ + deltaTime);
-            previewLength_ = juce::jmax(0.1, dragStartLength_ - deltaTime);
+            // Calculate raw values
+            double rawStartTime = juce::jmax(0.0, dragStartTime_ + deltaTime);
+            double rawLength = juce::jmax(0.1, dragStartLength_ - deltaTime);
 
-            // Update visual bounds directly
+            previewStartTime_ = rawStartTime;
+            previewLength_ = rawLength;
+
             int newX = dragStartBoundsPos_.x + deltaX;
+
+            // Magnetic snap for left edge
+            if (snapTimeToGrid) {
+                double snappedTime = snapTimeToGrid(rawStartTime);
+                int snappedX = static_cast<int>(snappedTime * pixelsPerSecond);
+                int rawX = static_cast<int>(rawStartTime * pixelsPerSecond);
+
+                if (std::abs(snappedX - rawX) <= SNAP_THRESHOLD_PIXELS) {
+                    newX = snappedX;
+                    previewStartTime_ = snappedTime;
+                    previewLength_ = dragStartLength_ - (snappedTime - dragStartTime_);
+                }
+            }
+
             int newWidth = static_cast<int>(previewLength_ * pixelsPerSecond);
             newX = juce::jmax(0, newX);
             newWidth = juce::jmax(10, newWidth);
@@ -287,11 +318,26 @@ void ClipComponent::mouseDrag(const juce::MouseEvent& e) {
         }
 
         case DragMode::ResizeRight: {
-            // Update preview length (no snapping during drag)
-            previewLength_ = juce::jmax(0.1, dragStartLength_ + deltaTime);
+            // Calculate raw length
+            double rawLength = juce::jmax(0.1, dragStartLength_ + deltaTime);
+            previewLength_ = rawLength;
 
-            // Update visual width directly
-            int newWidth = static_cast<int>(previewLength_ * pixelsPerSecond);
+            double rawEndTime = dragStartTime_ + rawLength;
+            int newWidth = static_cast<int>(rawLength * pixelsPerSecond);
+
+            // Magnetic snap for right edge (end time)
+            if (snapTimeToGrid) {
+                double snappedEndTime = snapTimeToGrid(rawEndTime);
+                int snappedWidth =
+                    static_cast<int>((snappedEndTime - dragStartTime_) * pixelsPerSecond);
+                int rawWidth = newWidth;
+
+                if (std::abs(snappedWidth - rawWidth) <= SNAP_THRESHOLD_PIXELS) {
+                    newWidth = snappedWidth;
+                    previewLength_ = snappedEndTime - dragStartTime_;
+                }
+            }
+
             newWidth = juce::jmax(10, newWidth);
             setBounds(getX(), getY(), newWidth, getHeight());
             break;
