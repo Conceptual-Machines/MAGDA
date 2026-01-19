@@ -103,38 +103,34 @@ void TrackChainContent::paint(juce::Graphics& g) {
     g.fillAll(DarkTheme::getPanelBackgroundColour());
 
     if (selectedTrackId_ != magica::INVALID_TRACK_ID) {
-        // Draw the chain mockup area
+        // Draw the chain mockup area (horizontal layout)
         auto bounds = getLocalBounds();
-        auto stripWidth = 80;
+        auto stripWidth = 100;
         auto chainArea = bounds.withTrimmedRight(stripWidth);
 
         paintChainMockup(g, chainArea);
 
         // Draw separator line before strip
         g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
-        g.drawLine(chainArea.getRight(), 0, chainArea.getRight(), getHeight(), 1.0f);
+        g.drawLine(static_cast<float>(chainArea.getRight()), 0.0f,
+                   static_cast<float>(chainArea.getRight()), static_cast<float>(getHeight()), 1.0f);
     }
 }
 
 void TrackChainContent::paintChainMockup(juce::Graphics& g, juce::Rectangle<int> area) {
-    // Draw mockup FX chain slots
-    auto slotArea = area.reduced(10);
-    int slotHeight = 40;
+    // Draw mockup FX chain slots horizontally
+    auto slotArea = area.reduced(8);
+    int slotWidth = 120;
     int slotSpacing = 8;
+    int arrowWidth = 20;
 
-    // Chain flow direction indicator
-    g.setColour(DarkTheme::getSecondaryTextColour());
-    g.setFont(FontManager::getInstance().getUIFont(10.0f));
-    g.drawText("Signal Flow →", slotArea.removeFromTop(16), juce::Justification::centredLeft);
-    slotArea.removeFromTop(8);
-
-    // Draw empty FX slots
+    // Draw empty FX slots horizontally
     juce::StringArray slotLabels = {"Input", "Insert 1", "Insert 2", "Insert 3", "Send"};
-    for (const auto& label : slotLabels) {
-        if (slotArea.getHeight() < slotHeight)
+    for (size_t i = 0; i < slotLabels.size(); ++i) {
+        if (slotArea.getWidth() < slotWidth)
             break;
 
-        auto slot = slotArea.removeFromTop(slotHeight);
+        auto slot = slotArea.removeFromLeft(slotWidth);
 
         // Slot background
         g.setColour(DarkTheme::getColour(DarkTheme::SURFACE));
@@ -144,17 +140,35 @@ void TrackChainContent::paintChainMockup(juce::Graphics& g, juce::Rectangle<int>
         g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
         g.drawRoundedRectangle(slot.toFloat(), 4.0f, 1.0f);
 
-        // Slot label
+        // Slot label at top
         g.setColour(DarkTheme::getSecondaryTextColour());
-        g.setFont(FontManager::getInstance().getUIFont(11.0f));
-        g.drawText(label, slot.reduced(8, 0), juce::Justification::centredLeft);
+        g.setFont(FontManager::getInstance().getUIFont(10.0f));
+        g.drawText(slotLabels[static_cast<int>(i)], slot.reduced(6).removeFromTop(16),
+                   juce::Justification::centredLeft);
 
-        // "Drop plugin here" hint
+        // "(empty)" hint centered
         g.setColour(DarkTheme::getSecondaryTextColour().withAlpha(0.5f));
         g.setFont(FontManager::getInstance().getUIFont(9.0f));
-        g.drawText("(empty)", slot.reduced(8, 0), juce::Justification::centredRight);
+        g.drawText("(empty)", slot, juce::Justification::centred);
 
-        slotArea.removeFromTop(slotSpacing);
+        // Draw arrow between slots (except after last)
+        if (i < slotLabels.size() - 1) {
+            auto arrowArea = slotArea.removeFromLeft(arrowWidth);
+            g.setColour(DarkTheme::getSecondaryTextColour());
+
+            // Draw arrow: →
+            int arrowY = arrowArea.getCentreY();
+            int arrowX = arrowArea.getCentreX();
+            g.drawLine(static_cast<float>(arrowX - 6), static_cast<float>(arrowY),
+                       static_cast<float>(arrowX + 6), static_cast<float>(arrowY), 1.5f);
+            // Arrow head
+            g.drawLine(static_cast<float>(arrowX + 2), static_cast<float>(arrowY - 4),
+                       static_cast<float>(arrowX + 6), static_cast<float>(arrowY), 1.5f);
+            g.drawLine(static_cast<float>(arrowX + 2), static_cast<float>(arrowY + 4),
+                       static_cast<float>(arrowX + 6), static_cast<float>(arrowY), 1.5f);
+
+            slotArea.removeFromLeft(slotSpacing);
+        }
     }
 }
 
