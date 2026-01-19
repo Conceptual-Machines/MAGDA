@@ -344,10 +344,23 @@ void ClipComponent::mouseDrag(const juce::MouseEvent& e) {
 
             previewStartTime_ = finalTime;
 
-            // Convert time to pixel position (using parent's method to account for padding)
-            int newX = parentPanel_->timeToPixel(finalTime);
-            int newWidth = static_cast<int>(dragStartLength_ * pixelsPerSecond);
-            setBounds(newX, getY(), juce::jmax(10, newWidth), getHeight());
+            if (isDuplicating_) {
+                // Alt+drag duplicate: show ghost at NEW position, keep original in place
+                const auto* clip = getClipInfo();
+                if (clip && parentPanel_) {
+                    int ghostX = parentPanel_->timeToPixel(finalTime);
+                    int ghostWidth = static_cast<int>(dragStartLength_ * pixelsPerSecond);
+                    juce::Rectangle<int> ghostBounds(ghostX, getY(), juce::jmax(10, ghostWidth),
+                                                     getHeight());
+                    parentPanel_->setClipGhost(clipId_, ghostBounds, clip->colour);
+                }
+                // Don't move the original clip component
+            } else {
+                // Normal move: update component position
+                int newX = parentPanel_->timeToPixel(finalTime);
+                int newWidth = static_cast<int>(dragStartLength_ * pixelsPerSecond);
+                setBounds(newX, getY(), juce::jmax(10, newWidth), getHeight());
+            }
             break;
         }
 
@@ -451,6 +464,11 @@ void ClipComponent::mouseUp(const juce::MouseEvent& e) {
                 }
 
                 if (isDuplicating_) {
+                    // Clear the ghost before creating the duplicate
+                    if (parentPanel_) {
+                        parentPanel_->clearClipGhost(clipId_);
+                    }
+
                     // Alt+drag duplicate: create duplicate at final position
                     ClipId newClipId = ClipManager::getInstance().duplicateClipAt(
                         clipId_, finalStartTime, targetTrackId);

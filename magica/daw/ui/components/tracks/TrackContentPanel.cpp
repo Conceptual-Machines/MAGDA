@@ -156,6 +156,9 @@ void TrackContentPanel::paint(juce::Graphics& g) {
         }
     }
 
+    // Draw ghost clips (during Alt+drag duplication)
+    paintClipGhosts(g);
+
     // Draw marquee selection rectangle
     paintMarqueeRect(g);
 }
@@ -1113,21 +1116,45 @@ void TrackContentPanel::updateMultiClipDrag(const juce::Point<int>& currentPos) 
 
     double actualDeltaTime = newAnchorTime - multiClipDragStartTime_;
 
-    // Update all clip components visually (don't commit to ClipManager yet)
-    for (const auto& dragInfo : multiClipDragInfos_) {
-        double newStartTime = juce::jmax(0.0, dragInfo.originalStartTime + actualDeltaTime);
+    if (isMultiClipDuplicating_) {
+        // Alt+drag duplicate: show ghosts at NEW positions, keep originals in place
+        for (const auto& dragInfo : multiClipDragInfos_) {
+            double newStartTime = juce::jmax(0.0, dragInfo.originalStartTime + actualDeltaTime);
 
-        // Find the clip component
-        for (auto& clipComp : clipComponents_) {
-            if (clipComp->getClipId() == dragInfo.clipId) {
-                const auto* clip = ClipManager::getInstance().getClip(dragInfo.clipId);
-                if (clip) {
-                    int newX = timeToPixel(newStartTime);
-                    int clipWidth = static_cast<int>(clip->length * pixelsPerSecond);
-                    clipComp->setBounds(newX, clipComp->getY(), juce::jmax(10, clipWidth),
-                                        clipComp->getHeight());
+            const auto* clip = ClipManager::getInstance().getClip(dragInfo.clipId);
+            if (clip) {
+                // Find the clip component to get its Y position
+                for (const auto& clipComp : clipComponents_) {
+                    if (clipComp->getClipId() == dragInfo.clipId) {
+                        int ghostX = timeToPixel(newStartTime);
+                        int ghostWidth = static_cast<int>(clip->length * pixelsPerSecond);
+                        juce::Rectangle<int> ghostBounds(ghostX, clipComp->getY(),
+                                                         juce::jmax(10, ghostWidth),
+                                                         clipComp->getHeight());
+                        setClipGhost(dragInfo.clipId, ghostBounds, clip->colour);
+                        break;
+                    }
                 }
-                break;
+            }
+        }
+        // Don't move the original clip components
+    } else {
+        // Normal move: update all clip component positions visually
+        for (const auto& dragInfo : multiClipDragInfos_) {
+            double newStartTime = juce::jmax(0.0, dragInfo.originalStartTime + actualDeltaTime);
+
+            // Find the clip component
+            for (auto& clipComp : clipComponents_) {
+                if (clipComp->getClipId() == dragInfo.clipId) {
+                    const auto* clip = ClipManager::getInstance().getClip(dragInfo.clipId);
+                    if (clip) {
+                        int newX = timeToPixel(newStartTime);
+                        int clipWidth = static_cast<int>(clip->length * pixelsPerSecond);
+                        clipComp->setBounds(newX, clipComp->getY(), juce::jmax(10, clipWidth),
+                                            clipComp->getHeight());
+                    }
+                    break;
+                }
             }
         }
     }
@@ -1138,6 +1165,9 @@ void TrackContentPanel::finishMultiClipDrag() {
         isMovingMultipleClips_ = false;
         return;
     }
+
+    // Clear all ghosts before committing
+    clearAllClipGhosts();
 
     // Get the final anchor position
     ClipComponent* anchorComp = nullptr;
@@ -1197,6 +1227,9 @@ void TrackContentPanel::cancelMultiClipDrag() {
     if (!isMovingMultipleClips_) {
         return;
     }
+
+    // Clear any ghosts that were shown
+    clearAllClipGhosts();
 
     // Restore original visual positions
     updateClipComponentPositions();
@@ -1292,6 +1325,96 @@ void TrackContentPanel::commitClipsInTimeSelection(double deltaTime) {
 
     // Refresh positions from ClipManager
     updateClipComponentPositions();
+}
+
+// ============================================================================
+// Ghost Clip Rendering (Alt+Drag Duplication Visual Feedback)
+// ============================================================================
+
+void TrackContentPanel::setClipGhost(ClipId clipId, const juce::Rectangle<int>& bounds,
+                                     const juce::Colour& colour) {
+    // Update existing ghost or add new one
+    for (auto& ghost : clipGhosts_) {
+        if (ghost.clipId == clipId) {
+            ghost.bounds = bounds;
+            ghost.colour = colour;
+            repaint();
+            return;
+        }
+    }
+
+    // Add new ghost
+    ClipGhost ghost;
+    ghost.clipId = clipId;
+    ghost.bounds = bounds;
+    ghost.colour = colour;
+    clipGhosts_.push_back(ghost);
+    repaint();
+}
+
+void TrackContentPanel::clearClipGhost(ClipId clipId) {
+    auto it = std::remove_if(clipGhosts_.begin(), clipGhosts_.end(),
+                             [clipId](const ClipGhost& g) { return g.clipId == clipId; });
+    if (it != clipGhosts_.end()) {
+        clipGhosts_.erase(it, clipGhosts_.end());
+        repaint();
+    }
+}
+
+void TrackContentPanel::clearAllClipGhosts() {
+    if (!clipGhosts_.empty()) {
+        clipGhosts_.clear();
+        repaint();
+    }
+}
+
+void TrackContentPanel::paintClipGhosts(juce::Graphics& g) {
+    if (clipGhosts_.empty()) {
+        return;
+    }
+
+    for (const auto& ghost : clipGhosts_) {
+        // Draw ghost clip with semi-transparent fill
+        g.setColour(ghost.colour.withAlpha(0.3f));
+        g.fillRoundedRectangle(ghost.bounds.toFloat(), 4.0f);
+
+        // Draw solid border
+        g.setColour(ghost.colour.withAlpha(0.6f));
+        g.drawRoundedRectangle(ghost.bounds.toFloat(), 4.0f, 1.5f);
+
+        // Draw inner dotted border to indicate it's a ghost/duplicate
+        g.setColour(juce::Colours::white.withAlpha(0.4f));
+        auto innerBounds = ghost.bounds.toFloat().reduced(3.0f);
+
+        // Draw simple dotted effect manually
+        float dashLength = 4.0f;
+        float gapLength = 3.0f;
+
+        // Top edge
+        for (float x = innerBounds.getX(); x < innerBounds.getRight();
+             x += dashLength + gapLength) {
+            float endX = juce::jmin(x + dashLength, innerBounds.getRight());
+            g.drawLine(x, innerBounds.getY(), endX, innerBounds.getY(), 1.0f);
+        }
+        // Bottom edge
+        for (float x = innerBounds.getX(); x < innerBounds.getRight();
+             x += dashLength + gapLength) {
+            float endX = juce::jmin(x + dashLength, innerBounds.getRight());
+            g.drawLine(x, innerBounds.getBottom(), endX, innerBounds.getBottom(), 1.0f);
+        }
+        // Left edge
+        for (float y = innerBounds.getY(); y < innerBounds.getBottom();
+             y += dashLength + gapLength) {
+            float endY = juce::jmin(y + dashLength, innerBounds.getBottom());
+            g.drawLine(innerBounds.getX(), y, innerBounds.getX(), endY, 1.0f);
+        }
+        // Right edge
+        for (float y = innerBounds.getY(); y < innerBounds.getBottom();
+             y += dashLength + gapLength) {
+            float endY = juce::jmin(y + dashLength, innerBounds.getBottom());
+            g.drawLine(innerBounds.getRight(), y, innerBounds.getRight(), endY, 1.0f);
+        }
+    }
 }
 
 // ============================================================================

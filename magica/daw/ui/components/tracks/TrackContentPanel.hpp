@@ -113,6 +113,12 @@ class TrackContentPanel : public juce::Component,
     void updateMultiClipDrag(const juce::Point<int>& currentPos);
     void finishMultiClipDrag();
 
+    // Ghost clip methods (for Alt+drag visual feedback)
+    void setClipGhost(ClipId clipId, const juce::Rectangle<int>& bounds,
+                      const juce::Colour& colour);
+    void clearClipGhost(ClipId clipId);
+    void clearAllClipGhosts();
+
   private:
     // Controller reference (not owned)
     TimelineController* timelineController = nullptr;
@@ -246,6 +252,15 @@ class TrackContentPanel : public juce::Component,
     // Multi-clip Alt+drag duplicate state
     bool isMultiClipDuplicating_ = false;
     std::vector<ClipId> multiClipDuplicateIds_;
+
+    // Ghost clip rendering during Alt+drag
+    struct ClipGhost {
+        ClipId clipId = INVALID_CLIP_ID;
+        juce::Rectangle<int> bounds;
+        juce::Colour colour;
+    };
+    std::vector<ClipGhost> clipGhosts_;
+    void paintClipGhosts(juce::Graphics& g);
 
     // Multi-clip drag methods (private helper)
     void cancelMultiClipDrag();
