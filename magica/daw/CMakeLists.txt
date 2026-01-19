@@ -53,6 +53,13 @@ juce_add_binary_data(MagicaAssets
     ../../assets/icons/footer/Arrangement.svg
     ../../assets/icons/footer/Mix.svg
     ../../assets/icons/footer/Master.svg
+    # Panel content type icons
+    ../../assets/icons/sidebar/plug.svg
+    ../../assets/icons/sidebar/sample.svg
+    ../../assets/icons/sidebar/preset.svg
+    ../../assets/icons/sidebar/info.svg
+    ../../assets/icons/sidebar/console.svg
+    ../../assets/icons/script.svg
 )
 
 # DAW Core sources
@@ -88,6 +95,18 @@ set(DAW_UI_SOURCES
     ui/panels/RightPanel.cpp
     ui/panels/BottomPanel.cpp
     ui/panels/FooterBar.cpp
+    ui/panels/PanelTabBar.cpp
+    ui/panels/TabbedPanel.cpp
+    # Panel State
+    ui/panels/state/PanelController.cpp
+    # Panel Content
+    ui/panels/content/PanelContentFactory.cpp
+    ui/panels/content/PluginBrowserContent.cpp
+    ui/panels/content/SampleBrowserContent.cpp
+    ui/panels/content/PresetBrowserContent.cpp
+    ui/panels/content/InspectorContent.cpp
+    ui/panels/content/AIChatConsoleContent.cpp
+    ui/panels/content/ScriptingConsoleContent.cpp
     # Audio
     audio/AudioEngineOptimizer.cpp
     # Views
@@ -121,6 +140,8 @@ set(DAW_HEADERS
     core/ViewModeController.hpp
     core/TrackInfo.hpp
     core/TrackManager.hpp
+    core/TrackTypes.hpp
+    core/TrackViewSettings.hpp
     engine/tracktion_engine_wrapper.hpp
     # Interfaces
     interfaces/clip_interface.hpp
@@ -144,6 +165,21 @@ set(DAW_HEADERS
     ui/panels/RightPanel.hpp
     ui/panels/BottomPanel.hpp
     ui/panels/FooterBar.hpp
+    ui/panels/PanelTabBar.hpp
+    ui/panels/TabbedPanel.hpp
+    # Panel State
+    ui/panels/state/PanelState.hpp
+    ui/panels/state/PanelEvents.hpp
+    ui/panels/state/PanelController.hpp
+    # Panel Content
+    ui/panels/content/PanelContent.hpp
+    ui/panels/content/PanelContentFactory.hpp
+    ui/panels/content/PluginBrowserContent.hpp
+    ui/panels/content/SampleBrowserContent.hpp
+    ui/panels/content/PresetBrowserContent.hpp
+    ui/panels/content/InspectorContent.hpp
+    ui/panels/content/AIChatConsoleContent.hpp
+    ui/panels/content/ScriptingConsoleContent.hpp
     # Audio
     audio/AudioEngineOptimizer.hpp
     # Views
@@ -234,6 +270,8 @@ target_include_directories(magica_daw_app
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/windows
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/dialogs
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/panels
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/panels/state
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/panels/content
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/views
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/layout
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/state

@@ -1,32 +1,28 @@
 #pragma once
 
-#include <juce_gui_basics/juce_gui_basics.h>
-
 #include <functional>
+
+#include "TabbedPanel.hpp"
 
 namespace magica {
 
-class LeftPanel : public juce::Component {
+/**
+ * @brief Left sidebar panel with tabbed content
+ *
+ * Default tabs: Plugin Browser, Sample Browser, Preset Browser
+ */
+class LeftPanel : public daw::ui::TabbedPanel {
   public:
     LeftPanel();
-    ~LeftPanel() override;
+    ~LeftPanel() override = default;
 
-    void paint(juce::Graphics& g) override;
-    void resized() override;
-
-    // Collapsed state
+    // Legacy API for compatibility
     void setCollapsed(bool collapsed);
-    bool isCollapsed() const {
-        return collapsed_;
-    }
 
-    // Collapse/expand callback - called when user clicks the button
-    std::function<void(bool)> onCollapseChanged;  // passes new collapsed state
+  protected:
+    juce::Rectangle<int> getCollapseButtonBounds() override;
 
   private:
-    bool collapsed_ = false;
-    juce::TextButton collapseButton;
-
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LeftPanel)
 };
 

@@ -1,32 +1,36 @@
 #include "BottomPanel.hpp"
 
-#include "../themes/DarkTheme.hpp"
-#include "../themes/FontManager.hpp"
+#include "PanelTabBar.hpp"
+#include "state/PanelController.hpp"
 
 namespace magica {
 
-BottomPanel::BottomPanel() {
+BottomPanel::BottomPanel() : TabbedPanel(daw::ui::PanelLocation::Bottom) {
     setName("Bottom Panel");
 }
 
-BottomPanel::~BottomPanel() = default;
-
-void BottomPanel::paint(juce::Graphics& g) {
-    g.fillAll(DarkTheme::getPanelBackgroundColour());
-
-    // Draw a border
-    g.setColour(DarkTheme::getBorderColour());
-    g.drawRect(getLocalBounds(), 1);
-
-    // Draw placeholder text
-    g.setColour(DarkTheme::getSecondaryTextColour());
-    g.setFont(FontManager::getInstance().getUIFont(14.0f));
-    g.drawText("Bottom Panel\n(Mixer/Effects/Piano Roll)", getLocalBounds(),
-               juce::Justification::centred);
+void BottomPanel::setCollapsed(bool collapsed) {
+    daw::ui::PanelController::getInstance().setCollapsed(daw::ui::PanelLocation::Bottom, collapsed);
 }
 
-void BottomPanel::resized() {
-    // Layout will be implemented later
+juce::Rectangle<int> BottomPanel::getCollapseButtonBounds() {
+    if (isCollapsed()) {
+        return juce::Rectangle<int>(getWidth() / 2 - 10, 2, 20, 20);
+    } else {
+        return juce::Rectangle<int>(getWidth() - 24, 4, 20, 20);
+    }
+}
+
+juce::Rectangle<int> BottomPanel::getTabBarBounds() {
+    // Tab bar on the left side for bottom panel
+    auto bounds = getLocalBounds();
+    return bounds.removeFromLeft(200).withTrimmedTop(1);
+}
+
+juce::Rectangle<int> BottomPanel::getContentBounds() {
+    auto bounds = getLocalBounds();
+    // Content to the right of tab bar
+    return bounds.withTrimmedLeft(200).withTrimmedTop(1);
 }
 
 }  // namespace magica

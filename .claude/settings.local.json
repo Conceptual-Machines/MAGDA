@@ -15,7 +15,8 @@
       "mcp__TalkToFigma__get_document_info",
       "mcp__TalkToFigma__get_nodes_info",
       "mcp__TalkToFigma__resize_node",
-      "mcp__TalkToFigma__move_node"
+      "mcp__TalkToFigma__move_node",
+      "Bash(gh issue list:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

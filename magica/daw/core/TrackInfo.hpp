@@ -3,15 +3,23 @@
 #include <juce_core/juce_core.h>
 #include <juce_graphics/juce_graphics.h>
 
+#include "TrackTypes.hpp"
+#include "TrackViewSettings.hpp"
+
 namespace magica {
 
 /**
  * @brief Track data structure containing all track properties
  */
 struct TrackInfo {
-    int id = -1;          // Unique identifier
-    juce::String name;    // Track name
-    juce::Colour colour;  // Track color
+    TrackId id = INVALID_TRACK_ID;      // Unique identifier
+    TrackType type = TrackType::Audio;  // Track type
+    juce::String name;                  // Track name
+    juce::Colour colour;                // Track color
+
+    // Hierarchy
+    TrackId parentId = INVALID_TRACK_ID;  // Parent track (for grouped tracks)
+    std::vector<TrackId> childIds;        // Child tracks (for groups)
 
     // Mixer state
     float volume = 0.75f;  // Volume level (0-1)
@@ -19,6 +27,9 @@ struct TrackInfo {
     bool muted = false;
     bool soloed = false;
     bool recordArmed = false;
+
+    // View settings per view mode
+    TrackViewSettingsMap viewSettings;
 
     // Default track colors
     static inline const std::array<juce::uint32, 8> defaultColors = {
@@ -34,6 +45,31 @@ struct TrackInfo {
 
     static juce::Colour getDefaultColor(int index) {
         return juce::Colour(defaultColors[index % defaultColors.size()]);
+    }
+
+    // Hierarchy helpers
+    bool hasParent() const {
+        return parentId != INVALID_TRACK_ID;
+    }
+    bool hasChildren() const {
+        return !childIds.empty();
+    }
+    bool isGroup() const {
+        return type == TrackType::Group;
+    }
+    bool isTopLevel() const {
+        return parentId == INVALID_TRACK_ID;
+    }
+
+    // View settings helpers
+    bool isVisibleIn(ViewMode mode) const {
+        return viewSettings.isVisible(mode);
+    }
+    bool isLockedIn(ViewMode mode) const {
+        return viewSettings.isLocked(mode);
+    }
+    bool isCollapsedIn(ViewMode mode) const {
+        return viewSettings.isCollapsed(mode);
     }
 };
 

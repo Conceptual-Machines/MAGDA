@@ -4,6 +4,8 @@
 #include <vector>
 
 #include "TrackInfo.hpp"
+#include "TrackTypes.hpp"
+#include "ViewModeState.hpp"
 
 namespace magica {
 
@@ -50,30 +52,51 @@ class TrackManager {
     TrackManager& operator=(const TrackManager&) = delete;
 
     // Track operations
-    int createTrack(const juce::String& name = "");
-    void deleteTrack(int trackId);
-    void duplicateTrack(int trackId);
-    void moveTrack(int trackId, int newIndex);
+    TrackId createTrack(const juce::String& name = "", TrackType type = TrackType::Audio);
+    TrackId createGroupTrack(const juce::String& name = "");
+    void deleteTrack(TrackId trackId);
+    void duplicateTrack(TrackId trackId);
+    void moveTrack(TrackId trackId, int newIndex);
+
+    // Hierarchy operations
+    void addTrackToGroup(TrackId trackId, TrackId groupId);
+    void removeTrackFromGroup(TrackId trackId);
+    TrackId createTrackInGroup(TrackId groupId, const juce::String& name = "",
+                               TrackType type = TrackType::Audio);
+    std::vector<TrackId> getChildTracks(TrackId groupId) const;
+    std::vector<TrackId> getTopLevelTracks() const;
+    std::vector<TrackId> getAllDescendants(TrackId trackId) const;
 
     // Access
     const std::vector<TrackInfo>& getTracks() const {
         return tracks_;
     }
-    TrackInfo* getTrack(int trackId);
-    const TrackInfo* getTrack(int trackId) const;
-    int getTrackIndex(int trackId) const;
+    TrackInfo* getTrack(TrackId trackId);
+    const TrackInfo* getTrack(TrackId trackId) const;
+    int getTrackIndex(TrackId trackId) const;
     int getNumTracks() const {
         return static_cast<int>(tracks_.size());
     }
 
     // Track property setters (notify listeners)
-    void setTrackName(int trackId, const juce::String& name);
-    void setTrackColour(int trackId, juce::Colour colour);
-    void setTrackVolume(int trackId, float volume);
-    void setTrackPan(int trackId, float pan);
-    void setTrackMuted(int trackId, bool muted);
-    void setTrackSoloed(int trackId, bool soloed);
-    void setTrackRecordArmed(int trackId, bool armed);
+    void setTrackName(TrackId trackId, const juce::String& name);
+    void setTrackColour(TrackId trackId, juce::Colour colour);
+    void setTrackVolume(TrackId trackId, float volume);
+    void setTrackPan(TrackId trackId, float pan);
+    void setTrackMuted(TrackId trackId, bool muted);
+    void setTrackSoloed(TrackId trackId, bool soloed);
+    void setTrackRecordArmed(TrackId trackId, bool armed);
+    void setTrackType(TrackId trackId, TrackType type);
+
+    // View settings
+    void setTrackVisible(TrackId trackId, ViewMode mode, bool visible);
+    void setTrackLocked(TrackId trackId, ViewMode mode, bool locked);
+    void setTrackCollapsed(TrackId trackId, ViewMode mode, bool collapsed);
+    void setTrackHeight(TrackId trackId, ViewMode mode, int height);
+
+    // Query tracks by view
+    std::vector<TrackId> getVisibleTracks(ViewMode mode) const;
+    std::vector<TrackId> getVisibleTopLevelTracks(ViewMode mode) const;
 
     // Master channel
     const MasterChannelState& getMasterChannel() const {
