@@ -13,7 +13,8 @@ enum class PanelContentType {
     PresetBrowser,
     Inspector,
     AIChatConsole,
-    ScriptingConsole
+    ScriptingConsole,
+    TrackChain
 };
 
 /**
@@ -81,6 +82,8 @@ inline juce::String getContentTypeName(PanelContentType type) {
             return "AI Chat";
         case PanelContentType::ScriptingConsole:
             return "Script";
+        case PanelContentType::TrackChain:
+            return "Track Chain";
     }
     return "Unknown";
 }
@@ -102,6 +105,8 @@ inline juce::String getContentTypeIcon(PanelContentType type) {
             return "AIChat";
         case PanelContentType::ScriptingConsole:
             return "Script";
+        case PanelContentType::TrackChain:
+            return "Chain";
     }
     return "Unknown";
 }

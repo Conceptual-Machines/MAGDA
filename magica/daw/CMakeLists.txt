@@ -108,6 +108,7 @@ set(DAW_UI_SOURCES
     ui/panels/content/InspectorContent.cpp
     ui/panels/content/AIChatConsoleContent.cpp
     ui/panels/content/ScriptingConsoleContent.cpp
+    ui/panels/content/TrackChainContent.cpp
     # Audio
     audio/AudioEngineOptimizer.cpp
     # Views
@@ -182,6 +183,7 @@ set(DAW_HEADERS
     ui/panels/content/InspectorContent.hpp
     ui/panels/content/AIChatConsoleContent.hpp
     ui/panels/content/ScriptingConsoleContent.hpp
+    ui/panels/content/TrackChainContent.hpp
     # Audio
     audio/AudioEngineOptimizer.hpp
     # Views

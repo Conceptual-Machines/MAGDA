@@ -358,6 +358,17 @@ std::vector<TrackId> TrackManager::getVisibleTopLevelTracks(ViewMode mode) const
 }
 
 // ============================================================================
+// Track Selection
+// ============================================================================
+
+void TrackManager::setSelectedTrack(TrackId trackId) {
+    if (selectedTrackId_ != trackId) {
+        selectedTrackId_ = trackId;
+        notifyTrackSelectionChanged(trackId);
+    }
+}
+
+// ============================================================================
 // Master Channel
 // ============================================================================
 
@@ -436,6 +447,12 @@ void TrackManager::notifyTrackPropertyChanged(int trackId) {
 void TrackManager::notifyMasterChannelChanged() {
     for (auto* listener : listeners_) {
         listener->masterChannelChanged();
+    }
+}
+
+void TrackManager::notifyTrackSelectionChanged(TrackId trackId) {
+    for (auto* listener : listeners_) {
+        listener->trackSelectionChanged(trackId);
     }
 }
 

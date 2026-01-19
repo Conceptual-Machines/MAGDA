@@ -1,44 +1,26 @@
-#include "InspectorContent.hpp"
+#include "TrackChainContent.hpp"
 
 #include "../../themes/DarkTheme.hpp"
 #include "../../themes/FontManager.hpp"
 
 namespace magica::daw::ui {
 
-InspectorContent::InspectorContent() {
-    setName("Inspector");
-
-    // Setup title
-    titleLabel_.setText("Inspector", juce::dontSendNotification);
-    titleLabel_.setFont(FontManager::getInstance().getUIFont(14.0f));
-    titleLabel_.setColour(juce::Label::textColourId, DarkTheme::getTextColour());
-    addAndMakeVisible(titleLabel_);
+TrackChainContent::TrackChainContent() {
+    setName("Track Chain");
 
     // No selection label
-    noSelectionLabel_.setText("No selection", juce::dontSendNotification);
+    noSelectionLabel_.setText("Select a track to view its signal chain",
+                              juce::dontSendNotification);
     noSelectionLabel_.setFont(FontManager::getInstance().getUIFont(12.0f));
     noSelectionLabel_.setColour(juce::Label::textColourId, DarkTheme::getSecondaryTextColour());
     noSelectionLabel_.setJustificationType(juce::Justification::centred);
     addAndMakeVisible(noSelectionLabel_);
 
-    // Track name
-    trackNameLabel_.setText("Name", juce::dontSendNotification);
+    // Track name at right strip
     trackNameLabel_.setFont(FontManager::getInstance().getUIFont(11.0f));
-    trackNameLabel_.setColour(juce::Label::textColourId, DarkTheme::getSecondaryTextColour());
+    trackNameLabel_.setColour(juce::Label::textColourId, DarkTheme::getTextColour());
+    trackNameLabel_.setJustificationType(juce::Justification::centredLeft);
     addChildComponent(trackNameLabel_);
-
-    trackNameValue_.setFont(FontManager::getInstance().getUIFont(12.0f));
-    trackNameValue_.setColour(juce::Label::textColourId, DarkTheme::getTextColour());
-    trackNameValue_.setColour(juce::Label::backgroundColourId,
-                              DarkTheme::getColour(DarkTheme::SURFACE));
-    trackNameValue_.setEditable(true);
-    trackNameValue_.onTextChange = [this]() {
-        if (selectedTrackId_ != magica::INVALID_TRACK_ID) {
-            magica::TrackManager::getInstance().setTrackName(selectedTrackId_,
-                                                             trackNameValue_.getText());
-        }
-    };
-    addChildComponent(trackNameValue_);
 
     // Mute button
     muteButton_.setButtonText("M");
@@ -77,13 +59,8 @@ InspectorContent::InspectorContent() {
     addChildComponent(soloButton_);
 
     // Gain slider
-    gainLabel_.setText("Gain", juce::dontSendNotification);
-    gainLabel_.setFont(FontManager::getInstance().getUIFont(11.0f));
-    gainLabel_.setColour(juce::Label::textColourId, DarkTheme::getSecondaryTextColour());
-    addChildComponent(gainLabel_);
-
-    gainSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
-    gainSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 40, 20);
+    gainSlider_.setSliderStyle(juce::Slider::LinearVertical);
+    gainSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
     gainSlider_.setRange(0.0, 1.0, 0.01);
     gainSlider_.setColour(juce::Slider::trackColourId, DarkTheme::getColour(DarkTheme::SURFACE));
     gainSlider_.setColour(juce::Slider::thumbColourId,
@@ -97,13 +74,8 @@ InspectorContent::InspectorContent() {
     addChildComponent(gainSlider_);
 
     // Pan slider
-    panLabel_.setText("Pan", juce::dontSendNotification);
-    panLabel_.setFont(FontManager::getInstance().getUIFont(11.0f));
-    panLabel_.setColour(juce::Label::textColourId, DarkTheme::getSecondaryTextColour());
-    addChildComponent(panLabel_);
-
     panSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
-    panSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 40, 20);
+    panSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
     panSlider_.setRange(-1.0, 1.0, 0.01);
     panSlider_.setColour(juce::Slider::trackColourId, DarkTheme::getColour(DarkTheme::SURFACE));
     panSlider_.setColour(juce::Slider::thumbColourId, DarkTheme::getColour(DarkTheme::ACCENT_BLUE));
@@ -123,59 +95,109 @@ InspectorContent::InspectorContent() {
     updateFromSelectedTrack();
 }
 
-InspectorContent::~InspectorContent() {
+TrackChainContent::~TrackChainContent() {
     magica::TrackManager::getInstance().removeListener(this);
 }
 
-void InspectorContent::paint(juce::Graphics& g) {
+void TrackChainContent::paint(juce::Graphics& g) {
     g.fillAll(DarkTheme::getPanelBackgroundColour());
-}
 
-void InspectorContent::resized() {
-    auto bounds = getLocalBounds().reduced(10);
+    if (selectedTrackId_ != magica::INVALID_TRACK_ID) {
+        // Draw the chain mockup area
+        auto bounds = getLocalBounds();
+        auto stripWidth = 80;
+        auto chainArea = bounds.withTrimmedRight(stripWidth);
 
-    titleLabel_.setBounds(bounds.removeFromTop(24));
-    bounds.removeFromTop(8);  // Spacing
+        paintChainMockup(g, chainArea);
 
-    if (selectedTrackId_ == magica::INVALID_TRACK_ID) {
-        // Center the no-selection label
-        noSelectionLabel_.setBounds(bounds);
-    } else {
-        // Track name
-        trackNameLabel_.setBounds(bounds.removeFromTop(16));
-        trackNameValue_.setBounds(bounds.removeFromTop(24));
-        bounds.removeFromTop(12);
-
-        // Mute/Solo row
-        auto buttonRow = bounds.removeFromTop(28);
-        muteButton_.setBounds(buttonRow.removeFromLeft(40));
-        buttonRow.removeFromLeft(8);
-        soloButton_.setBounds(buttonRow.removeFromLeft(40));
-        bounds.removeFromTop(12);
-
-        // Gain
-        gainLabel_.setBounds(bounds.removeFromTop(16));
-        gainSlider_.setBounds(bounds.removeFromTop(24));
-        bounds.removeFromTop(12);
-
-        // Pan
-        panLabel_.setBounds(bounds.removeFromTop(16));
-        panSlider_.setBounds(bounds.removeFromTop(24));
+        // Draw separator line before strip
+        g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
+        g.drawLine(chainArea.getRight(), 0, chainArea.getRight(), getHeight(), 1.0f);
     }
 }
 
-void InspectorContent::onActivated() {
-    // Refresh from current selection
+void TrackChainContent::paintChainMockup(juce::Graphics& g, juce::Rectangle<int> area) {
+    // Draw mockup FX chain slots
+    auto slotArea = area.reduced(10);
+    int slotHeight = 40;
+    int slotSpacing = 8;
+
+    // Chain flow direction indicator
+    g.setColour(DarkTheme::getSecondaryTextColour());
+    g.setFont(FontManager::getInstance().getUIFont(10.0f));
+    g.drawText("Signal Flow →", slotArea.removeFromTop(16), juce::Justification::centredLeft);
+    slotArea.removeFromTop(8);
+
+    // Draw empty FX slots
+    juce::StringArray slotLabels = {"Input", "Insert 1", "Insert 2", "Insert 3", "Send"};
+    for (const auto& label : slotLabels) {
+        if (slotArea.getHeight() < slotHeight)
+            break;
+
+        auto slot = slotArea.removeFromTop(slotHeight);
+
+        // Slot background
+        g.setColour(DarkTheme::getColour(DarkTheme::SURFACE));
+        g.fillRoundedRectangle(slot.toFloat(), 4.0f);
+
+        // Slot border
+        g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
+        g.drawRoundedRectangle(slot.toFloat(), 4.0f, 1.0f);
+
+        // Slot label
+        g.setColour(DarkTheme::getSecondaryTextColour());
+        g.setFont(FontManager::getInstance().getUIFont(11.0f));
+        g.drawText(label, slot.reduced(8, 0), juce::Justification::centredLeft);
+
+        // "Drop plugin here" hint
+        g.setColour(DarkTheme::getSecondaryTextColour().withAlpha(0.5f));
+        g.setFont(FontManager::getInstance().getUIFont(9.0f));
+        g.drawText("(empty)", slot.reduced(8, 0), juce::Justification::centredRight);
+
+        slotArea.removeFromTop(slotSpacing);
+    }
+}
+
+void TrackChainContent::resized() {
+    auto bounds = getLocalBounds();
+
+    if (selectedTrackId_ == magica::INVALID_TRACK_ID) {
+        noSelectionLabel_.setBounds(bounds);
+    } else {
+        // Track info strip at right border
+        auto stripWidth = 80;
+        auto strip = bounds.removeFromRight(stripWidth).reduced(4);
+
+        // Track name at top
+        trackNameLabel_.setBounds(strip.removeFromTop(20));
+        strip.removeFromTop(8);
+
+        // M/S buttons
+        auto buttonRow = strip.removeFromTop(24);
+        muteButton_.setBounds(buttonRow.removeFromLeft(32));
+        buttonRow.removeFromLeft(4);
+        soloButton_.setBounds(buttonRow.removeFromLeft(32));
+        strip.removeFromTop(8);
+
+        // Gain slider (vertical)
+        gainSlider_.setBounds(strip.removeFromTop(80));
+        strip.removeFromTop(8);
+
+        // Pan slider (horizontal)
+        panSlider_.setBounds(strip.removeFromTop(20));
+    }
+}
+
+void TrackChainContent::onActivated() {
     selectedTrackId_ = magica::TrackManager::getInstance().getSelectedTrack();
     updateFromSelectedTrack();
 }
 
-void InspectorContent::onDeactivated() {
+void TrackChainContent::onDeactivated() {
     // Nothing to do
 }
 
-void InspectorContent::tracksChanged() {
-    // Track may have been deleted
+void TrackChainContent::tracksChanged() {
     if (selectedTrackId_ != magica::INVALID_TRACK_ID) {
         const auto* track = magica::TrackManager::getInstance().getTrack(selectedTrackId_);
         if (!track) {
@@ -185,34 +207,34 @@ void InspectorContent::tracksChanged() {
     }
 }
 
-void InspectorContent::trackPropertyChanged(int trackId) {
+void TrackChainContent::trackPropertyChanged(int trackId) {
     if (static_cast<magica::TrackId>(trackId) == selectedTrackId_) {
         updateFromSelectedTrack();
     }
 }
 
-void InspectorContent::trackSelectionChanged(magica::TrackId trackId) {
+void TrackChainContent::trackSelectionChanged(magica::TrackId trackId) {
     selectedTrackId_ = trackId;
     updateFromSelectedTrack();
 }
 
-void InspectorContent::updateFromSelectedTrack() {
+void TrackChainContent::updateFromSelectedTrack() {
     if (selectedTrackId_ == magica::INVALID_TRACK_ID) {
-        showTrackControls(false);
+        showTrackStrip(false);
         noSelectionLabel_.setVisible(true);
     } else {
         const auto* track = magica::TrackManager::getInstance().getTrack(selectedTrackId_);
         if (track) {
-            trackNameValue_.setText(track->name, juce::dontSendNotification);
+            trackNameLabel_.setText(track->name, juce::dontSendNotification);
             muteButton_.setToggleState(track->muted, juce::dontSendNotification);
             soloButton_.setToggleState(track->soloed, juce::dontSendNotification);
             gainSlider_.setValue(track->volume, juce::dontSendNotification);
             panSlider_.setValue(track->pan, juce::dontSendNotification);
 
-            showTrackControls(true);
+            showTrackStrip(true);
             noSelectionLabel_.setVisible(false);
         } else {
-            showTrackControls(false);
+            showTrackStrip(false);
             noSelectionLabel_.setVisible(true);
         }
     }
@@ -221,14 +243,11 @@ void InspectorContent::updateFromSelectedTrack() {
     repaint();
 }
 
-void InspectorContent::showTrackControls(bool show) {
+void TrackChainContent::showTrackStrip(bool show) {
     trackNameLabel_.setVisible(show);
-    trackNameValue_.setVisible(show);
     muteButton_.setVisible(show);
     soloButton_.setVisible(show);
-    gainLabel_.setVisible(show);
     gainSlider_.setVisible(show);
-    panLabel_.setVisible(show);
     panSlider_.setVisible(show);
 }
 

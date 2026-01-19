@@ -6,21 +6,22 @@
 namespace magica::daw::ui {
 
 /**
- * @brief Inspector panel content
+ * @brief Track chain panel content
  *
- * Displays properties of the currently selected track.
+ * Displays a mockup of the selected track's signal chain with
+ * track info (name, M/S/gain/pan) at the right border.
  */
-class InspectorContent : public PanelContent, public magica::TrackManagerListener {
+class TrackChainContent : public PanelContent, public magica::TrackManagerListener {
   public:
-    InspectorContent();
-    ~InspectorContent() override;
+    TrackChainContent();
+    ~TrackChainContent() override;
 
     PanelContentType getContentType() const override {
-        return PanelContentType::Inspector;
+        return PanelContentType::TrackChain;
     }
 
     PanelContentInfo getContentInfo() const override {
-        return {PanelContentType::Inspector, "Inspector", "Selection properties", "Inspector"};
+        return {PanelContentType::TrackChain, "Track Chain", "Track signal chain", "Chain"};
     }
 
     void paint(juce::Graphics& g) override;
@@ -35,25 +36,22 @@ class InspectorContent : public PanelContent, public magica::TrackManagerListene
     void trackSelectionChanged(magica::TrackId trackId) override;
 
   private:
-    juce::Label titleLabel_;
     juce::Label noSelectionLabel_;
 
-    // Track properties section
+    // Track info strip at right border
     juce::Label trackNameLabel_;
-    juce::Label trackNameValue_;
     juce::TextButton muteButton_;
     juce::TextButton soloButton_;
     juce::Slider gainSlider_;
-    juce::Label gainLabel_;
     juce::Slider panSlider_;
-    juce::Label panLabel_;
 
     magica::TrackId selectedTrackId_ = magica::INVALID_TRACK_ID;
 
     void updateFromSelectedTrack();
-    void showTrackControls(bool show);
+    void showTrackStrip(bool show);
+    void paintChainMockup(juce::Graphics& g, juce::Rectangle<int> area);
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(InspectorContent)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TrackChainContent)
 };
 
 }  // namespace magica::daw::ui

@@ -267,8 +267,12 @@ void TrackHeadersPanel::removeTrack(int index) {
 }
 
 void TrackHeadersPanel::selectTrack(int index) {
-    if (index >= 0 && index < trackHeaders.size()) {
+    if (index >= 0 && index < static_cast<int>(trackHeaders.size())) {
         selectedTrackIndex = index;
+
+        // Notify TrackManager of selection change
+        TrackId trackId = trackHeaders[index]->trackId;
+        TrackManager::getInstance().setSelectedTrack(trackId);
 
         if (onTrackSelected) {
             onTrackSelected(index);

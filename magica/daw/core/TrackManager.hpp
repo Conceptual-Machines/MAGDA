@@ -41,6 +41,11 @@ class TrackManagerListener {
 
     // Called when master channel properties change
     virtual void masterChannelChanged() {}
+
+    // Called when track selection changes
+    virtual void trackSelectionChanged(TrackId trackId) {
+        juce::ignoreUnused(trackId);
+    }
 };
 
 /**
@@ -103,6 +108,12 @@ class TrackManager {
     std::vector<TrackId> getVisibleTracks(ViewMode mode) const;
     std::vector<TrackId> getVisibleTopLevelTracks(ViewMode mode) const;
 
+    // Track selection
+    void setSelectedTrack(TrackId trackId);
+    TrackId getSelectedTrack() const {
+        return selectedTrackId_;
+    }
+
     // Master channel
     const MasterChannelState& getMasterChannel() const {
         return masterChannel_;
@@ -129,10 +140,12 @@ class TrackManager {
     std::vector<TrackManagerListener*> listeners_;
     int nextTrackId_ = 1;
     MasterChannelState masterChannel_;
+    TrackId selectedTrackId_ = INVALID_TRACK_ID;
 
     void notifyTracksChanged();
     void notifyTrackPropertyChanged(int trackId);
     void notifyMasterChannelChanged();
+    void notifyTrackSelectionChanged(TrackId trackId);
 
     juce::String generateTrackName() const;
 };

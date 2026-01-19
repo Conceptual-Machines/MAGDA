@@ -112,12 +112,11 @@ inline AllPanelStates getDefaultPanelStates() {
     states.rightPanel.activeTabIndex = 0;
     states.rightPanel.collapsed = false;
 
-    // Bottom Panel: Scripting Console (signal flow/MIDI editor to be added)
+    // Bottom Panel: Track Chain and Scripting Console
     states.bottomPanel.location = PanelLocation::Bottom;
-    states.bottomPanel.tabs = {PanelContentType::ScriptingConsole};
+    states.bottomPanel.tabs = {PanelContentType::TrackChain, PanelContentType::ScriptingConsole};
     states.bottomPanel.activeTabIndex = 0;
-    states.bottomPanel.collapsed =
-        true;  // Collapsed by default until signal flow/MIDI content added
+    states.bottomPanel.collapsed = false;
 
     return states;
 }

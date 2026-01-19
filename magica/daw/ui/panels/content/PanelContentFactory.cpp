@@ -7,6 +7,7 @@
 #include "PresetBrowserContent.hpp"
 #include "SampleBrowserContent.hpp"
 #include "ScriptingConsoleContent.hpp"
+#include "TrackChainContent.hpp"
 
 namespace magica::daw::ui {
 
@@ -38,6 +39,9 @@ void PanelContentFactory::registerBuiltinTypes() {
 
     registerContentType(PanelContentType::ScriptingConsole,
                         []() { return std::make_unique<ScriptingConsoleContent>(); });
+
+    registerContentType(PanelContentType::TrackChain,
+                        []() { return std::make_unique<TrackChainContent>(); });
 }
 
 void PanelContentFactory::registerContentType(PanelContentType type, ContentCreator creator) {

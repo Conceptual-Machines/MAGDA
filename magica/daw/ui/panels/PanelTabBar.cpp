@@ -26,6 +26,9 @@ SvgIconData getSvgForContentType(PanelContentType type) {
             return {BinaryData::console_svg, BinaryData::console_svgSize};
         case PanelContentType::ScriptingConsole:
             return {BinaryData::script_svg, BinaryData::script_svgSize};
+        case PanelContentType::TrackChain:
+            // Use plug icon as placeholder for chain (could add dedicated icon later)
+            return {BinaryData::plug_svg, BinaryData::plug_svgSize};
     }
     return {};
 }
