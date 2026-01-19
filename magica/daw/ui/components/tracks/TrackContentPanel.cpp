@@ -1086,6 +1086,12 @@ void TrackContentPanel::updateMultiClipDrag(const juce::Point<int>& currentPos) 
         return;
     }
 
+    // Check for Alt+drag to duplicate (mark for duplication, created in finishMultiClipDrag)
+    bool altHeld = juce::ModifierKeys::getCurrentModifiers().isAltDown();
+    if (altHeld && !isMultiClipDuplicating_) {
+        isMultiClipDuplicating_ = true;
+    }
+
     double pixelsPerSecond = currentZoom;
     if (pixelsPerSecond <= 0) {
         return;
@@ -1152,17 +1158,36 @@ void TrackContentPanel::finishMultiClipDrag() {
 
         double actualDeltaTime = finalAnchorTime - multiClipDragStartTime_;
 
-        // Apply the move to all selected clips
-        for (const auto& dragInfo : multiClipDragInfos_) {
-            double newStartTime = juce::jmax(0.0, dragInfo.originalStartTime + actualDeltaTime);
-            ClipManager::getInstance().moveClip(dragInfo.clipId, newStartTime);
+        if (isMultiClipDuplicating_) {
+            // Alt+drag duplicate: create duplicates at final positions
+            std::unordered_set<ClipId> newClipIds;
+            for (const auto& dragInfo : multiClipDragInfos_) {
+                double newStartTime = juce::jmax(0.0, dragInfo.originalStartTime + actualDeltaTime);
+                ClipId dupId = ClipManager::getInstance().duplicateClipAt(
+                    dragInfo.clipId, newStartTime, dragInfo.originalTrackId);
+                if (dupId != INVALID_CLIP_ID) {
+                    newClipIds.insert(dupId);
+                }
+            }
+            // Select the duplicates
+            if (!newClipIds.empty()) {
+                SelectionManager::getInstance().selectClips(newClipIds);
+            }
+        } else {
+            // Normal move: apply to original clips
+            for (const auto& dragInfo : multiClipDragInfos_) {
+                double newStartTime = juce::jmax(0.0, dragInfo.originalStartTime + actualDeltaTime);
+                ClipManager::getInstance().moveClip(dragInfo.clipId, newStartTime);
+            }
         }
     }
 
     // Clean up
     isMovingMultipleClips_ = false;
+    isMultiClipDuplicating_ = false;
     anchorClipId_ = INVALID_CLIP_ID;
     multiClipDragInfos_.clear();
+    multiClipDuplicateIds_.clear();
 
     // Refresh positions from ClipManager
     updateClipComponentPositions();
@@ -1177,8 +1202,10 @@ void TrackContentPanel::cancelMultiClipDrag() {
     updateClipComponentPositions();
 
     isMovingMultipleClips_ = false;
+    isMultiClipDuplicating_ = false;
     anchorClipId_ = INVALID_CLIP_ID;
     multiClipDragInfos_.clear();
+    multiClipDuplicateIds_.clear();
 }
 
 // ============================================================================
@@ -1311,6 +1338,25 @@ bool TrackContentPanel::keyPressed(const juce::KeyPress& key) {
                 ClipManager::getInstance().deleteClip(clipId);
             }
             selectionManager.clearSelection();
+            return true;
+        }
+    }
+
+    // Cmd/Ctrl+D: Duplicate selected clips
+    if (key == juce::KeyPress('d', juce::ModifierKeys::commandModifier, 0)) {
+        const auto& selectedClips = selectionManager.getSelectedClips();
+        if (!selectedClips.empty()) {
+            std::unordered_set<ClipId> newClipIds;
+            for (ClipId clipId : selectedClips) {
+                ClipId newId = ClipManager::getInstance().duplicateClip(clipId);
+                if (newId != INVALID_CLIP_ID) {
+                    newClipIds.insert(newId);
+                }
+            }
+            // Select the new duplicates
+            if (!newClipIds.empty()) {
+                selectionManager.selectClips(newClipIds);
+            }
             return true;
         }
     }

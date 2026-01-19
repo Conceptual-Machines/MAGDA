@@ -69,10 +69,19 @@ class ClipManager {
     void deleteClip(ClipId clipId);
 
     /**
-     * @brief Duplicate a clip
+     * @brief Duplicate a clip (places copy right after original)
      * @return The ID of the new clip
      */
     ClipId duplicateClip(ClipId clipId);
+
+    /**
+     * @brief Duplicate a clip at a specific position
+     * @param clipId The clip to duplicate
+     * @param startTime Where to place the duplicate
+     * @param trackId Track for the duplicate (INVALID_TRACK_ID = same track)
+     * @return The ID of the new clip
+     */
+    ClipId duplicateClipAt(ClipId clipId, double startTime, TrackId trackId = INVALID_TRACK_ID);
 
     // ========================================================================
     // Clip Manipulation

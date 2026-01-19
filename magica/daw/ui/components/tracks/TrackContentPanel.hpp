@@ -243,6 +243,10 @@ class TrackContentPanel : public juce::Component,
     juce::Point<int> multiClipDragStartPos_;
     double multiClipDragStartTime_ = 0.0;
 
+    // Multi-clip Alt+drag duplicate state
+    bool isMultiClipDuplicating_ = false;
+    std::vector<ClipId> multiClipDuplicateIds_;
+
     // Multi-clip drag methods (private helper)
     void cancelMultiClipDrag();
 

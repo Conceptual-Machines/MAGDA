@@ -97,6 +97,10 @@ class ClipComponent : public juce::Component, public ClipManagerListener {
     double previewLength_ = 0.0;
     bool isDragging_ = false;
 
+    // Alt+drag duplicate state
+    bool isDuplicating_ = false;
+    ClipId duplicateClipId_ = INVALID_CLIP_ID;
+
     // Magnetic snap threshold in pixels (higher = snappier)
     static constexpr int SNAP_THRESHOLD_PIXELS = 15;
 

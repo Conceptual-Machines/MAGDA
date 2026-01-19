@@ -310,6 +310,11 @@ void ClipComponent::mouseDrag(const juce::MouseEvent& e) {
     // Single clip drag logic
     isDragging_ = true;
 
+    // Alt+drag to duplicate: mark for duplication (created in mouseUp to avoid re-entrancy)
+    if (dragMode_ == DragMode::Move && e.mods.isAltDown() && !isDuplicating_) {
+        isDuplicating_ = true;
+    }
+
     // Convert pixel delta to time delta
     double pixelsPerSecond = parentPanel_->getZoom();
     if (pixelsPerSecond <= 0) {
@@ -427,12 +432,9 @@ void ClipComponent::mouseUp(const juce::MouseEvent& e) {
                 }
                 finalStartTime = juce::jmax(0.0, finalStartTime);
 
-                if (onClipMoved) {
-                    onClipMoved(clipId_, finalStartTime);
-                }
-
-                // Check for track change on release
-                if (parentPanel_ && onClipMovedToTrack) {
+                // Determine target track
+                TrackId targetTrackId = dragStartTrackId_;
+                if (parentPanel_) {
                     auto screenPos = e.getScreenPosition();
                     auto parentPos = parentPanel_->getScreenBounds().getPosition();
                     int localY = screenPos.y - parentPos.y;
@@ -443,11 +445,29 @@ void ClipComponent::mouseUp(const juce::MouseEvent& e) {
                             ViewModeController::getInstance().getViewMode());
 
                         if (trackIndex < static_cast<int>(visibleTracks.size())) {
-                            TrackId newTrackId = visibleTracks[trackIndex];
-                            if (newTrackId != dragStartTrackId_) {
-                                onClipMovedToTrack(clipId_, newTrackId);
-                            }
+                            targetTrackId = visibleTracks[trackIndex];
                         }
+                    }
+                }
+
+                if (isDuplicating_) {
+                    // Alt+drag duplicate: create duplicate at final position
+                    ClipId newClipId = ClipManager::getInstance().duplicateClipAt(
+                        clipId_, finalStartTime, targetTrackId);
+                    if (newClipId != INVALID_CLIP_ID) {
+                        // Select the new duplicate
+                        SelectionManager::getInstance().selectClip(newClipId);
+                    }
+                    // Reset duplication state
+                    isDuplicating_ = false;
+                    duplicateClipId_ = INVALID_CLIP_ID;
+                } else {
+                    // Normal move: update original clip position
+                    if (onClipMoved) {
+                        onClipMoved(clipId_, finalStartTime);
+                    }
+                    if (targetTrackId != dragStartTrackId_ && onClipMovedToTrack) {
+                        onClipMovedToTrack(clipId_, targetTrackId);
                     }
                 }
                 break;

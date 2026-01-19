@@ -92,6 +92,31 @@ ClipId ClipManager::duplicateClip(ClipId clipId) {
     return newClip.id;
 }
 
+ClipId ClipManager::duplicateClipAt(ClipId clipId, double startTime, TrackId trackId) {
+    auto it = std::find_if(clips_.begin(), clips_.end(),
+                           [clipId](const ClipInfo& c) { return c.id == clipId; });
+
+    if (it == clips_.end()) {
+        return INVALID_CLIP_ID;
+    }
+
+    ClipInfo newClip = *it;
+    newClip.id = nextClipId_++;
+    newClip.name = it->name + " Copy";
+    newClip.startTime = startTime;
+
+    // Use specified track or keep same track
+    if (trackId != INVALID_TRACK_ID) {
+        newClip.trackId = trackId;
+    }
+
+    clips_.push_back(newClip);
+    notifyClipsChanged();
+
+    DBG("Duplicated clip at " << startTime << ": " << newClip.name << " (id=" << newClip.id << ")");
+    return newClip.id;
+}
+
 // ============================================================================
 // Clip Manipulation
 // ============================================================================
