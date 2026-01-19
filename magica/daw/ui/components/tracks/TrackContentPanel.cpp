@@ -398,12 +398,10 @@ void TrackContentPanel::mouseDown(const juce::MouseEvent& event) {
             }
         }
         // If on clip, the ClipComponent handles mouse events
-        // Prepare for potential marquee if they drag (but not playhead move)
-        // Upper zone clicks don't move playhead - only lower zone does
+        // Prepare for potential marquee if they drag
         if (!onClip && isInSelectableArea(event.x, event.y)) {
             isCreatingSelection = true;
             isMovingSelection = false;
-            currentDragType_ = DragType::Marquee;  // Mark as marquee so click doesn't move playhead
         }
     } else {
         // LOWER ZONE: Time selection operations
