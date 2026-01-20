@@ -30,8 +30,9 @@ class MasterChannelStrip : public juce::Component, public TrackManagerListener {
     void tracksChanged() override {}
     void masterChannelChanged() override;
 
-    // Set meter level (for future audio integration)
-    void setMeterLevel(float level);
+    // Set meter levels (for audio engine integration)
+    void setPeakLevels(float leftPeak, float rightPeak);
+    void setVuLevels(float leftVu, float rightVu);
 
   private:
     Orientation orientation_;
@@ -42,11 +43,14 @@ class MasterChannelStrip : public juce::Component, public TrackManagerListener {
     std::unique_ptr<juce::Label> volumeValueLabel;
     std::unique_ptr<juce::DrawableButton> speakerButton;  // Speaker on/off toggle
 
-    // Meter component
+    // Meter components - dual meters for peak and VU
     class LevelMeter;
-    std::unique_ptr<LevelMeter> levelMeter;
-    std::unique_ptr<juce::Label> peakLabel;
+    std::unique_ptr<LevelMeter> peakMeter;
+    std::unique_ptr<LevelMeter> vuMeter;
+    std::unique_ptr<juce::Label> peakValueLabel;
+    std::unique_ptr<juce::Label> vuValueLabel;
     float peakValue_ = 0.0f;
+    float vuPeakValue_ = 0.0f;
 
     // Custom look and feel for faders
     MixerLookAndFeel mixerLookAndFeel_;
@@ -57,7 +61,8 @@ class MasterChannelStrip : public juce::Component, public TrackManagerListener {
     juce::Rectangle<int> leftTickArea_;
     juce::Rectangle<int> labelArea_;
     juce::Rectangle<int> rightTickArea_;
-    juce::Rectangle<int> meterArea_;
+    juce::Rectangle<int> peakMeterArea_;
+    juce::Rectangle<int> vuMeterArea_;
 
     void setupControls();
     void updateFromMasterState();

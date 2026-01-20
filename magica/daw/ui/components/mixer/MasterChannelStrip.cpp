@@ -160,18 +160,31 @@ void MasterChannelStrip::setupControls() {
     titleLabel->setJustificationType(juce::Justification::centred);
     addAndMakeVisible(*titleLabel);
 
-    // Level meter
-    levelMeter = std::make_unique<LevelMeter>();
-    addAndMakeVisible(*levelMeter);
+    // Peak meter
+    peakMeter = std::make_unique<LevelMeter>();
+    addAndMakeVisible(*peakMeter);
 
-    // Peak label
-    peakLabel = std::make_unique<juce::Label>();
-    peakLabel->setText("-inf", juce::dontSendNotification);
-    peakLabel->setJustificationType(juce::Justification::centred);
-    peakLabel->setColour(juce::Label::textColourId,
-                         DarkTheme::getColour(DarkTheme::TEXT_SECONDARY));
-    peakLabel->setFont(FontManager::getInstance().getUIFont(9.0f));
-    addAndMakeVisible(*peakLabel);
+    // VU meter
+    vuMeter = std::make_unique<LevelMeter>();
+    addAndMakeVisible(*vuMeter);
+
+    // Peak value label
+    peakValueLabel = std::make_unique<juce::Label>();
+    peakValueLabel->setText("-inf", juce::dontSendNotification);
+    peakValueLabel->setJustificationType(juce::Justification::centred);
+    peakValueLabel->setColour(juce::Label::textColourId,
+                              DarkTheme::getColour(DarkTheme::TEXT_SECONDARY));
+    peakValueLabel->setFont(FontManager::getInstance().getUIFont(9.0f));
+    addAndMakeVisible(*peakValueLabel);
+
+    // VU value label
+    vuValueLabel = std::make_unique<juce::Label>();
+    vuValueLabel->setText("-inf", juce::dontSendNotification);
+    vuValueLabel->setJustificationType(juce::Justification::centred);
+    vuValueLabel->setColour(juce::Label::textColourId,
+                            DarkTheme::getColour(DarkTheme::TEXT_SECONDARY));
+    vuValueLabel->setFont(FontManager::getInstance().getUIFont(9.0f));
+    addAndMakeVisible(*vuValueLabel);
 
     // Volume slider - using dB scale with unity at 0.75 position
     volumeSlider = std::make_unique<juce::Slider>(orientation_ == Orientation::Vertical
@@ -202,9 +215,12 @@ void MasterChannelStrip::setupControls() {
             }
             volumeValueLabel->setText(dbText, juce::dontSendNotification);
         }
-        // DEBUG: Link fader to meter for alignment testing
-        if (levelMeter) {
-            levelMeter->setLevel(gain);
+        // DEBUG: Link fader to meters for alignment testing
+        if (peakMeter) {
+            peakMeter->setLevel(gain);
+        }
+        if (vuMeter) {
+            vuMeter->setLevel(gain * 0.8f);  // VU typically reads lower
         }
     };
     addAndMakeVisible(*volumeSlider);
@@ -278,7 +294,7 @@ void MasterChannelStrip::resized() {
         bounds.removeFromTop(extraSpace / 2);
         bounds.setHeight(faderHeight);
 
-        // Layout: [fader] [faderGap] [leftTicks] [labels] [rightTicks] [meterGap] [meter]
+        // Layout: [fader] [gap] [leftTicks] [labels] [rightTicks] [gap] [peakMeter] [gap] [vuMeter]
         // Use same widths as channel strip for consistency
         int faderWidth = metrics.faderWidth;
         int meterWidthVal = metrics.meterWidth;
@@ -287,10 +303,12 @@ void MasterChannelStrip::resized() {
         int meterGapVal = metrics.tickToMeterGap;
         int tickToLabelGap = metrics.tickToLabelGap;
         int labelTextWidth = static_cast<int>(metrics.labelTextWidth);
+        int meterGapBetween = 2;  // Gap between peak and VU meters
 
-        // Calculate total width needed for the fader layout
+        // Calculate total width needed for the fader layout (now with two meters)
         int totalLayoutWidth = faderWidth + gap + tickWidth + tickToLabelGap + labelTextWidth +
-                               tickToLabelGap + tickWidth + meterGapVal + meterWidthVal;
+                               tickToLabelGap + tickWidth + meterGapVal + meterWidthVal +
+                               meterGapBetween + meterWidthVal;
 
         // Center the layout within bounds
         int leftMargin = (bounds.getWidth() - totalLayoutWidth) / 2;
@@ -304,8 +322,11 @@ void MasterChannelStrip::resized() {
         auto valueLabelArea =
             juce::Rectangle<int>(faderRegion_.getX(), faderRegion_.getY() - labelHeight,
                                  faderRegion_.getWidth(), labelHeight);
-        volumeValueLabel->setBounds(valueLabelArea.removeFromLeft(valueLabelArea.getWidth() / 2));
-        peakLabel->setBounds(valueLabelArea);
+        // Split label area: volume on left, peak in middle, VU on right
+        int labelThird = valueLabelArea.getWidth() / 3;
+        volumeValueLabel->setBounds(valueLabelArea.removeFromLeft(labelThird));
+        peakValueLabel->setBounds(valueLabelArea.removeFromLeft(labelThird));
+        vuValueLabel->setBounds(valueLabelArea);
 
         // Add vertical padding inside the border
         const int borderPadding = 6;
@@ -318,15 +339,22 @@ void MasterChannelStrip::resized() {
         faderArea_ = layoutArea.removeFromLeft(faderWidth);
         volumeSlider->setBounds(faderArea_);
 
-        // Meter on right
-        meterArea_ = layoutArea.removeFromRight(meterWidthVal);
-        levelMeter->setBounds(meterArea_);
+        // VU meter on far right
+        vuMeterArea_ = layoutArea.removeFromRight(meterWidthVal);
+        vuMeter->setBounds(vuMeterArea_);
+
+        // Gap between meters
+        layoutArea.removeFromRight(meterGapBetween);
+
+        // Peak meter next to VU
+        peakMeterArea_ = layoutArea.removeFromRight(meterWidthVal);
+        peakMeter->setBounds(peakMeterArea_);
 
         // Position tick areas with gap from fader/meter
         leftTickArea_ = juce::Rectangle<int>(faderArea_.getRight() + gap, layoutArea.getY(),
                                              tickWidth, layoutArea.getHeight());
 
-        rightTickArea_ = juce::Rectangle<int>(meterArea_.getX() - tickWidth - meterGapVal,
+        rightTickArea_ = juce::Rectangle<int>(peakMeterArea_.getX() - tickWidth - meterGapVal,
                                               layoutArea.getY(), tickWidth, layoutArea.getHeight());
 
         // Label area between ticks
@@ -346,9 +374,13 @@ void MasterChannelStrip::resized() {
         // Value label above meter
         auto labelArea = bounds.removeFromTop(12);
         volumeValueLabel->setBounds(labelArea.removeFromRight(40));
-        peakLabel->setBounds(juce::Rectangle<int>());  // Hidden in horizontal
+        peakValueLabel->setBounds(juce::Rectangle<int>());  // Hidden in horizontal
+        vuValueLabel->setBounds(juce::Rectangle<int>());    // Hidden in horizontal
 
-        levelMeter->setBounds(bounds.removeFromRight(12));
+        // Two meters side by side on right
+        vuMeter->setBounds(bounds.removeFromRight(6));
+        bounds.removeFromRight(1);
+        peakMeter->setBounds(bounds.removeFromRight(6));
         bounds.removeFromRight(4);
         volumeSlider->setBounds(bounds);
 
@@ -358,7 +390,8 @@ void MasterChannelStrip::resized() {
         leftTickArea_ = juce::Rectangle<int>();
         labelArea_ = juce::Rectangle<int>();
         rightTickArea_ = juce::Rectangle<int>();
-        meterArea_ = juce::Rectangle<int>();
+        peakMeterArea_ = juce::Rectangle<int>();
+        vuMeterArea_ = juce::Rectangle<int>();
     }
 }
 
@@ -391,13 +424,16 @@ void MasterChannelStrip::updateFromMasterState() {
     }
 }
 
-void MasterChannelStrip::setMeterLevel(float level) {
-    levelMeter->setLevel(level);
+void MasterChannelStrip::setPeakLevels(float leftPeak, float rightPeak) {
+    if (peakMeter) {
+        peakMeter->setLevels(leftPeak, rightPeak);
+    }
 
-    // Update peak value
-    if (level > peakValue_) {
-        peakValue_ = level;
-        if (peakLabel) {
+    // Update peak value display (show max of both channels)
+    float maxPeak = std::max(leftPeak, rightPeak);
+    if (maxPeak > peakValue_) {
+        peakValue_ = maxPeak;
+        if (peakValueLabel) {
             float db = gainToDb(peakValue_);
             juce::String peakText;
             if (db <= MIN_DB) {
@@ -405,7 +441,29 @@ void MasterChannelStrip::setMeterLevel(float level) {
             } else {
                 peakText = juce::String(db, 1);
             }
-            peakLabel->setText(peakText, juce::dontSendNotification);
+            peakValueLabel->setText(peakText, juce::dontSendNotification);
+        }
+    }
+}
+
+void MasterChannelStrip::setVuLevels(float leftVu, float rightVu) {
+    if (vuMeter) {
+        vuMeter->setLevels(leftVu, rightVu);
+    }
+
+    // Update VU value display (show max of both channels)
+    float maxVu = std::max(leftVu, rightVu);
+    if (maxVu > vuPeakValue_) {
+        vuPeakValue_ = maxVu;
+        if (vuValueLabel) {
+            float db = gainToDb(vuPeakValue_);
+            juce::String vuText;
+            if (db <= MIN_DB) {
+                vuText = "-inf";
+            } else {
+                vuText = juce::String(db, 1);
+            }
+            vuValueLabel->setText(vuText, juce::dontSendNotification);
         }
     }
 }
