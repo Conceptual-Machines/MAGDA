@@ -1,19 +1,21 @@
 #include "BottomPanel.hpp"
 
 #include "../themes/DarkTheme.hpp"
+#include "BinaryData.h"
 #include "PanelTabBar.hpp"
 #include "state/PanelController.hpp"
+#include "ui/components/common/SvgButton.hpp"
 
 namespace magda {
 
 BottomPanel::BottomPanel() : TabbedPanel(daw::ui::PanelLocation::Bottom) {
     setName("Bottom Panel");
 
-    // Create sidebar icons (no-op placeholders for now)
-    sidebarIcon1_ = std::make_unique<juce::TextButton>("1");
-    sidebarIcon1_->setColour(juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
-    sidebarIcon1_->setColour(juce::TextButton::textColourOffId, juce::Colours::grey);
-    addAndMakeVisible(sidebarIcon1_.get());
+    // Create sidebar icons
+    chordToggle_ = std::make_unique<SvgButton>("ChordToggle", BinaryData::Chords2_svg,
+                                               BinaryData::Chords2_svgSize);
+    chordToggle_->setTooltip("Toggle chord detection row");
+    addAndMakeVisible(chordToggle_.get());
 
     sidebarIcon2_ = std::make_unique<juce::TextButton>("2");
     sidebarIcon2_->setColour(juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
@@ -57,7 +59,7 @@ void BottomPanel::resized() {
     int iconSize = 24;
     int padding = (SIDEBAR_WIDTH - iconSize) / 2;
 
-    sidebarIcon1_->setBounds(padding, padding, iconSize, iconSize);
+    chordToggle_->setBounds(padding, padding, iconSize, iconSize);
     sidebarIcon2_->setBounds(padding, padding + iconSize + 4, iconSize, iconSize);
 }
 
