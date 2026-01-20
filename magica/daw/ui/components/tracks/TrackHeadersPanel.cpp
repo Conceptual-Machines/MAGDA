@@ -85,6 +85,46 @@ class TrackMeter : public juce::Component {
         g.fillRoundedRectangle(fillBounds, 1.0f);
     }
 };
+
+// MIDI activity indicator - small blinking dot
+class MidiActivityIndicator : public juce::Component {
+  public:
+    MidiActivityIndicator() = default;
+
+    void setActivity(float level) {
+        activity_ = juce::jlimit(0.0f, 1.0f, level);
+        repaint();
+    }
+
+    void trigger() {
+        activity_ = 1.0f;
+        repaint();
+    }
+
+    void paint(juce::Graphics& g) override {
+        auto bounds = getLocalBounds().toFloat();
+
+        // Calculate dot size and position (centered horizontally, at top)
+        float dotSize = std::min(bounds.getWidth(), 8.0f);
+        float dotX = bounds.getCentreX() - dotSize / 2.0f;
+        float dotY = bounds.getY() + 2.0f;  // Small padding from top
+        auto dotBounds = juce::Rectangle<float>(dotX, dotY, dotSize, dotSize);
+
+        // Inactive state: dim dot
+        g.setColour(DarkTheme::getColour(DarkTheme::SURFACE));
+        g.fillEllipse(dotBounds);
+
+        // Active state: cyan glow
+        if (activity_ > 0.01f) {
+            auto activeColor = juce::Colour(0xFF00DDFF).withAlpha(activity_);
+            g.setColour(activeColor);
+            g.fillEllipse(dotBounds.reduced(1.0f));
+        }
+    }
+
+  private:
+    float activity_ = 0.0f;
+};
 }  // namespace
 
 TrackHeadersPanel::TrackHeader::TrackHeader(const juce::String& trackName) : name(trackName) {
@@ -217,6 +257,11 @@ TrackHeadersPanel::TrackHeader::TrackHeader(const juce::String& trackName) : nam
     meterComponent = std::make_unique<TrackMeter>();
     // Set demo levels so meters are visible
     static_cast<TrackMeter*>(meterComponent.get())->setLevels(0.6f, 0.4f);
+
+    // MIDI activity indicator
+    midiIndicator = std::make_unique<MidiActivityIndicator>();
+    // Set demo activity so indicator is visible
+    static_cast<MidiActivityIndicator*>(midiIndicator.get())->setActivity(0.3f);
 }
 
 TrackHeadersPanel::TrackHeadersPanel() {
@@ -314,6 +359,7 @@ void TrackHeadersPanel::tracksChanged() {
             addAndMakeVisible(*sendLabel);
         }
         addAndMakeVisible(*header->meterComponent);
+        addAndMakeVisible(*header->midiIndicator);
 
         // Apply custom look and feel to combo boxes
         header->audioInSelector->setLookAndFeel(&sliderLookAndFeel_);
@@ -743,17 +789,26 @@ void TrackHeadersPanel::updateTrackHeaderLayout() {
             // Small (<60px): name + M S R only, meters
 
             const int meterWidth = 20;
+            const int midiIndicatorWidth = 12;
             const int meterPadding = 4;
             const int trackHeight = headerArea.getHeight();
 
             // Extract meters area on the right (full height)
             auto workArea = headerArea.reduced(4);
             auto meterArea = workArea.removeFromRight(meterWidth);
+            workArea.removeFromRight(2);
+
+            // MIDI indicator to the left of audio meters
+            auto midiArea = workArea.removeFromRight(midiIndicatorWidth);
             workArea.removeFromRight(meterPadding);
 
-            // Meter spans full track height
+            // Audio meter spans full track height
             header.meterComponent->setBounds(meterArea);
             header.meterComponent->setVisible(true);
+
+            // MIDI indicator spans full track height
+            header.midiIndicator->setBounds(midiArea);
+            header.midiIndicator->setVisible(header.midiInEnabled);
 
             // Apply indentation based on depth for TCP area
             int indent = header.depth * INDENT_WIDTH;
@@ -797,68 +852,97 @@ void TrackHeadersPanel::updateTrackHeaderLayout() {
 
             if (trackHeight >= 100) {
                 // LARGE LAYOUT - evenly distributed:
-                // Row 1: [audio in] [audio out]
-                // Row 2: [midi in] [midi out]
-                // Row 3: M S R
-                // Row 4: [volume] [pan] [sends...]
+                // Conditionally show rows based on enabled routing
                 const int dropdownWidth = 55;
                 const int buttonGap = 2;
-                const int numRows = 4;
                 const int contentRowHeight = rowHeight - 2;
+
+                // Count visible rows
+                bool showAudioRow = header.audioInEnabled || header.audioOutEnabled;
+                bool showMidiRow = header.midiInEnabled || header.midiOutEnabled;
+                int numRows = 2;  // Always have buttons row and volume/pan row
+                if (showAudioRow)
+                    numRows++;
+                if (showMidiRow)
+                    numRows++;
 
                 // Calculate even spacing between rows
                 int totalContentHeight = numRows * contentRowHeight;
                 int availableSpace = tcpArea.getHeight() - totalContentHeight;
-                int rowGap = std::max(2, availableSpace / (numRows - 1));
+                int rowGap = numRows > 1 ? std::max(2, availableSpace / (numRows - 1)) : 2;
 
-                // Row 1: Audio routing
-                auto row1 = tcpArea.removeFromTop(contentRowHeight);
-                header.audioInSelector->setBounds(row1.removeFromLeft(dropdownWidth));
-                header.audioInSelector->setVisible(true);
-                row1.removeFromLeft(spacing);
-                header.audioOutSelector->setBounds(row1.removeFromLeft(dropdownWidth));
-                header.audioOutSelector->setVisible(true);
+                // Audio routing row (if either enabled)
+                if (showAudioRow) {
+                    auto audioRow = tcpArea.removeFromTop(contentRowHeight);
+                    if (header.audioInEnabled) {
+                        header.audioInSelector->setBounds(audioRow.removeFromLeft(dropdownWidth));
+                        header.audioInSelector->setVisible(true);
+                        audioRow.removeFromLeft(spacing);
+                    } else {
+                        header.audioInSelector->setVisible(false);
+                    }
+                    if (header.audioOutEnabled) {
+                        header.audioOutSelector->setBounds(audioRow.removeFromLeft(dropdownWidth));
+                        header.audioOutSelector->setVisible(true);
+                    } else {
+                        header.audioOutSelector->setVisible(false);
+                    }
+                    tcpArea.removeFromTop(rowGap);
+                } else {
+                    header.audioInSelector->setVisible(false);
+                    header.audioOutSelector->setVisible(false);
+                }
 
-                tcpArea.removeFromTop(rowGap);
+                // MIDI routing row (if either enabled)
+                if (showMidiRow) {
+                    auto midiRow = tcpArea.removeFromTop(contentRowHeight);
+                    if (header.midiInEnabled) {
+                        header.midiInSelector->setBounds(midiRow.removeFromLeft(dropdownWidth));
+                        header.midiInSelector->setVisible(true);
+                        midiRow.removeFromLeft(spacing);
+                    } else {
+                        header.midiInSelector->setVisible(false);
+                    }
+                    if (header.midiOutEnabled) {
+                        header.midiOutSelector->setBounds(midiRow.removeFromLeft(dropdownWidth));
+                        header.midiOutSelector->setVisible(true);
+                    } else {
+                        header.midiOutSelector->setVisible(false);
+                    }
+                    tcpArea.removeFromTop(rowGap);
+                } else {
+                    header.midiInSelector->setVisible(false);
+                    header.midiOutSelector->setVisible(false);
+                }
 
-                // Row 2: MIDI routing
-                auto row2 = tcpArea.removeFromTop(contentRowHeight);
-                header.midiInSelector->setBounds(row2.removeFromLeft(dropdownWidth));
-                header.midiInSelector->setVisible(true);
-                row2.removeFromLeft(spacing);
-                header.midiOutSelector->setBounds(row2.removeFromLeft(dropdownWidth));
-                header.midiOutSelector->setVisible(true);
-
-                tcpArea.removeFromTop(rowGap);
-
-                // Row 3: M S R buttons
-                auto row3 = tcpArea.removeFromTop(contentRowHeight);
-                header.muteButton->setBounds(row3.removeFromLeft(smallButtonSize));
-                row3.removeFromLeft(buttonGap);
-                header.soloButton->setBounds(row3.removeFromLeft(smallButtonSize));
-                row3.removeFromLeft(buttonGap);
-                header.recordButton->setBounds(row3.removeFromLeft(smallButtonSize));
+                // M S R buttons row (always visible)
+                auto buttonsRow = tcpArea.removeFromTop(contentRowHeight);
+                header.muteButton->setBounds(buttonsRow.removeFromLeft(smallButtonSize));
+                buttonsRow.removeFromLeft(buttonGap);
+                header.soloButton->setBounds(buttonsRow.removeFromLeft(smallButtonSize));
+                buttonsRow.removeFromLeft(buttonGap);
+                header.recordButton->setBounds(buttonsRow.removeFromLeft(smallButtonSize));
                 header.recordButton->setVisible(true);
 
                 tcpArea.removeFromTop(rowGap);
 
-                // Row 4: Volume, Pan, Sends
-                auto row4 = tcpArea.removeFromTop(contentRowHeight);
+                // Volume, Pan, Sends row (always visible)
+                auto mixRow = tcpArea.removeFromTop(contentRowHeight);
 
-                header.volumeLabel->setBounds(row4.removeFromLeft(volumeLabelWidth));
+                header.volumeLabel->setBounds(mixRow.removeFromLeft(volumeLabelWidth));
                 header.volumeLabel->setVisible(true);
-                row4.removeFromLeft(spacing);
+                mixRow.removeFromLeft(spacing);
 
-                header.panLabel->setBounds(row4.removeFromLeft(panLabelWidth));
+                header.panLabel->setBounds(mixRow.removeFromLeft(panLabelWidth));
                 header.panLabel->setVisible(true);
-                row4.removeFromLeft(spacing);
+                mixRow.removeFromLeft(spacing);
 
                 // Sends on same row
                 for (auto& sendLabel : header.sendLabels) {
-                    if (row4.getWidth() >= sendLabelWidth) {
-                        sendLabel->setBounds(row4.removeFromLeft(sendLabelWidth));
+                    if (mixRow.getWidth() >= sendLabelWidth) {
+                        sendLabel->setBounds(mixRow.removeFromLeft(sendLabelWidth));
                         sendLabel->setVisible(true);
-                        row4.removeFromLeft(spacing);
+                        mixRow.removeFromLeft(spacing);
                     } else {
                         sendLabel->setVisible(false);
                     }
@@ -1103,13 +1187,21 @@ void TrackHeadersPanel::showContextMenu(int trackIndex, juce::Point<int> positio
 
     menu.addSeparator();
 
+    // Routing enables (tick boxes)
+    menu.addItem(10, "Audio In", true, header.audioInEnabled);
+    menu.addItem(11, "Audio Out", true, header.audioOutEnabled);
+    menu.addItem(12, "MIDI In", true, header.midiInEnabled);
+    menu.addItem(13, "MIDI Out", true, header.midiOutEnabled);
+
+    menu.addSeparator();
+
     // Delete track
     menu.addItem(3, "Delete Track");
 
     // Show menu and handle result
     menu.showMenuAsync(juce::PopupMenu::Options().withTargetScreenArea(
                            localAreaToGlobal(juce::Rectangle<int>(position.x, position.y, 1, 1))),
-                       [this, trackId = header.trackId](int result) {
+                       [this, trackId = header.trackId, trackIndex](int result) {
                            if (result == 1) {
                                // Toggle collapse
                                handleCollapseToggle(trackId);
@@ -1120,12 +1212,50 @@ void TrackHeadersPanel::showContextMenu(int trackIndex, juce::Point<int> positio
                                // Delete track (through undo system)
                                auto cmd = std::make_unique<DeleteTrackCommand>(trackId);
                                UndoManager::getInstance().executeCommand(std::move(cmd));
+                           } else if (result == 10) {
+                               // Toggle Audio In
+                               toggleRouting(trackIndex, RoutingType::AudioIn);
+                           } else if (result == 11) {
+                               // Toggle Audio Out
+                               toggleRouting(trackIndex, RoutingType::AudioOut);
+                           } else if (result == 12) {
+                               // Toggle MIDI In
+                               toggleRouting(trackIndex, RoutingType::MidiIn);
+                           } else if (result == 13) {
+                               // Toggle MIDI Out
+                               toggleRouting(trackIndex, RoutingType::MidiOut);
                            } else if (result >= 100) {
                                // Move to group
                                TrackId groupId = result - 100;
                                TrackManager::getInstance().addTrackToGroup(trackId, groupId);
                            }
                        });
+}
+
+void TrackHeadersPanel::toggleRouting(int trackIndex, RoutingType type) {
+    if (trackIndex < 0 || trackIndex >= static_cast<int>(trackHeaders.size()))
+        return;
+
+    auto& header = *trackHeaders[trackIndex];
+
+    switch (type) {
+        case RoutingType::AudioIn:
+            header.audioInEnabled = !header.audioInEnabled;
+            break;
+        case RoutingType::AudioOut:
+            header.audioOutEnabled = !header.audioOutEnabled;
+            break;
+        case RoutingType::MidiIn:
+            header.midiInEnabled = !header.midiInEnabled;
+            break;
+        case RoutingType::MidiOut:
+            header.midiOutEnabled = !header.midiOutEnabled;
+            break;
+    }
+
+    // Recalculate layout to show/hide routing rows
+    updateTrackHeaderLayout();
+    repaint();
 }
 
 void TrackHeadersPanel::calculateDropTarget(int /*mouseX*/, int mouseY) {

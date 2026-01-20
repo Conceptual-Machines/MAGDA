@@ -70,6 +70,9 @@ class TrackHeadersPanel : public juce::Component,
     std::function<void(int, float)> onTrackVolumeChanged;
     std::function<void(int, float)> onTrackPanChanged;
 
+    // Routing toggle types
+    enum class RoutingType { AudioIn, AudioOut, MidiIn, MidiOut };
+
   private:
     struct TrackHeader {
         juce::String name;
@@ -83,6 +86,12 @@ class TrackHeadersPanel : public juce::Component,
         float volume = 0.8f;
         float pan = 0.0f;
         int height = DEFAULT_TRACK_HEIGHT;
+
+        // Routing enables (for right-click menu)
+        bool audioInEnabled = true;
+        bool audioOutEnabled = true;
+        bool midiInEnabled = true;
+        bool midiOutEnabled = true;
 
         // UI components
         std::unique_ptr<juce::Label> nameLabel;
@@ -98,10 +107,12 @@ class TrackHeadersPanel : public juce::Component,
         std::unique_ptr<juce::ComboBox> midiOutSelector;   // MIDI output routing
         std::vector<std::unique_ptr<DraggableValueLabel>> sendLabels;  // Send level labels
         std::unique_ptr<juce::Component> meterComponent;               // Peak meter display
+        std::unique_ptr<juce::Component> midiIndicator;                // MIDI activity indicator
 
         // Meter levels
         float meterLevelL = 0.0f;
         float meterLevelR = 0.0f;
+        float midiActivity = 0.0f;  // 0-1, decays over time
 
         TrackHeader(const juce::String& trackName);
         ~TrackHeader() = default;
@@ -154,6 +165,7 @@ class TrackHeadersPanel : public juce::Component,
     // Context menu
     void showContextMenu(int trackIndex, juce::Point<int> position);
     void handleCollapseToggle(TrackId trackId);
+    void toggleRouting(int trackIndex, RoutingType type);
 
     // Drag-to-reorder methods
     void calculateDropTarget(int mouseX, int mouseY);

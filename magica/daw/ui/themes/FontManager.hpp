@@ -17,6 +17,9 @@ class FontManager {
     // Initialize fonts (call once at startup)
     bool initialize();
 
+    // Shutdown and release fonts (call before JUCE shutdown)
+    void shutdown();
+
     // Get Inter font with specified weight and size
     juce::Font getInterFont(float size, Weight weight = Weight::Regular) const;
 

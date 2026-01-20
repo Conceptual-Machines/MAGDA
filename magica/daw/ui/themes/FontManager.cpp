@@ -59,6 +59,15 @@ bool FontManager::initialize() {
     return initialized;
 }
 
+void FontManager::shutdown() {
+    // Release typeface references before JUCE's leak detector runs
+    interRegular = nullptr;
+    interMedium = nullptr;
+    interSemiBold = nullptr;
+    interBold = nullptr;
+    initialized = false;
+}
+
 juce::Font FontManager::getInterFont(float size, Weight weight) const {
     juce::Typeface* typeface = nullptr;
 

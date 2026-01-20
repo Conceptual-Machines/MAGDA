@@ -218,23 +218,24 @@ void MasterChannelStrip::setupControls() {
     volumeValueLabel->setFont(FontManager::getInstance().getUIFont(9.0f));
     addAndMakeVisible(*volumeValueLabel);
 
-    // Mute button with volume icons
-    auto volumeOnIcon = juce::Drawable::createFromImageData(BinaryData::volume_up_svg,
-                                                            BinaryData::volume_up_svgSize);
-    auto volumeOffIcon = juce::Drawable::createFromImageData(BinaryData::volume_off_svg,
-                                                             BinaryData::volume_off_svgSize);
+    // Speaker on/off button (toggles master mute)
+    auto speakerOnIcon = juce::Drawable::createFromImageData(BinaryData::volume_up_svg,
+                                                             BinaryData::volume_up_svgSize);
+    auto speakerOffIcon = juce::Drawable::createFromImageData(BinaryData::volume_off_svg,
+                                                              BinaryData::volume_off_svgSize);
 
-    muteButton = std::make_unique<juce::DrawableButton>("Mute", juce::DrawableButton::ImageFitted);
-    muteButton->setImages(volumeOnIcon.get(), nullptr, nullptr, nullptr, volumeOffIcon.get());
-    muteButton->setClickingTogglesState(true);
-    muteButton->setColour(juce::DrawableButton::backgroundColourId,
-                          juce::Colours::transparentBlack);
-    muteButton->setColour(juce::DrawableButton::backgroundOnColourId,
-                          DarkTheme::getColour(DarkTheme::STATUS_WARNING).withAlpha(0.3f));
-    muteButton->onClick = [this]() {
-        TrackManager::getInstance().setMasterMuted(muteButton->getToggleState());
+    speakerButton =
+        std::make_unique<juce::DrawableButton>("Speaker", juce::DrawableButton::ImageFitted);
+    speakerButton->setImages(speakerOnIcon.get(), nullptr, nullptr, nullptr, speakerOffIcon.get());
+    speakerButton->setClickingTogglesState(true);
+    speakerButton->setColour(juce::DrawableButton::backgroundColourId,
+                             juce::Colours::transparentBlack);
+    speakerButton->setColour(juce::DrawableButton::backgroundOnColourId,
+                             DarkTheme::getColour(DarkTheme::STATUS_ERROR).withAlpha(0.3f));
+    speakerButton->onClick = [this]() {
+        TrackManager::getInstance().setMasterMuted(speakerButton->getToggleState());
     };
-    addAndMakeVisible(*muteButton);
+    addAndMakeVisible(*speakerButton);
 }
 
 void MasterChannelStrip::paint(juce::Graphics& g) {
@@ -268,7 +269,7 @@ void MasterChannelStrip::resized() {
 
         // Mute button
         auto muteArea = bounds.removeFromTop(28);
-        muteButton->setBounds(muteArea.withSizeKeepingCentre(24, 24));
+        speakerButton->setBounds(muteArea.withSizeKeepingCentre(24, 24));
         bounds.removeFromTop(4);
 
         // Use percentage of remaining height for fader
@@ -339,7 +340,7 @@ void MasterChannelStrip::resized() {
         bounds.removeFromLeft(8);
 
         // Mute button
-        muteButton->setBounds(bounds.removeFromLeft(28).withSizeKeepingCentre(24, 24));
+        speakerButton->setBounds(bounds.removeFromLeft(28).withSizeKeepingCentre(24, 24));
         bounds.removeFromLeft(8);
 
         // Value label above meter
@@ -385,8 +386,8 @@ void MasterChannelStrip::updateFromMasterState() {
     }
 
     // Update mute button
-    if (muteButton) {
-        muteButton->setToggleState(master.muted, juce::dontSendNotification);
+    if (speakerButton) {
+        speakerButton->setToggleState(master.muted, juce::dontSendNotification);
     }
 }
 

@@ -4,6 +4,7 @@
 
 #include <memory>
 
+#include "../components/common/DraggableValueLabel.hpp"
 #include "../components/common/GridOverlayComponent.hpp"
 #include "../components/common/SvgButton.hpp"
 #include "../components/timeline/TimelineComponent.hpp"
@@ -286,12 +287,22 @@ class MainView::MasterHeaderPanel : public juce::Component, public TrackManagerL
     void tracksChanged() override {}
     void masterChannelChanged() override;
 
+    // Meter level updates (for audio engine integration)
+    void setPeakLevels(float leftPeak, float rightPeak);
+    void setVuLevels(float leftVu, float rightVu);
+
   private:
     std::unique_ptr<juce::Label> nameLabel;
-    std::unique_ptr<juce::TextButton> muteButton;
-    std::unique_ptr<juce::TextButton> soloButton;
-    std::unique_ptr<juce::Slider> volumeSlider;
-    std::unique_ptr<juce::Slider> panSlider;
+    std::unique_ptr<juce::DrawableButton> speakerButton;  // Speaker on/off toggle
+    std::unique_ptr<DraggableValueLabel> volumeLabel;     // Volume as draggable dB label
+    std::unique_ptr<DraggableValueLabel> panLabel;        // Pan as draggable L/C/R label
+
+    // Horizontal stereo meter component (used for both peak and VU)
+    class HorizontalStereoMeter;
+    std::unique_ptr<HorizontalStereoMeter> peakMeter;  // Fast peak meter
+    std::unique_ptr<HorizontalStereoMeter> vuMeter;    // Slow VU meter
+    std::unique_ptr<juce::Label> peakLabel;            // "Peak" label
+    std::unique_ptr<juce::Label> vuLabel;              // "VU" label
 
     void setupControls();
 

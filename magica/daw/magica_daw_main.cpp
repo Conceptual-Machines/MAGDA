@@ -66,6 +66,9 @@ class MagicaDAWApplication : public JUCEApplication {
         juce::LookAndFeel::setDefaultLookAndFeel(nullptr);
         lookAndFeel_.reset();
 
+        // Release fonts before JUCE's leak detector runs
+        magica::FontManager::getInstance().shutdown();
+
         std::cout << "👋 Magica DAW shutdown complete" << std::endl;
     }
 

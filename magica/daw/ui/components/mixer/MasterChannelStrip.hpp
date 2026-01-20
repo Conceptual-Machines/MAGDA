@@ -40,7 +40,7 @@ class MasterChannelStrip : public juce::Component, public TrackManagerListener {
     std::unique_ptr<juce::Label> titleLabel;
     std::unique_ptr<juce::Slider> volumeSlider;
     std::unique_ptr<juce::Label> volumeValueLabel;
-    std::unique_ptr<juce::DrawableButton> muteButton;
+    std::unique_ptr<juce::DrawableButton> speakerButton;  // Speaker on/off toggle
 
     // Meter component
     class LevelMeter;

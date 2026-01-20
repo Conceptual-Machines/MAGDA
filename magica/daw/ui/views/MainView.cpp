@@ -15,7 +15,7 @@
 
 namespace magica {
 
-// dB conversion helpers for volume fader
+// dB conversion helpers for meters
 namespace {
 constexpr float MIN_DB = -60.0f;
 constexpr float MAX_DB = 6.0f;
@@ -47,29 +47,6 @@ float dbToFaderPos(float db) {
     }
 }
 
-// Convert fader position to dB
-float faderPosToDb(float pos) {
-    if (pos <= 0.0f)
-        return MIN_DB;
-    if (pos >= 1.0f)
-        return MAX_DB;
-
-    if (pos < 0.75f) {
-        return MIN_DB + (pos / 0.75f) * (UNITY_DB - MIN_DB);
-    } else {
-        return UNITY_DB + ((pos - 0.75f) / 0.25f) * (MAX_DB - UNITY_DB);
-    }
-}
-
-// Convert linear gain to fader position
-float gainToFaderPos(float gain) {
-    return dbToFaderPos(gainToDb(gain));
-}
-
-// Convert fader position to linear gain
-float faderPosToGain(float pos) {
-    return dbToGain(faderPosToDb(pos));
-}
 }  // namespace
 
 MainView::MainView() : playheadPosition(0.0), horizontalZoom(20.0), initialZoomSet(false) {
@@ -1459,6 +1436,72 @@ void MainView::SelectionOverlayComponent::drawLoopRegion(juce::Graphics& g) {
     }
 }
 
+// ===== Horizontal Stereo Meter for MasterHeaderPanel =====
+
+class MainView::MasterHeaderPanel::HorizontalStereoMeter : public juce::Component {
+  public:
+    void setLevels(float left, float right) {
+        leftLevel_ = juce::jlimit(0.0f, 2.0f, left);
+        rightLevel_ = juce::jlimit(0.0f, 2.0f, right);
+        repaint();
+    }
+
+    void paint(juce::Graphics& g) override {
+        auto bounds = getLocalBounds().toFloat();
+        const float gap = 1.0f;
+        float barHeight = (bounds.getHeight() - gap) / 2.0f;
+
+        // Left channel (top bar)
+        auto leftBounds = bounds.removeFromTop(barHeight);
+        drawMeterBar(g, leftBounds, leftLevel_);
+
+        // Gap
+        bounds.removeFromTop(gap);
+
+        // Right channel (bottom bar)
+        auto rightBounds = bounds.removeFromTop(barHeight);
+        drawMeterBar(g, rightBounds, rightLevel_);
+    }
+
+  private:
+    float leftLevel_ = 0.0f;
+    float rightLevel_ = 0.0f;
+
+    void drawMeterBar(juce::Graphics& g, juce::Rectangle<float> bounds, float level) {
+        // Background
+        g.setColour(DarkTheme::getColour(DarkTheme::SURFACE));
+        g.fillRoundedRectangle(bounds, 1.0f);
+
+        // Meter fill (using dB-scaled level)
+        float displayLevel = dbToFaderPos(gainToDb(level));
+        float meterWidth = bounds.getWidth() * displayLevel;
+        auto fillBounds = bounds.withWidth(meterWidth);
+
+        // Color based on level
+        g.setColour(getMeterColour(level));
+        g.fillRoundedRectangle(fillBounds, 1.0f);
+    }
+
+    static juce::Colour getMeterColour(float level) {
+        float dbLevel = gainToDb(level);
+        juce::Colour green(0xFF55AA55);
+        juce::Colour yellow(0xFFAAAA55);
+        juce::Colour red(0xFFAA5555);
+
+        if (dbLevel < -12.0f) {
+            return green;
+        } else if (dbLevel < 0.0f) {
+            float t = (dbLevel + 12.0f) / 12.0f;
+            return green.interpolatedWith(yellow, t);
+        } else if (dbLevel < 3.0f) {
+            float t = dbLevel / 3.0f;
+            return yellow.interpolatedWith(red, t);
+        } else {
+            return red;
+        }
+    }
+};
+
 // ===== MasterHeaderPanel Implementation =====
 
 MainView::MasterHeaderPanel::MasterHeaderPanel() {
@@ -1483,64 +1526,66 @@ void MainView::MasterHeaderPanel::setupControls() {
     nameLabel->setFont(FontManager::getInstance().getUIFont(12.0f));
     addAndMakeVisible(*nameLabel);
 
-    // Mute button
-    muteButton = std::make_unique<juce::TextButton>("M");
-    muteButton->setColour(juce::TextButton::buttonColourId,
-                          DarkTheme::getColour(DarkTheme::SURFACE));
-    muteButton->setColour(juce::TextButton::buttonOnColourId,
-                          DarkTheme::getColour(DarkTheme::STATUS_WARNING));
-    muteButton->setColour(juce::TextButton::textColourOffId,
-                          DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
-    muteButton->setColour(juce::TextButton::textColourOnId,
-                          DarkTheme::getColour(DarkTheme::BACKGROUND));
-    muteButton->setClickingTogglesState(true);
-    muteButton->onClick = [this]() {
-        TrackManager::getInstance().setMasterMuted(muteButton->getToggleState());
-    };
-    addAndMakeVisible(*muteButton);
+    // Speaker on/off button (toggles master mute)
+    auto speakerOnIcon = juce::Drawable::createFromImageData(BinaryData::volume_up_svg,
+                                                             BinaryData::volume_up_svgSize);
+    auto speakerOffIcon = juce::Drawable::createFromImageData(BinaryData::volume_off_svg,
+                                                              BinaryData::volume_off_svgSize);
 
-    // Solo button (for master, this could be "dim" or just solo for consistency)
-    soloButton = std::make_unique<juce::TextButton>("S");
-    soloButton->setColour(juce::TextButton::buttonColourId,
-                          DarkTheme::getColour(DarkTheme::SURFACE));
-    soloButton->setColour(juce::TextButton::buttonOnColourId,
-                          DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
-    soloButton->setColour(juce::TextButton::textColourOffId,
-                          DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
-    soloButton->setColour(juce::TextButton::textColourOnId,
-                          DarkTheme::getColour(DarkTheme::BACKGROUND));
-    soloButton->setClickingTogglesState(true);
-    soloButton->onClick = [this]() {
-        TrackManager::getInstance().setMasterSoloed(soloButton->getToggleState());
+    speakerButton =
+        std::make_unique<juce::DrawableButton>("Speaker", juce::DrawableButton::ImageFitted);
+    speakerButton->setImages(speakerOnIcon.get(), nullptr, nullptr, nullptr, speakerOffIcon.get());
+    speakerButton->setClickingTogglesState(true);
+    speakerButton->setColour(juce::DrawableButton::backgroundColourId,
+                             juce::Colours::transparentBlack);
+    speakerButton->setColour(juce::DrawableButton::backgroundOnColourId,
+                             DarkTheme::getColour(DarkTheme::STATUS_ERROR).withAlpha(0.3f));
+    speakerButton->onClick = [this]() {
+        TrackManager::getInstance().setMasterMuted(speakerButton->getToggleState());
     };
-    addAndMakeVisible(*soloButton);
+    addAndMakeVisible(*speakerButton);
 
-    // Volume slider (horizontal fader style)
-    volumeSlider =
-        std::make_unique<juce::Slider>(juce::Slider::LinearHorizontal, juce::Slider::NoTextBox);
-    volumeSlider->setRange(0.0, 1.0);
-    volumeSlider->setValue(0.75);  // Unity gain (0 dB) at 75%
-    volumeSlider->setColour(juce::Slider::trackColourId, DarkTheme::getColour(DarkTheme::SURFACE));
-    volumeSlider->setColour(juce::Slider::thumbColourId,
-                            DarkTheme::getColour(DarkTheme::ACCENT_BLUE));
-    volumeSlider->onValueChange = [this]() {
-        // Convert fader position to linear gain
-        float gain = faderPosToGain(static_cast<float>(volumeSlider->getValue()));
+    // Volume as draggable dB label
+    volumeLabel = std::make_unique<DraggableValueLabel>(DraggableValueLabel::Format::Decibels);
+    volumeLabel->setRange(-60.0, 6.0, 0.0);  // -60 dB to +6 dB, default 0 dB
+    volumeLabel->setDoubleClickResetsValue(true);
+    volumeLabel->onValueChange = [this]() {
+        // Convert dB to linear gain
+        float db = static_cast<float>(volumeLabel->getValue());
+        float gain = dbToGain(db);
         TrackManager::getInstance().setMasterVolume(gain);
     };
-    addAndMakeVisible(*volumeSlider);
+    addAndMakeVisible(*volumeLabel);
 
-    // Pan slider
-    panSlider =
-        std::make_unique<juce::Slider>(juce::Slider::LinearHorizontal, juce::Slider::NoTextBox);
-    panSlider->setRange(-1.0, 1.0);
-    panSlider->setValue(0.0);
-    panSlider->setColour(juce::Slider::trackColourId, DarkTheme::getColour(DarkTheme::SURFACE));
-    panSlider->setColour(juce::Slider::thumbColourId, DarkTheme::getColour(DarkTheme::ACCENT_BLUE));
-    panSlider->onValueChange = [this]() {
-        TrackManager::getInstance().setMasterPan(static_cast<float>(panSlider->getValue()));
+    // Pan as draggable L/C/R label
+    panLabel = std::make_unique<DraggableValueLabel>(DraggableValueLabel::Format::Pan);
+    panLabel->setRange(-1.0, 1.0, 0.0);  // Full left to full right, default center
+    panLabel->setDoubleClickResetsValue(true);
+    panLabel->onValueChange = [this]() {
+        TrackManager::getInstance().setMasterPan(static_cast<float>(panLabel->getValue()));
     };
-    addAndMakeVisible(*panSlider);
+    addAndMakeVisible(*panLabel);
+
+    // Peak meter with label
+    peakLabel = std::make_unique<juce::Label>("peak", "Peak");
+    peakLabel->setColour(juce::Label::textColourId,
+                         DarkTheme::getColour(DarkTheme::TEXT_SECONDARY));
+    peakLabel->setFont(FontManager::getInstance().getUIFont(9.0f));
+    peakLabel->setJustificationType(juce::Justification::centredRight);
+    addAndMakeVisible(*peakLabel);
+
+    peakMeter = std::make_unique<HorizontalStereoMeter>();
+    addAndMakeVisible(*peakMeter);
+
+    // VU meter with label
+    vuLabel = std::make_unique<juce::Label>("vu", "VU");
+    vuLabel->setColour(juce::Label::textColourId, DarkTheme::getColour(DarkTheme::TEXT_SECONDARY));
+    vuLabel->setFont(FontManager::getInstance().getUIFont(9.0f));
+    vuLabel->setJustificationType(juce::Justification::centredRight);
+    addAndMakeVisible(*vuLabel);
+
+    vuMeter = std::make_unique<HorizontalStereoMeter>();
+    addAndMakeVisible(*vuMeter);
 }
 
 void MainView::MasterHeaderPanel::paint(juce::Graphics& g) {
@@ -1555,37 +1600,64 @@ void MainView::MasterHeaderPanel::paint(juce::Graphics& g) {
 void MainView::MasterHeaderPanel::resized() {
     auto contentArea = getLocalBounds().reduced(4);
 
-    // Top row: Name label and buttons
+    // Top row: Name label, speaker button, volume label, pan label
     auto topRow = contentArea.removeFromTop(18);
-    nameLabel->setBounds(topRow.removeFromLeft(50));
-    topRow.removeFromLeft(4);
-    muteButton->setBounds(topRow.removeFromLeft(24));
+    nameLabel->setBounds(topRow.removeFromLeft(44));
     topRow.removeFromLeft(2);
-    soloButton->setBounds(topRow.removeFromLeft(24));
+    speakerButton->setBounds(topRow.removeFromLeft(18).withSizeKeepingCentre(16, 16));
+    topRow.removeFromLeft(4);
+    volumeLabel->setBounds(topRow.removeFromLeft(44));
+    topRow.removeFromLeft(4);
+    panLabel->setBounds(topRow.removeFromLeft(36));
 
-    contentArea.removeFromTop(4);  // Spacing
+    contentArea.removeFromTop(2);  // Spacing
 
-    // Volume row with label
-    auto volumeRow = contentArea.removeFromTop(14);
-    volumeSlider->setBounds(volumeRow);
+    // Bottom area: meters
+    // Calculate meter layout based on remaining height
+    int remainingHeight = contentArea.getHeight();
+    int meterRowHeight = (remainingHeight - 2) / 2;  // 2px gap between meters
+    int labelWidth = 28;
 
-    contentArea.removeFromTop(2);
+    // Peak meter row
+    auto peakRow = contentArea.removeFromTop(meterRowHeight);
+    peakLabel->setBounds(peakRow.removeFromLeft(labelWidth));
+    peakRow.removeFromLeft(2);
+    peakMeter->setBounds(peakRow);
 
-    // Pan row with label
-    auto panRow = contentArea.removeFromTop(14);
-    panSlider->setBounds(panRow);
+    contentArea.removeFromTop(2);  // Spacing between meters
+
+    // VU meter row
+    auto vuRow = contentArea.removeFromTop(meterRowHeight);
+    vuLabel->setBounds(vuRow.removeFromLeft(labelWidth));
+    vuRow.removeFromLeft(2);
+    vuMeter->setBounds(vuRow);
 }
 
 void MainView::MasterHeaderPanel::masterChannelChanged() {
     const auto& master = TrackManager::getInstance().getMasterChannel();
 
-    muteButton->setToggleState(master.muted, juce::dontSendNotification);
-    soloButton->setToggleState(master.soloed, juce::dontSendNotification);
-    // Convert linear gain to fader position
-    volumeSlider->setValue(gainToFaderPos(master.volume), juce::dontSendNotification);
-    panSlider->setValue(master.pan, juce::dontSendNotification);
+    speakerButton->setToggleState(master.muted, juce::dontSendNotification);
+
+    // Convert linear gain to dB for volume label
+    float db = gainToDb(master.volume);
+    volumeLabel->setValue(db, juce::dontSendNotification);
+
+    // Pan value
+    panLabel->setValue(master.pan, juce::dontSendNotification);
 
     repaint();
+}
+
+void MainView::MasterHeaderPanel::setPeakLevels(float leftPeak, float rightPeak) {
+    if (peakMeter) {
+        peakMeter->setLevels(leftPeak, rightPeak);
+    }
+}
+
+void MainView::MasterHeaderPanel::setVuLevels(float leftVu, float rightVu) {
+    if (vuMeter) {
+        vuMeter->setLevels(leftVu, rightVu);
+    }
 }
 
 // ===== MasterContentPanel Implementation =====
