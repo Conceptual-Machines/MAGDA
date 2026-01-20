@@ -148,9 +148,11 @@ ClipId ClipManager::duplicateClipAt(ClipId clipId, double startTime, TrackId tra
 // Clip Manipulation
 // ============================================================================
 
-void ClipManager::moveClip(ClipId clipId, double newStartTime) {
+void ClipManager::moveClip(ClipId clipId, double newStartTime, double /*tempo*/) {
     if (auto* clip = getClip(clipId)) {
         clip->startTime = std::max(0.0, newStartTime);
+        // Notes maintain their relative position within the clip (startBeat unchanged)
+        // so they move with the clip on the timeline
         notifyClipPropertyChanged(clipId);
     }
 }
@@ -164,12 +166,13 @@ void ClipManager::moveClipToTrack(ClipId clipId, TrackId newTrackId) {
     }
 }
 
-void ClipManager::resizeClip(ClipId clipId, double newLength, bool fromStart) {
+void ClipManager::resizeClip(ClipId clipId, double newLength, bool fromStart, double /*tempo*/) {
     if (auto* clip = getClip(clipId)) {
         newLength = std::max(0.1, newLength);  // Minimum clip length
 
         if (fromStart) {
             // Resizing from left edge: adjust start time
+            // Notes maintain their relative position within the clip (startBeat unchanged)
             double lengthDelta = clip->length - newLength;
             clip->startTime = std::max(0.0, clip->startTime + lengthDelta);
         }

@@ -17,6 +17,30 @@ PianoRollGridComponent::~PianoRollGridComponent() {
 void PianoRollGridComponent::paint(juce::Graphics& g) {
     auto bounds = getLocalBounds();
     paintGrid(g, bounds);
+
+    // Draw clip boundary lines in absolute mode
+    if (!relativeMode_ && clipLengthBeats_ > 0) {
+        // Clip start boundary
+        int clipStartX = beatToPixel(clipStartBeats_);
+        if (clipStartX >= 0 && clipStartX <= bounds.getRight()) {
+            g.setColour(DarkTheme::getAccentColour().withAlpha(0.6f));
+            g.fillRect(clipStartX - 1, 0, 2, bounds.getHeight());
+        }
+
+        // Clip end boundary
+        int clipEndX = beatToPixel(clipStartBeats_ + clipLengthBeats_);
+        if (clipEndX >= 0 && clipEndX <= bounds.getRight()) {
+            g.setColour(DarkTheme::getAccentColour().withAlpha(0.8f));
+            g.fillRect(clipEndX - 1, 0, 3, bounds.getHeight());
+        }
+    } else if (clipLengthBeats_ > 0) {
+        // In relative mode, just show end boundary at clip length
+        int clipEndX = beatToPixel(clipLengthBeats_);
+        if (clipEndX >= 0 && clipEndX <= bounds.getRight()) {
+            g.setColour(DarkTheme::getAccentColour().withAlpha(0.8f));
+            g.fillRect(clipEndX - 1, 0, 3, bounds.getHeight());
+        }
+    }
 }
 
 void PianoRollGridComponent::paintGrid(juce::Graphics& g, juce::Rectangle<int> area) {
@@ -185,6 +209,29 @@ void PianoRollGridComponent::setLeftPadding(int padding) {
     }
 }
 
+void PianoRollGridComponent::setClipStartBeats(double startBeats) {
+    if (clipStartBeats_ != startBeats) {
+        clipStartBeats_ = startBeats;
+        updateNoteComponentBounds();
+        repaint();
+    }
+}
+
+void PianoRollGridComponent::setClipLengthBeats(double lengthBeats) {
+    if (clipLengthBeats_ != lengthBeats) {
+        clipLengthBeats_ = lengthBeats;
+        repaint();
+    }
+}
+
+void PianoRollGridComponent::setRelativeMode(bool relative) {
+    if (relativeMode_ != relative) {
+        relativeMode_ = relative;
+        updateNoteComponentBounds();
+        repaint();
+    }
+}
+
 int PianoRollGridComponent::noteNumberToY(int noteNumber) const {
     return (MAX_NOTE - noteNumber) * noteHeight_;
 }
@@ -316,7 +363,10 @@ void PianoRollGridComponent::updateNoteComponentBounds() {
 
     for (size_t i = 0; i < noteComponents_.size() && i < clip->midiNotes.size(); i++) {
         const auto& note = clip->midiNotes[i];
-        int x = beatToPixel(note.startBeat);
+
+        // In absolute mode, offset notes by clip start position
+        double displayBeat = relativeMode_ ? note.startBeat : (clipStartBeats_ + note.startBeat);
+        int x = beatToPixel(displayBeat);
         int y = noteNumberToY(note.noteNumber);
         int width = juce::jmax(8, static_cast<int>(note.lengthBeats * pixelsPerBeat_));
         int height = noteHeight_ - 2;

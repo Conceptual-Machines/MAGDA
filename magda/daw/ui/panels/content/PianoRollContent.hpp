@@ -85,7 +85,6 @@ class PianoRollContent : public PanelContent, public magda::ClipManagerListener 
     void setupGridCallbacks();
     void updateGridSize();
     void updateTimeRuler();
-    void syncTempoFromEngine();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PianoRollContent)
 };

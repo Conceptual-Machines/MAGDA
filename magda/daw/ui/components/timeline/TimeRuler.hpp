@@ -13,7 +13,7 @@ namespace magda {
  * Time ruler component displaying time markers and labels.
  * Supports both time-based (seconds) and musical (bars/beats) display modes.
  */
-class TimeRuler : public juce::Component {
+class TimeRuler : public juce::Component, private juce::Timer {
   public:
     enum class DisplayMode { Seconds, BarsBeats };
 
@@ -46,10 +46,22 @@ class TimeRuler : public juce::Component {
         return relativeMode;
     }
 
+    // Clip boundary marker (shows where clip content ends)
+    void setClipLength(double lengthSeconds);
+    double getClipLength() const {
+        return clipLength;
+    }
+
     // Left padding (for alignment - can be set to 0 for piano roll)
     void setLeftPadding(int padding);
     int getLeftPadding() const {
         return leftPadding;
+    }
+
+    // Link to a viewport for real-time scroll sync
+    void setLinkedViewport(juce::Viewport* viewport);
+    juce::Viewport* getLinkedViewport() const {
+        return linkedViewport;
     }
 
     // Get preferred height (from LayoutConfig)
@@ -76,9 +88,11 @@ class TimeRuler : public juce::Component {
     // Offset and relative mode (for piano roll)
     double timeOffset = 0.0;    // seconds - absolute position of content start
     bool relativeMode = false;  // true = show relative time (1, 2, 3...), false = show absolute
+    double clipLength = 0.0;    // seconds - length of clip (0 = no boundary marker)
 
     // Layout
     int leftPadding = 18;  // Configurable padding (default 18 for main timeline)
+    juce::Viewport* linkedViewport = nullptr;  // For real-time scroll sync
     static constexpr int TICK_HEIGHT_MAJOR = 12;
     static constexpr int TICK_HEIGHT_MINOR = 6;
     static constexpr int LABEL_MARGIN = 4;
@@ -93,6 +107,10 @@ class TimeRuler : public juce::Component {
     // Coordinate conversion
     double pixelToTime(int pixel) const;
     int timeToPixel(double time) const;
+
+    // Timer callback for real-time scroll sync
+    void timerCallback() override;
+    int lastViewportX = 0;  // Track last position to detect changes
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(TimeRuler)
 };

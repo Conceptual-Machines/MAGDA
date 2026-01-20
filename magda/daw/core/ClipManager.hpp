@@ -99,8 +99,9 @@ class ClipManager {
 
     /**
      * @brief Move clip to a new start time
+     * @param tempo BPM for MIDI note shifting (notes maintain absolute timeline position)
      */
-    void moveClip(ClipId clipId, double newStartTime);
+    void moveClip(ClipId clipId, double newStartTime, double tempo = 120.0);
 
     /**
      * @brief Move clip to a different track
@@ -110,8 +111,9 @@ class ClipManager {
     /**
      * @brief Resize clip (change length)
      * @param fromStart If true, resize from the start edge (affects startTime)
+     * @param tempo BPM for MIDI note shifting (required when fromStart=true for MIDI clips)
      */
-    void resizeClip(ClipId clipId, double newLength, bool fromStart = false);
+    void resizeClip(ClipId clipId, double newLength, bool fromStart = false, double tempo = 120.0);
 
     /**
      * @brief Split a clip at a specific time

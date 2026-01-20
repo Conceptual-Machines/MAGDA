@@ -64,13 +64,13 @@ PianoRollContent::PianoRollContent() {
     gridComponent_->setLeftPadding(GRID_LEFT_PADDING);
     viewport_->setViewedComponent(gridComponent_.get(), false);
 
+    // Link TimeRuler to viewport for real-time scroll sync
+    timeRuler_->setLinkedViewport(viewport_.get());
+
     setupGridCallbacks();
 
     // Register as ClipManager listener
     magda::ClipManager::getInstance().addListener(this);
-
-    // Sync tempo from engine
-    syncTempoFromEngine();
 
     // Check if there's already a selected MIDI clip
     magda::ClipId selectedClip = magda::ClipManager::getInstance().getSelectedClip();
@@ -163,12 +163,37 @@ void PianoRollContent::updateGridSize() {
                            ? magda::ClipManager::getInstance().getClip(editingClipId_)
                            : nullptr;
 
-    double lengthBeats = clip ? clip->length * 2.0 : 16.0;
-    int gridWidth =
-        juce::jmax(viewport_->getWidth(), static_cast<int>(lengthBeats * horizontalZoom_) + 100);
+    // Get tempo to convert between seconds and beats
+    double tempo = 120.0;
+    double timelineLength = 300.0;  // Default 5 minutes
+    if (auto* controller = magda::TimelineController::getCurrent()) {
+        const auto& state = controller->getState();
+        tempo = state.tempo.bpm;
+        timelineLength = state.timelineLength;
+    }
+    double secondsPerBeat = 60.0 / tempo;
+
+    // Always use the full arrangement length for the grid
+    double displayLengthBeats = timelineLength / secondsPerBeat;
+
+    // Calculate clip position and length in beats
+    double clipStartBeats = 0.0;
+    double clipLengthBeats = 0.0;
+    if (clip) {
+        clipStartBeats = clip->startTime / secondsPerBeat;
+        clipLengthBeats = clip->length / secondsPerBeat;
+    }
+
+    int gridWidth = juce::jmax(viewport_->getWidth(),
+                               static_cast<int>(displayLengthBeats * horizontalZoom_) + 100);
     int gridHeight = (MAX_NOTE - MIN_NOTE + 1) * NOTE_HEIGHT;
 
     gridComponent_->setSize(gridWidth, gridHeight);
+
+    // Update grid's display mode and clip boundaries
+    gridComponent_->setRelativeMode(relativeTimeMode_);
+    gridComponent_->setClipStartBeats(clipStartBeats);
+    gridComponent_->setClipLengthBeats(clipLengthBeats);
 }
 
 void PianoRollContent::updateTimeRuler() {
@@ -179,38 +204,6 @@ void PianoRollContent::updateTimeRuler() {
                            ? magda::ClipManager::getInstance().getClip(editingClipId_)
                            : nullptr;
 
-    // Get tempo from engine
-    syncTempoFromEngine();
-
-    // Calculate clip length in seconds
-    double tempo =
-        timeRuler_->getTimeOffset() > 0 ? 120.0 : 120.0;  // Will be set by syncTempoFromEngine
-    double secondsPerBeat = 60.0 / tempo;
-    double lengthBeats = clip ? clip->length * 2.0 : 16.0;
-    double lengthSeconds = lengthBeats * secondsPerBeat;
-
-    // Set timeline length
-    timeRuler_->setTimelineLength(lengthSeconds);
-
-    // Set zoom (convert pixels per beat to pixels per second)
-    double pixelsPerSecond = horizontalZoom_ / secondsPerBeat;
-    timeRuler_->setZoom(pixelsPerSecond);
-
-    // Set time offset for absolute mode (where the clip starts in the project)
-    if (clip) {
-        timeRuler_->setTimeOffset(clip->startTime);
-    } else {
-        timeRuler_->setTimeOffset(0.0);
-    }
-
-    // Update relative mode
-    timeRuler_->setRelativeMode(relativeTimeMode_);
-}
-
-void PianoRollContent::syncTempoFromEngine() {
-    if (!timeRuler_)
-        return;
-
     // Get tempo from TimelineController
     double tempo = 120.0;  // Default fallback
     if (auto* controller = magda::TimelineController::getCurrent()) {
@@ -220,6 +213,36 @@ void PianoRollContent::syncTempoFromEngine() {
                                      state.tempo.timeSignatureDenominator);
     }
     timeRuler_->setTempo(tempo);
+
+    // Calculate timing values
+    double secondsPerBeat = 60.0 / tempo;
+
+    // Get timeline length from controller
+    double timelineLength = 300.0;  // Default 5 minutes
+    if (auto* controller = magda::TimelineController::getCurrent()) {
+        timelineLength = controller->getState().timelineLength;
+    }
+
+    // Set timeline length to full arrangement
+    timeRuler_->setTimelineLength(timelineLength);
+
+    // Set zoom (convert pixels per beat to pixels per second)
+    double pixelsPerSecond = horizontalZoom_ / secondsPerBeat;
+    timeRuler_->setZoom(pixelsPerSecond);
+
+    // Set clip info for boundary drawing
+    // timeOffset is always the clip's start time (used for boundary markers)
+    // relativeMode controls whether bar numbers are offset
+    if (clip) {
+        timeRuler_->setTimeOffset(clip->startTime);
+        timeRuler_->setClipLength(clip->length);
+    } else {
+        timeRuler_->setTimeOffset(0.0);
+        timeRuler_->setClipLength(0.0);
+    }
+
+    // Update relative mode
+    timeRuler_->setRelativeMode(relativeTimeMode_);
 }
 
 void PianoRollContent::setRelativeTimeMode(bool relative) {
@@ -227,7 +250,12 @@ void PianoRollContent::setRelativeTimeMode(bool relative) {
         relativeTimeMode_ = relative;
         timeModeButton_->setButtonText(relative ? "REL" : "ABS");
         timeModeButton_->setToggleState(relative, juce::dontSendNotification);
+        updateGridSize();  // Grid size changes between modes
         updateTimeRuler();
+
+        // In ABS mode, scroll to show bar 1 at the left
+        // In REL mode, reset scroll to show the start of the clip
+        viewport_->setViewPosition(0, viewport_->getViewPositionY());
     }
 }
 
@@ -242,7 +270,6 @@ void PianoRollContent::onActivated() {
             updateTimeRuler();
         }
     }
-    syncTempoFromEngine();
     repaint();
 }
 
@@ -284,6 +311,10 @@ void PianoRollContent::clipSelectionChanged(magda::ClipId clipId) {
             gridComponent_->setClip(clipId);
             updateGridSize();
             updateTimeRuler();
+
+            // Reset scroll to bar 1 when selecting a new clip
+            viewport_->setViewPosition(0, viewport_->getViewPositionY());
+
             repaint();
         }
     }
@@ -299,6 +330,10 @@ void PianoRollContent::setClip(magda::ClipId clipId) {
         gridComponent_->setClip(clipId);
         updateGridSize();
         updateTimeRuler();
+
+        // Reset scroll to bar 1 when setting a new clip
+        viewport_->setViewPosition(0, viewport_->getViewPositionY());
+
         repaint();
     }
 }

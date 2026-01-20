@@ -74,9 +74,35 @@ void TimeRuler::setRelativeMode(bool relative) {
     repaint();
 }
 
+void TimeRuler::setClipLength(double lengthSeconds) {
+    clipLength = lengthSeconds;
+    repaint();
+}
+
 void TimeRuler::setLeftPadding(int padding) {
     leftPadding = padding;
     repaint();
+}
+
+void TimeRuler::setLinkedViewport(juce::Viewport* viewport) {
+    linkedViewport = viewport;
+    if (linkedViewport) {
+        // Start timer for real-time scroll sync (60fps)
+        startTimerHz(60);
+        lastViewportX = linkedViewport->getViewPositionX();
+    } else {
+        stopTimer();
+    }
+}
+
+void TimeRuler::timerCallback() {
+    if (linkedViewport) {
+        int currentX = linkedViewport->getViewPositionX();
+        if (currentX != lastViewportX) {
+            lastViewportX = currentX;
+            repaint();
+        }
+    }
 }
 
 int TimeRuler::getPreferredHeight() const {
@@ -150,13 +176,11 @@ void TimeRuler::drawBarsBeatsMode(juce::Graphics& g) {
     double pixelsPerBar = secondsPerBar * zoom;
     bool showBeats = pixelsPerBar > 60;  // Only show beats if bars are wide enough
 
-    // Calculate the bar offset (which bar does our content start at?)
-    int barOffset = 0;
-    if (!relativeMode && timeOffset > 0) {
-        barOffset = static_cast<int>(std::floor(timeOffset / secondsPerBar));
-    }
+    // In ABS mode: bar numbers are absolute (1, 2, 3...), grid starts at project time 0
+    // In REL mode: bar numbers relative to clip (1, 2, 3...), grid starts at clip time 0
+    // No barOffset needed since grid coordinate system matches display
 
-    // Find first visible bar (in local/relative time)
+    // Find first visible bar
     double startTime = pixelToTime(0);
     int startBar = static_cast<int>(std::floor(startTime / secondsPerBar));
     if (startBar < 1)
@@ -180,9 +204,8 @@ void TimeRuler::drawBarsBeatsMode(juce::Graphics& g) {
             g.drawVerticalLine(barX, static_cast<float>(height - TICK_HEIGHT_MAJOR),
                                static_cast<float>(height));
 
-            // Draw bar number - apply offset for absolute mode
-            int displayBar = relativeMode ? bar : (bar + barOffset);
-            juce::String label = juce::String(displayBar);
+            // Draw bar number (always 1, 2, 3... from the left edge)
+            juce::String label = juce::String(bar);
             g.drawText(label, barX - 20, LABEL_MARGIN, 40,
                        height - TICK_HEIGHT_MAJOR - LABEL_MARGIN * 2, juce::Justification::centred,
                        false);
@@ -199,6 +222,31 @@ void TimeRuler::drawBarsBeatsMode(juce::Graphics& g) {
                     g.drawVerticalLine(beatX, static_cast<float>(height - TICK_HEIGHT_MINOR),
                                        static_cast<float>(height));
                 }
+            }
+        }
+    }
+
+    // Draw clip boundary markers
+    if (clipLength > 0) {
+        if (!relativeMode) {
+            // ABS mode: draw start and end boundaries at absolute positions
+            int clipStartX = timeToPixel(timeOffset);
+            if (clipStartX >= 0 && clipStartX <= width) {
+                g.setColour(DarkTheme::getAccentColour().withAlpha(0.6f));
+                g.fillRect(clipStartX - 1, 0, 2, height);
+            }
+
+            int clipEndX = timeToPixel(timeOffset + clipLength);
+            if (clipEndX >= 0 && clipEndX <= width) {
+                g.setColour(DarkTheme::getAccentColour().withAlpha(0.8f));
+                g.fillRect(clipEndX - 1, 0, 3, height);
+            }
+        } else {
+            // REL mode: draw end boundary relative to clip start (which is at time 0)
+            int clipEndX = timeToPixel(clipLength);
+            if (clipEndX >= 0 && clipEndX <= width) {
+                g.setColour(DarkTheme::getAccentColour().withAlpha(0.8f));
+                g.fillRect(clipEndX - 1, 0, 3, height);
             }
         }
     }
@@ -258,11 +306,15 @@ juce::String TimeRuler::formatBarsBeatsLabel(double time) const {
 }
 
 double TimeRuler::pixelToTime(int pixel) const {
-    return (pixel + scrollOffset - leftPadding) / zoom;
+    // Use linked viewport's position for real-time scroll sync
+    int currentScrollOffset = linkedViewport ? linkedViewport->getViewPositionX() : scrollOffset;
+    return (pixel + currentScrollOffset - leftPadding) / zoom;
 }
 
 int TimeRuler::timeToPixel(double time) const {
-    return static_cast<int>(time * zoom) - scrollOffset + leftPadding;
+    // Use linked viewport's position for real-time scroll sync
+    int currentScrollOffset = linkedViewport ? linkedViewport->getViewPositionX() : scrollOffset;
+    return static_cast<int>(time * zoom) - currentScrollOffset + leftPadding;
 }
 
 }  // namespace magda
