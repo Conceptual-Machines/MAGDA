@@ -10,7 +10,8 @@ TrackManager& TrackManager::getInstance() {
 }
 
 TrackManager::TrackManager() {
-    // App starts with no tracks - user can add via Track > Add Track
+    // Create 11 default tracks to match test meter levels (6 to -60 dB)
+    createDefaultTracks(11);
 }
 
 // ============================================================================

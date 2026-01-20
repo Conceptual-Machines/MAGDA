@@ -83,13 +83,14 @@ class MasterChannelStrip::LevelMeter : public juce::Component {
         fillBounds = fillBounds.removeFromBottom(meterHeight);
 
         // Gradient from green to yellow to red based on dB
+        // Red only above 0 dB (clipping), yellow at 0 dB and above -12 dB
         float dbLevel = gainToDb(level);
         if (dbLevel < -12.0f) {
             g.setColour(juce::Colour(0xFF55AA55));  // Green
-        } else if (dbLevel < -3.0f) {
+        } else if (dbLevel <= 0.0f) {
             g.setColour(juce::Colour(0xFFAAAA55));  // Yellow
         } else {
-            g.setColour(juce::Colour(0xFFAA5555));  // Red
+            g.setColour(juce::Colour(0xFFAA5555));  // Red (above 0 dB)
         }
         g.fillRoundedRectangle(fillBounds, 2.0f);
     }

@@ -11,7 +11,7 @@ namespace magica {
 struct MixerMetrics {
     // === Base values (tune these) ===
     float thumbHeight = 16.0f;
-    float thumbWidthMultiplier = 2.70f;    // thumbWidth = thumbHeight * this (~43px)
+    float thumbWidthMultiplier = 2.0f;     // thumbWidth = thumbHeight * this (32px)
     float trackWidthMultiplier = 0.66f;    // trackWidth = thumbHeight * this (~11px)
     float tickWidthMultiplier = 0.78f;     // tickWidth = thumbHeight * this (~12px)
     float trackPaddingMultiplier = 0.25f;  // trackPadding = thumbHeight * this (4px)

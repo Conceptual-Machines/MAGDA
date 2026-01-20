@@ -94,13 +94,14 @@ class MixerView::ChannelStrip::LevelMeter : public juce::Component {
         fillBounds = fillBounds.removeFromBottom(meterHeight);
 
         // Gradient from green to yellow to red based on dB
+        // Red only above 0 dB (clipping), yellow at 0 dB and above -12 dB
         float dbLevel = gainToDb(level);
         if (dbLevel < -12.0f) {
             g.setColour(juce::Colour(0xFF55AA55));  // Green
-        } else if (dbLevel < -3.0f) {
+        } else if (dbLevel <= 0.0f) {
             g.setColour(juce::Colour(0xFFAAAA55));  // Yellow
         } else {
-            g.setColour(juce::Colour(0xFFAA5555));  // Red
+            g.setColour(juce::Colour(0xFFAA5555));  // Red (above 0 dB)
         }
         g.fillRoundedRectangle(fillBounds, 2.0f);
     }
@@ -592,20 +593,12 @@ MixerView::MixerView() {
     // Build channel strips from TrackManager
     rebuildChannelStrips();
 
-    // Create debug panel (hidden by default)
-    debugPanel_ = std::make_unique<MixerDebugPanel>();
-    debugPanel_->setVisible(false);
-    debugPanel_->onMetricsChanged = [this]() {
-        // Rebuild all channel strips to pick up new metrics
-        rebuildChannelStrips();
-    };
-    addAndMakeVisible(*debugPanel_);
-
-    // Enable keyboard focus for F12 toggle
-    setWantsKeyboardFocus(true);
+    // Start timer for meter animation (30fps)
+    startTimer(33);
 }
 
 MixerView::~MixerView() {
+    stopTimer();
     TrackManager::getInstance().removeListener(this);
     ViewModeController::getInstance().removeListener(this);
 }
@@ -710,27 +703,28 @@ void MixerView::resized() {
         channelStrips[i]->setBounds(i * metrics.channelWidth, 0, metrics.channelWidth,
                                     containerHeight);
     }
-
-    // Debug panel manages its own position after initial placement
 }
 
 void MixerView::timerCallback() {
-    // Timer callback - meters will be driven by actual audio engine in future
+    // Mock signal levels for testing meter alignment with tick marks
+    // Each channel gets a fixed dB level to verify visual alignment
+    const std::vector<float> testDbLevels = {6.0f,   3.0f,   0.0f,   -3.0f,  -6.0f, -12.0f,
+                                             -18.0f, -24.0f, -36.0f, -48.0f, -60.0f};
+
+    for (size_t i = 0; i < channelStrips.size(); ++i) {
+        // Cycle through test levels
+        float db = testDbLevels[i % testDbLevels.size()];
+        float gain = dbToGain(db);
+        channelStrips[i]->setMeterLevel(gain);
+    }
+
+    // Master strip at 0 dB (unity)
+    if (masterStrip) {
+        masterStrip->setMeterLevel(dbToGain(0.0f));
+    }
 }
 
-bool MixerView::keyPressed(const juce::KeyPress& key) {
-    if (key == juce::KeyPress::F12Key) {
-        bool willBeVisible = !debugPanel_->isVisible();
-        debugPanel_->setVisible(willBeVisible);
-
-        // Position in top-right when first shown
-        if (willBeVisible && debugPanel_->getX() == 0) {
-            int panelX = getWidth() - debugPanel_->getWidth() - 10;
-            int panelY = 10;
-            debugPanel_->setTopLeftPosition(panelX, panelY);
-        }
-        return true;
-    }
+bool MixerView::keyPressed(const juce::KeyPress& /*key*/) {
     return false;
 }
 
