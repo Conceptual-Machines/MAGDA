@@ -191,58 +191,55 @@ TrackHeadersPanel::TrackHeader::TrackHeader(const juce::String& trackName) : nam
     collapseButton->setColour(juce::TextButton::textColourOffId,
                               DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
 
-    // Audio input selector
-    audioInSelector = std::make_unique<juce::ComboBox>();
-    audioInSelector->addItem("In: None", 1);
-    audioInSelector->addItem("In: 1", 2);
-    audioInSelector->addItem("In: 2", 3);
-    audioInSelector->addItem("In: 1-2", 4);
+    // Audio input selector (hybrid toggle + dropdown)
+    audioInSelector = std::make_unique<RoutingSelector>(RoutingSelector::Type::AudioIn);
+    audioInSelector->setOptions({
+        {1, "Input 1"},
+        {2, "Input 2"},
+        {3, "Input 1+2 (Stereo)"},
+        {0, "", true},  // separator
+        {10, "External Sidechain"},
+    });
     audioInSelector->setSelectedId(1);
-    audioInSelector->setColour(juce::ComboBox::backgroundColourId,
-                               DarkTheme::getColour(DarkTheme::SURFACE));
-    audioInSelector->setColour(juce::ComboBox::textColourId,
-                               DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
-    audioInSelector->setColour(juce::ComboBox::outlineColourId,
-                               DarkTheme::getColour(DarkTheme::BORDER));
+    audioInSelector->setEnabled(audioInEnabled);
 
-    // Audio output selector
-    audioOutSelector = std::make_unique<juce::ComboBox>();
-    audioOutSelector->addItem("Out: Master", 1);
-    audioOutSelector->addItem("Out: 1-2", 2);
-    audioOutSelector->addItem("Out: 3-4", 3);
+    // Audio output selector (hybrid toggle + dropdown)
+    audioOutSelector = std::make_unique<RoutingSelector>(RoutingSelector::Type::AudioOut);
+    audioOutSelector->setOptions({
+        {1, "Master"},
+        {2, "Output 1-2"},
+        {3, "Output 3-4"},
+        {0, "", true},  // separator
+        {10, "Bus 1"},
+        {11, "Bus 2"},
+    });
     audioOutSelector->setSelectedId(1);
-    audioOutSelector->setColour(juce::ComboBox::backgroundColourId,
-                                DarkTheme::getColour(DarkTheme::SURFACE));
-    audioOutSelector->setColour(juce::ComboBox::textColourId,
-                                DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
-    audioOutSelector->setColour(juce::ComboBox::outlineColourId,
-                                DarkTheme::getColour(DarkTheme::BORDER));
+    audioOutSelector->setEnabled(audioOutEnabled);
 
-    // MIDI input selector
-    midiInSelector = std::make_unique<juce::ComboBox>();
-    midiInSelector->addItem("M In: All", 1);
-    midiInSelector->addItem("M In: None", 2);
-    midiInSelector->addItem("M In: Ch1", 3);
+    // MIDI input selector (hybrid toggle + dropdown)
+    midiInSelector = std::make_unique<RoutingSelector>(RoutingSelector::Type::MidiIn);
+    midiInSelector->setOptions({
+        {1, "All Inputs"},
+        {2, "None"},
+        {0, "", true},  // separator
+        {10, "Channel 1"},
+        {11, "Channel 2"},
+        {12, "Channel 3"},
+    });
     midiInSelector->setSelectedId(1);
-    midiInSelector->setColour(juce::ComboBox::backgroundColourId,
-                              DarkTheme::getColour(DarkTheme::SURFACE));
-    midiInSelector->setColour(juce::ComboBox::textColourId,
-                              DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
-    midiInSelector->setColour(juce::ComboBox::outlineColourId,
-                              DarkTheme::getColour(DarkTheme::BORDER));
+    midiInSelector->setEnabled(midiInEnabled);
 
-    // MIDI output selector
-    midiOutSelector = std::make_unique<juce::ComboBox>();
-    midiOutSelector->addItem("M Out: None", 1);
-    midiOutSelector->addItem("M Out: All", 2);
-    midiOutSelector->addItem("M Out: Ch1", 3);
+    // MIDI output selector (hybrid toggle + dropdown)
+    midiOutSelector = std::make_unique<RoutingSelector>(RoutingSelector::Type::MidiOut);
+    midiOutSelector->setOptions({
+        {1, "None"},
+        {2, "All Outputs"},
+        {0, "", true},  // separator
+        {10, "Channel 1"},
+        {11, "Channel 2"},
+    });
     midiOutSelector->setSelectedId(1);
-    midiOutSelector->setColour(juce::ComboBox::backgroundColourId,
-                               DarkTheme::getColour(DarkTheme::SURFACE));
-    midiOutSelector->setColour(juce::ComboBox::textColourId,
-                               DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
-    midiOutSelector->setColour(juce::ComboBox::outlineColourId,
-                               DarkTheme::getColour(DarkTheme::BORDER));
+    midiOutSelector->setEnabled(midiOutEnabled);
 
     // Send labels (create 2 by default, show dB)
     for (int i = 0; i < 2; ++i) {
@@ -279,14 +276,6 @@ TrackHeadersPanel::TrackHeadersPanel() {
 }
 
 TrackHeadersPanel::~TrackHeadersPanel() {
-    // Clear look and feel from combo boxes before destruction
-    for (auto& header : trackHeaders) {
-        header->audioInSelector->setLookAndFeel(nullptr);
-        header->audioOutSelector->setLookAndFeel(nullptr);
-        header->midiInSelector->setLookAndFeel(nullptr);
-        header->midiOutSelector->setLookAndFeel(nullptr);
-    }
-
     TrackManager::getInstance().removeListener(this);
     ViewModeController::getInstance().removeListener(this);
 }
@@ -299,18 +288,16 @@ void TrackHeadersPanel::viewModeChanged(ViewMode mode, const AudioEngineProfile&
 void TrackHeadersPanel::tracksChanged() {
     // Clear existing track headers
     for (auto& header : trackHeaders) {
-        // Clear look and feel from combo boxes before removing
-        header->audioInSelector->setLookAndFeel(nullptr);
-        header->audioOutSelector->setLookAndFeel(nullptr);
-        header->midiInSelector->setLookAndFeel(nullptr);
-        header->midiOutSelector->setLookAndFeel(nullptr);
-
         removeChildComponent(header->nameLabel.get());
         removeChildComponent(header->muteButton.get());
         removeChildComponent(header->soloButton.get());
         removeChildComponent(header->volumeLabel.get());
         removeChildComponent(header->panLabel.get());
         removeChildComponent(header->collapseButton.get());
+        removeChildComponent(header->audioInSelector.get());
+        removeChildComponent(header->audioOutSelector.get());
+        removeChildComponent(header->midiInSelector.get());
+        removeChildComponent(header->midiOutSelector.get());
     }
     trackHeaders.clear();
     visibleTrackIds_.clear();
@@ -360,12 +347,6 @@ void TrackHeadersPanel::tracksChanged() {
         }
         addAndMakeVisible(*header->meterComponent);
         addAndMakeVisible(*header->midiIndicator);
-
-        // Apply custom look and feel to combo boxes
-        header->audioInSelector->setLookAndFeel(&sliderLookAndFeel_);
-        header->audioOutSelector->setLookAndFeel(&sliderLookAndFeel_);
-        header->midiInSelector->setLookAndFeel(&sliderLookAndFeel_);
-        header->midiOutSelector->setLookAndFeel(&sliderLookAndFeel_);
 
         // Add collapse button for groups
         if (header->isGroup) {
@@ -488,12 +469,6 @@ void TrackHeadersPanel::addTrack() {
         addAndMakeVisible(*sendLabel);
     }
     addAndMakeVisible(*header->meterComponent);
-
-    // Apply custom look and feel to combo boxes
-    header->audioInSelector->setLookAndFeel(&sliderLookAndFeel_);
-    header->audioOutSelector->setLookAndFeel(&sliderLookAndFeel_);
-    header->midiInSelector->setLookAndFeel(&sliderLookAndFeel_);
-    header->midiOutSelector->setLookAndFeel(&sliderLookAndFeel_);
 
     trackHeaders.push_back(std::move(header));
 
@@ -693,6 +668,43 @@ void TrackHeadersPanel::setupTrackHeaderWithId(TrackHeader& header, int trackId)
             TrackManager::getInstance().setTrackPan(trackId, header.pan);
         }
     };
+
+    // Routing selector callbacks - sync enabled state back to header flags
+    header.audioInSelector->onEnabledChanged = [this, trackId](bool enabled) {
+        int index = TrackManager::getInstance().getTrackIndex(trackId);
+        if (index >= 0 && index < static_cast<int>(trackHeaders.size())) {
+            trackHeaders[index]->audioInEnabled = enabled;
+            updateTrackHeaderLayout();
+            repaint();
+        }
+    };
+
+    header.audioOutSelector->onEnabledChanged = [this, trackId](bool enabled) {
+        int index = TrackManager::getInstance().getTrackIndex(trackId);
+        if (index >= 0 && index < static_cast<int>(trackHeaders.size())) {
+            trackHeaders[index]->audioOutEnabled = enabled;
+            updateTrackHeaderLayout();
+            repaint();
+        }
+    };
+
+    header.midiInSelector->onEnabledChanged = [this, trackId](bool enabled) {
+        int index = TrackManager::getInstance().getTrackIndex(trackId);
+        if (index >= 0 && index < static_cast<int>(trackHeaders.size())) {
+            trackHeaders[index]->midiInEnabled = enabled;
+            updateTrackHeaderLayout();
+            repaint();
+        }
+    };
+
+    header.midiOutSelector->onEnabledChanged = [this, trackId](bool enabled) {
+        int index = TrackManager::getInstance().getTrackIndex(trackId);
+        if (index >= 0 && index < static_cast<int>(trackHeaders.size())) {
+            trackHeaders[index]->midiOutEnabled = enabled;
+            updateTrackHeaderLayout();
+            repaint();
+        }
+    };
 }
 
 void TrackHeadersPanel::paintTrackHeader(juce::Graphics& g, const TrackHeader& header,
@@ -852,7 +864,7 @@ void TrackHeadersPanel::updateTrackHeaderLayout() {
 
             if (trackHeight >= 100) {
                 // LARGE LAYOUT - evenly distributed:
-                // Conditionally show rows based on enabled routing
+                // Order: M S R, Audio routing, MIDI routing, Volume/Pan/Sends
                 const int dropdownWidth = 55;
                 const int buttonGap = 2;
                 const int contentRowHeight = rowHeight - 2;
@@ -870,6 +882,17 @@ void TrackHeadersPanel::updateTrackHeaderLayout() {
                 int totalContentHeight = numRows * contentRowHeight;
                 int availableSpace = tcpArea.getHeight() - totalContentHeight;
                 int rowGap = numRows > 1 ? std::max(2, availableSpace / (numRows - 1)) : 2;
+
+                // M S R buttons row (always visible, now on top)
+                auto buttonsRow = tcpArea.removeFromTop(contentRowHeight);
+                header.muteButton->setBounds(buttonsRow.removeFromLeft(smallButtonSize));
+                buttonsRow.removeFromLeft(buttonGap);
+                header.soloButton->setBounds(buttonsRow.removeFromLeft(smallButtonSize));
+                buttonsRow.removeFromLeft(buttonGap);
+                header.recordButton->setBounds(buttonsRow.removeFromLeft(smallButtonSize));
+                header.recordButton->setVisible(true);
+
+                tcpArea.removeFromTop(rowGap);
 
                 // Audio routing row (if either enabled)
                 if (showAudioRow) {
@@ -914,17 +937,6 @@ void TrackHeadersPanel::updateTrackHeaderLayout() {
                     header.midiInSelector->setVisible(false);
                     header.midiOutSelector->setVisible(false);
                 }
-
-                // M S R buttons row (always visible)
-                auto buttonsRow = tcpArea.removeFromTop(contentRowHeight);
-                header.muteButton->setBounds(buttonsRow.removeFromLeft(smallButtonSize));
-                buttonsRow.removeFromLeft(buttonGap);
-                header.soloButton->setBounds(buttonsRow.removeFromLeft(smallButtonSize));
-                buttonsRow.removeFromLeft(buttonGap);
-                header.recordButton->setBounds(buttonsRow.removeFromLeft(smallButtonSize));
-                header.recordButton->setVisible(true);
-
-                tcpArea.removeFromTop(rowGap);
 
                 // Volume, Pan, Sends row (always visible)
                 auto mixRow = tcpArea.removeFromTop(contentRowHeight);
@@ -1241,15 +1253,19 @@ void TrackHeadersPanel::toggleRouting(int trackIndex, RoutingType type) {
     switch (type) {
         case RoutingType::AudioIn:
             header.audioInEnabled = !header.audioInEnabled;
+            header.audioInSelector->setEnabled(header.audioInEnabled);
             break;
         case RoutingType::AudioOut:
             header.audioOutEnabled = !header.audioOutEnabled;
+            header.audioOutSelector->setEnabled(header.audioOutEnabled);
             break;
         case RoutingType::MidiIn:
             header.midiInEnabled = !header.midiInEnabled;
+            header.midiInSelector->setEnabled(header.midiInEnabled);
             break;
         case RoutingType::MidiOut:
             header.midiOutEnabled = !header.midiOutEnabled;
+            header.midiOutSelector->setEnabled(header.midiOutEnabled);
             break;
     }
 

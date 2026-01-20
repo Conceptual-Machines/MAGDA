@@ -365,33 +365,50 @@ void MixerView::ChannelStrip::setupControls() {
         };
         addAndMakeVisible(*recordButton);
 
-        // Audio/MIDI routing indicators (small toggle buttons, not on master)
-        auto setupRoutingButton = [this](std::unique_ptr<juce::TextButton>& btn,
-                                         const juce::String& text, juce::Colour onColour) {
-            btn = std::make_unique<juce::TextButton>(text);
-            btn->setConnectedEdges(juce::Button::ConnectedOnLeft | juce::Button::ConnectedOnRight |
-                                   juce::Button::ConnectedOnTop | juce::Button::ConnectedOnBottom);
-            btn->setColour(juce::TextButton::buttonColourId,
-                           DarkTheme::getColour(DarkTheme::BUTTON_NORMAL));
-            btn->setColour(juce::TextButton::buttonOnColourId, onColour);
-            btn->setColour(juce::TextButton::textColourOffId,
-                           DarkTheme::getColour(DarkTheme::TEXT_SECONDARY));
-            btn->setColour(juce::TextButton::textColourOnId,
-                           DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
-            btn->setClickingTogglesState(true);
-            btn->setToggleState(true, juce::dontSendNotification);  // Default on
-            addAndMakeVisible(*btn);
-        };
+        // Audio/MIDI routing selectors (toggle + dropdown, not on master)
+        audioInSelector = std::make_unique<RoutingSelector>(RoutingSelector::Type::AudioIn);
+        audioInSelector->setOptions({
+            {1, "Input 1"},
+            {2, "Input 2"},
+            {3, "Input 1+2 (Stereo)"},
+            {0, "", true},  // Separator
+            {10, "External Sidechain"},
+        });
+        audioInSelector->setSelectedId(1);
+        addAndMakeVisible(*audioInSelector);
 
-        // Audio routing: green tint when enabled
-        juce::Colour audioColour(0xFF55AA55);
-        setupRoutingButton(audioInButton, "Ai", audioColour);
-        setupRoutingButton(audioOutButton, "Ao", audioColour);
+        audioOutSelector = std::make_unique<RoutingSelector>(RoutingSelector::Type::AudioOut);
+        audioOutSelector->setOptions({
+            {1, "Master"},
+            {2, "Bus 1"},
+            {3, "Bus 2"},
+            {0, "", true},  // Separator
+            {10, "Hardware Out"},
+        });
+        audioOutSelector->setSelectedId(1);
+        addAndMakeVisible(*audioOutSelector);
 
-        // MIDI routing: cyan tint when enabled
-        juce::Colour midiColour(0xFF55AAAA);
-        setupRoutingButton(midiInButton, "Mi", midiColour);
-        setupRoutingButton(midiOutButton, "Mo", midiColour);
+        midiInSelector = std::make_unique<RoutingSelector>(RoutingSelector::Type::MidiIn);
+        midiInSelector->setOptions({
+            {1, "All Channels"},
+            {2, "Channel 1"},
+            {3, "Channel 2"},
+            {0, "", true},  // Separator
+            {10, "External Controller"},
+        });
+        midiInSelector->setSelectedId(1);
+        addAndMakeVisible(*midiInSelector);
+
+        midiOutSelector = std::make_unique<RoutingSelector>(RoutingSelector::Type::MidiOut);
+        midiOutSelector->setOptions({
+            {1, "All Channels"},
+            {2, "Channel 1"},
+            {3, "Channel 2"},
+            {0, "", true},  // Separator
+            {10, "External Synth"},
+        });
+        midiOutSelector->setSelectedId(1);
+        addAndMakeVisible(*midiOutSelector);
     }
 }
 
@@ -533,25 +550,25 @@ void MixerView::ChannelStrip::resized() {
         recordButton->setBounds(buttonArea.removeFromLeft(buttonWidth));
     }
 
-    // Routing indicators above M/S/R (2 rows: Audio In/Out, MIDI In/Out)
-    if (audioInButton && audioOutButton && midiInButton && midiOutButton) {
+    // Routing selectors above M/S/R (2 rows: Audio In/Out, MIDI In/Out)
+    if (audioInSelector && audioOutSelector && midiInSelector && midiOutSelector) {
         bounds.removeFromBottom(2);  // Small gap
 
         // MIDI row (Mi/Mo)
-        auto midiRow = bounds.removeFromBottom(14);
+        auto midiRow = bounds.removeFromBottom(16);
         int halfWidth = (midiRow.getWidth() - 2) / 2;
-        midiInButton->setBounds(midiRow.removeFromLeft(halfWidth));
+        midiInSelector->setBounds(midiRow.removeFromLeft(halfWidth));
         midiRow.removeFromLeft(2);
-        midiOutButton->setBounds(midiRow.removeFromLeft(halfWidth));
+        midiOutSelector->setBounds(midiRow.removeFromLeft(halfWidth));
 
         bounds.removeFromBottom(2);  // Small gap
 
         // Audio row (Ai/Ao)
-        auto audioRow = bounds.removeFromBottom(14);
+        auto audioRow = bounds.removeFromBottom(16);
         halfWidth = (audioRow.getWidth() - 2) / 2;
-        audioInButton->setBounds(audioRow.removeFromLeft(halfWidth));
+        audioInSelector->setBounds(audioRow.removeFromLeft(halfWidth));
         audioRow.removeFromLeft(2);
-        audioOutButton->setBounds(audioRow.removeFromLeft(halfWidth));
+        audioOutSelector->setBounds(audioRow.removeFromLeft(halfWidth));
     }
 
     bounds.removeFromBottom(metrics.controlSpacing);

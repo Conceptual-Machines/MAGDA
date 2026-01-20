@@ -152,6 +152,7 @@ set(DAW_UI_SOURCES
     ui/components/clips/ClipComponent.cpp
     # Components - Mixer
     ui/components/mixer/MasterChannelStrip.cpp
+    ui/components/mixer/RoutingSelector.cpp
 )
 
 # All DAW headers
@@ -253,6 +254,7 @@ set(DAW_HEADERS
     ui/components/clips/ClipComponent.hpp
     # Components - Mixer
     ui/components/mixer/MasterChannelStrip.hpp
+    ui/components/mixer/RoutingSelector.hpp
 )
 
 # Create DAW library (core functionality)

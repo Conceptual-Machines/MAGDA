@@ -8,6 +8,7 @@
 
 #include "../components/common/MixerDebugPanel.hpp"
 #include "../components/mixer/MasterChannelStrip.hpp"
+#include "../components/mixer/RoutingSelector.hpp"
 #include "../themes/MixerLookAndFeel.hpp"
 #include "../themes/MixerMetrics.hpp"
 #include "core/TrackManager.hpp"
@@ -116,11 +117,11 @@ class MixerView : public juce::Component,
         std::unique_ptr<juce::TextButton> soloButton;
         std::unique_ptr<juce::TextButton> recordButton;
 
-        // Routing indicators (small toggle buttons)
-        std::unique_ptr<juce::TextButton> audioInButton;
-        std::unique_ptr<juce::TextButton> audioOutButton;
-        std::unique_ptr<juce::TextButton> midiInButton;
-        std::unique_ptr<juce::TextButton> midiOutButton;
+        // Routing selectors (toggle + dropdown)
+        std::unique_ptr<RoutingSelector> audioInSelector;
+        std::unique_ptr<RoutingSelector> audioOutSelector;
+        std::unique_ptr<RoutingSelector> midiInSelector;
+        std::unique_ptr<RoutingSelector> midiOutSelector;
 
         // Meter component
         class LevelMeter;

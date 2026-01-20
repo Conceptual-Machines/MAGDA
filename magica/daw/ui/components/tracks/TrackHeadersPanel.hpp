@@ -7,6 +7,7 @@
 
 #include "../../themes/MixerLookAndFeel.hpp"
 #include "../common/DraggableValueLabel.hpp"
+#include "../mixer/RoutingSelector.hpp"
 #include "core/TrackManager.hpp"
 #include "core/ViewModeController.hpp"
 
@@ -97,14 +98,14 @@ class TrackHeadersPanel : public juce::Component,
         std::unique_ptr<juce::Label> nameLabel;
         std::unique_ptr<juce::TextButton> muteButton;
         std::unique_ptr<juce::TextButton> soloButton;
-        std::unique_ptr<juce::TextButton> recordButton;    // Record arm button
-        std::unique_ptr<DraggableValueLabel> volumeLabel;  // Volume as draggable dB label
-        std::unique_ptr<DraggableValueLabel> panLabel;     // Pan as draggable L/C/R label
-        std::unique_ptr<juce::TextButton> collapseButton;  // For groups
-        std::unique_ptr<juce::ComboBox> audioInSelector;   // Audio input routing
-        std::unique_ptr<juce::ComboBox> audioOutSelector;  // Audio output routing
-        std::unique_ptr<juce::ComboBox> midiInSelector;    // MIDI input routing
-        std::unique_ptr<juce::ComboBox> midiOutSelector;   // MIDI output routing
+        std::unique_ptr<juce::TextButton> recordButton;     // Record arm button
+        std::unique_ptr<DraggableValueLabel> volumeLabel;   // Volume as draggable dB label
+        std::unique_ptr<DraggableValueLabel> panLabel;      // Pan as draggable L/C/R label
+        std::unique_ptr<juce::TextButton> collapseButton;   // For groups
+        std::unique_ptr<RoutingSelector> audioInSelector;   // Audio input routing
+        std::unique_ptr<RoutingSelector> audioOutSelector;  // Audio output routing
+        std::unique_ptr<RoutingSelector> midiInSelector;    // MIDI input routing
+        std::unique_ptr<RoutingSelector> midiOutSelector;   // MIDI output routing
         std::vector<std::unique_ptr<DraggableValueLabel>> sendLabels;  // Send level labels
         std::unique_ptr<juce::Component> meterComponent;               // Peak meter display
         std::unique_ptr<juce::Component> midiIndicator;                // MIDI activity indicator
