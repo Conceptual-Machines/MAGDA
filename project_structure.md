@@ -1,17 +1,17 @@
-# 🏗️ Magica Project Structure
+# 🏗️ MAGDA Project Structure
 
-This document describes the product-based architecture of the Magica project.
+This document describes the product-based architecture of the MAGDA project.
 
 ## 🎯 Product-Based Organization
 
 The project is organized by product domains rather than technical layers:
 
 ```
-magica/
+magda/
 ├── daw/                      # 🎵 DAW (Digital Audio Workstation) Domain
 │   ├── command.hpp/.cpp      # Command pattern for DAW operations
-│   ├── magica.hpp/.cpp       # DAW initialization and core functionality
-│   ├── magica_daw_main.cpp   # Main application entry point with UI
+│   ├── magda.hpp/.cpp       # DAW initialization and core functionality
+│   ├── magda_daw_main.cpp   # Main application entry point with UI
 │   ├── interfaces/           # DAW operation interfaces
 │   │   ├── clip_interface.hpp
 │   │   ├── mixer_interface.hpp
@@ -24,7 +24,7 @@ magica/
 │
 ├── mcp/                      # 🤖 MCP (Model Context Protocol) Domain
 │   ├── proto/                # Protocol buffer definitions
-│   │   ├── magica_daw.proto  # DAW operations protocol
+│   │   ├── magda_daw.proto  # DAW operations protocol
 │   │   └── mcp_service.proto # MCP service definitions
 │   ├── server/               # MCP server implementation
 │   │   ├── grpc_mcp_server.hpp/.cpp
@@ -61,8 +61,8 @@ magica/
   - User interface and main application
   - DAW operation interfaces (tracks, clips, mixer, transport)
   - Command pattern for DAW operations
-- **Libraries**: `magica_daw` (core library)
-- **Executables**: `magica_daw_app` (main DAW application)
+- **Libraries**: `magda_daw` (core library)
+- **Executables**: `magda_daw_app` (main DAW application)
 - **Future Integration**: This is where **aideas-core** will be integrated for advanced audio processing
 
 ### 🤖 MCP Domain (`mcp/`)
@@ -71,27 +71,27 @@ magica/
 - **Purpose**: Model Context Protocol server and agent ecosystem
 - **Components**:
   - Protocol buffer definitions for DAW operations
-  - gRPC MCP server implementation  
+  - gRPC MCP server implementation
   - Example AI agents (orchestrator, utility)
   - Agent communication and management
-- **Libraries**: `magica_mcp` (MCP server library)
+- **Libraries**: `magda_mcp` (MCP server library)
 - **External Processes**: Agents run as separate processes connecting via gRPC
 
 ## 🔧 Build System & Dependencies
 
 ### Build Order
-1. `daw/` → `magica_daw` library + `magica_daw_app` executable
-2. `mcp/` → `magica_mcp` library (depends on `magica_daw`)
-3. `tests/` → Test executables (depend on `magica_daw`)
+1. `daw/` → `magda_daw` library + `magda_daw_app` executable
+2. `mcp/` → `magda_mcp` library (depends on `magda_daw`)
+3. `tests/` → Test executables (depend on `magda_daw`)
 
 ### Key Dependencies
-- **DAW Domain**: 
+- **DAW Domain**:
   - nlohmann/json for configuration
   - Future: aideas-core for audio processing
-- **MCP Domain**: 
+- **MCP Domain**:
   - gRPC for agent communication
   - Protocol Buffers for message serialization
-  - Depends on `magica_daw` for DAW operations
+  - Depends on `magda_daw` for DAW operations
 
 ## 🚀 Benefits of Product-Based Organization
 
@@ -121,8 +121,8 @@ Work primarily in `daw/` directory:
 # Build just the DAW
 cd daw && cmake -B build && make -C build
 
-# Run the DAW application  
-./daw/build/magica_daw_app
+# Run the DAW application
+./daw/build/magda_daw_app
 ```
 
 ### For Agent Development
@@ -137,4 +137,4 @@ python orchestrator.py --daw localhost:50051
 go run utility_agent.go --daw localhost:50051
 ```
 
-This organization makes it crystal clear what belongs where and supports both independent development and integrated usage. 
+This organization makes it crystal clear what belongs where and supports both independent development and integrated usage.

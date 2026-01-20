@@ -1,0 +1,721 @@
+#include "ClipComponent.hpp"
+
+#include "../../themes/DarkTheme.hpp"
+#include "../../themes/FontManager.hpp"
+#include "../tracks/TrackContentPanel.hpp"
+#include "core/SelectionManager.hpp"
+
+namespace magda {
+
+ClipComponent::ClipComponent(ClipId clipId, TrackContentPanel* parent)
+    : clipId_(clipId), parentPanel_(parent) {
+    setName("ClipComponent");
+
+    // Register as ClipManager listener
+    ClipManager::getInstance().addListener(this);
+
+    // Check if this clip is currently selected
+    isSelected_ = ClipManager::getInstance().getSelectedClip() == clipId_;
+}
+
+ClipComponent::~ClipComponent() {
+    ClipManager::getInstance().removeListener(this);
+}
+
+void ClipComponent::paint(juce::Graphics& g) {
+    const auto* clip = getClipInfo();
+    if (!clip) {
+        return;
+    }
+
+    auto bounds = getLocalBounds();
+
+    // Draw based on clip type
+    if (clip->type == ClipType::Audio) {
+        paintAudioClip(g, *clip, bounds);
+    } else {
+        paintMidiClip(g, *clip, bounds);
+    }
+
+    // Draw header (name, loop indicator)
+    paintClipHeader(g, *clip, bounds);
+
+    // Draw resize handles if selected
+    if (isSelected_) {
+        paintResizeHandles(g, bounds);
+    }
+
+    // Marquee highlight overlay (during marquee drag)
+    if (isMarqueeHighlighted_) {
+        g.setColour(juce::Colours::white.withAlpha(0.2f));
+        g.fillRoundedRectangle(bounds.toFloat(), CORNER_RADIUS);
+    }
+
+    // Selection border - show for both single selection and multi-selection
+    if (isSelected_ || SelectionManager::getInstance().isClipSelected(clipId_)) {
+        g.setColour(juce::Colours::white);
+        g.drawRect(bounds, 2);
+    }
+}
+
+void ClipComponent::paintAudioClip(juce::Graphics& g, const ClipInfo& clip,
+                                   juce::Rectangle<int> bounds) {
+    // Background - slightly darker than clip colour
+    auto bgColour = clip.colour.darker(0.3f);
+    g.setColour(bgColour);
+    g.fillRoundedRectangle(bounds.toFloat(), CORNER_RADIUS);
+
+    // Waveform placeholder - draw simplified representation
+    auto waveformArea = bounds.reduced(2, HEADER_HEIGHT + 2);
+    g.setColour(clip.colour.brighter(0.2f));
+
+    // Draw a simple sine wave representation
+    juce::Path waveform;
+    waveform.startNewSubPath(waveformArea.getX(), waveformArea.getCentreY());
+
+    float amplitude = waveformArea.getHeight() * 0.3f;
+    for (int x = 0; x < waveformArea.getWidth(); x += 3) {
+        float phase = static_cast<float>(x) / 20.0f;
+        float y = waveformArea.getCentreY() + std::sin(phase) * amplitude;
+        waveform.lineTo(waveformArea.getX() + x, y);
+    }
+
+    g.strokePath(waveform, juce::PathStrokeType(1.5f));
+
+    // Border
+    g.setColour(clip.colour);
+    g.drawRoundedRectangle(bounds.toFloat(), CORNER_RADIUS, 1.0f);
+}
+
+void ClipComponent::paintMidiClip(juce::Graphics& g, const ClipInfo& clip,
+                                  juce::Rectangle<int> bounds) {
+    // Background
+    auto bgColour = clip.colour.darker(0.3f);
+    g.setColour(bgColour);
+    g.fillRoundedRectangle(bounds.toFloat(), CORNER_RADIUS);
+
+    // MIDI note representation area
+    auto noteArea = bounds.reduced(2, HEADER_HEIGHT + 2);
+
+    // Draw MIDI notes if we have them
+    if (!clip.midiNotes.empty() && noteArea.getHeight() > 5) {
+        g.setColour(clip.colour.brighter(0.3f));
+
+        // Find note range
+        int minNote = 127, maxNote = 0;
+        double maxBeat = 0;
+        for (const auto& note : clip.midiNotes) {
+            minNote = juce::jmin(minNote, note.noteNumber);
+            maxNote = juce::jmax(maxNote, note.noteNumber);
+            maxBeat = juce::jmax(maxBeat, note.startBeat + note.lengthBeats);
+        }
+
+        int noteRange = juce::jmax(1, maxNote - minNote);
+        double beatRange = juce::jmax(1.0, maxBeat);
+
+        // Draw each note as a small rectangle
+        for (const auto& note : clip.midiNotes) {
+            float noteY = noteArea.getY() +
+                          (maxNote - note.noteNumber) * noteArea.getHeight() / (noteRange + 1);
+            float noteHeight =
+                juce::jmax(2.0f, static_cast<float>(noteArea.getHeight()) / (noteRange + 1) - 1.0f);
+            float noteX = noteArea.getX() +
+                          static_cast<float>(note.startBeat / beatRange) * noteArea.getWidth();
+            float noteWidth = juce::jmax(2.0f, static_cast<float>(note.lengthBeats / beatRange) *
+                                                   noteArea.getWidth());
+
+            g.fillRoundedRectangle(noteX, noteY, noteWidth, noteHeight, 1.0f);
+        }
+    } else {
+        // Draw placeholder pattern for empty MIDI clip
+        g.setColour(clip.colour.withAlpha(0.3f));
+        for (int i = 0; i < 4; i++) {
+            int y = noteArea.getY() + i * (noteArea.getHeight() / 4);
+            g.drawHorizontalLine(y, noteArea.getX(), noteArea.getRight());
+        }
+    }
+
+    // Border
+    g.setColour(clip.colour);
+    g.drawRoundedRectangle(bounds.toFloat(), CORNER_RADIUS, 1.0f);
+}
+
+void ClipComponent::paintClipHeader(juce::Graphics& g, const ClipInfo& clip,
+                                    juce::Rectangle<int> bounds) {
+    auto headerArea = bounds.removeFromTop(HEADER_HEIGHT);
+
+    // Header background
+    g.setColour(clip.colour);
+    g.fillRoundedRectangle(headerArea.toFloat().withBottom(headerArea.getBottom() + 2),
+                           CORNER_RADIUS);
+
+    // Clip name
+    if (bounds.getWidth() > MIN_WIDTH_FOR_NAME) {
+        g.setColour(DarkTheme::getColour(DarkTheme::BACKGROUND));
+        g.setFont(FontManager::getInstance().getUIFont(10.0f));
+        g.drawText(clip.name, headerArea.reduced(4, 0), juce::Justification::centredLeft, true);
+    }
+
+    // Loop indicator
+    if (clip.internalLoopEnabled) {
+        auto loopArea = headerArea.removeFromRight(14).reduced(2);
+        g.setColour(DarkTheme::getColour(DarkTheme::BACKGROUND));
+        g.drawText("L", loopArea, juce::Justification::centred, false);
+    }
+}
+
+void ClipComponent::paintResizeHandles(juce::Graphics& g, juce::Rectangle<int> bounds) {
+    auto handleColour = juce::Colours::white.withAlpha(0.5f);
+
+    // Left handle
+    auto leftHandle = bounds.removeFromLeft(RESIZE_HANDLE_WIDTH);
+    if (hoverLeftEdge_) {
+        g.setColour(handleColour);
+        g.fillRect(leftHandle);
+    }
+
+    // Right handle
+    auto rightHandle = bounds.removeFromRight(RESIZE_HANDLE_WIDTH);
+    if (hoverRightEdge_) {
+        g.setColour(handleColour);
+        g.fillRect(rightHandle);
+    }
+}
+
+void ClipComponent::resized() {
+    // Nothing to do - clip bounds are set by parent
+}
+
+bool ClipComponent::hitTest(int x, int y) {
+    // Determine if click is in upper vs lower zone based on TRACK height, not clip height
+    // This ensures zone detection is consistent with TrackContentPanel::isInUpperTrackZone
+
+    if (!parentPanel_) {
+        // Fallback to clip-based detection
+        int midY = getHeight() / 2;
+        return y < midY && x >= 0 && x < getWidth();
+    }
+
+    // Convert local y to parent coordinates
+    int parentY = getY() + y;
+
+    // Check if click is in lower half of the track
+    // Using the same logic as TrackContentPanel::isInUpperTrackZone
+    int trackIndex = parentPanel_->getTrackIndexAtY(parentY);
+    if (trackIndex < 0) {
+        // Can't determine track, use clip-based fallback
+        int midY = getHeight() / 2;
+        return y < midY && x >= 0 && x < getWidth();
+    }
+
+    // Calculate track midpoint (same as isInUpperTrackZone)
+    int trackY = parentPanel_->getTrackYPosition(trackIndex);
+    int trackHeight = parentPanel_->getTrackHeight(trackIndex);
+    int trackMidY = trackY + trackHeight / 2;
+
+    // If click is in lower half of the track, let parent handle it
+    if (parentY >= trackMidY) {
+        return false;
+    }
+
+    // Click is in upper zone - check x bounds
+    return x >= 0 && x < getWidth() && y >= 0;
+}
+
+// ============================================================================
+// Mouse Handling
+// ============================================================================
+
+void ClipComponent::mouseDown(const juce::MouseEvent& e) {
+    const auto* clip = getClipInfo();
+    if (!clip) {
+        return;
+    }
+
+    auto& selectionManager = SelectionManager::getInstance();
+    bool isAlreadySelected = selectionManager.isClipSelected(clipId_);
+
+    // Handle Cmd/Ctrl+click for toggle selection
+    if (e.mods.isCommandDown()) {
+        selectionManager.toggleClipSelection(clipId_);
+        // Update local state
+        isSelected_ = selectionManager.isClipSelected(clipId_);
+
+        // Don't start dragging on Cmd+click - it's just for selection
+        dragMode_ = DragMode::None;
+        repaint();
+        return;
+    }
+
+    // Handle Shift+click for range selection
+    if (e.mods.isShiftDown()) {
+        selectionManager.extendSelectionTo(clipId_);
+        // Update local state
+        isSelected_ = selectionManager.isClipSelected(clipId_);
+
+        // Don't start dragging on Shift+click - it's just for selection
+        dragMode_ = DragMode::None;
+        repaint();
+        return;
+    }
+
+    // Handle Alt+click for blade/split
+    if (e.mods.isAltDown() && !e.mods.isCommandDown() && !e.mods.isShiftDown()) {
+        // Calculate split time from click position
+        if (parentPanel_) {
+            auto parentPos = e.getEventRelativeTo(parentPanel_).getPosition();
+            double splitTime = parentPanel_->pixelToTime(parentPos.x);
+
+            // Apply snap if available
+            if (snapTimeToGrid) {
+                splitTime = snapTimeToGrid(splitTime);
+            }
+
+            // Verify split time is within clip bounds
+            if (splitTime > clip->startTime && splitTime < clip->startTime + clip->length) {
+                if (onClipSplit) {
+                    onClipSplit(clipId_, splitTime);
+                }
+            }
+        }
+        dragMode_ = DragMode::None;
+        return;
+    }
+
+    // If clicking on a clip that's already part of a multi-selection,
+    // keep the selection and prepare for potential multi-drag
+    if (isAlreadySelected && selectionManager.getSelectedClipCount() > 1) {
+        // Keep existing multi-selection, prepare for multi-drag
+        isSelected_ = true;
+    } else {
+        // Single click on unselected clip - select only this one
+        selectionManager.selectClip(clipId_);
+        isSelected_ = true;
+    }
+
+    if (onClipSelected) {
+        onClipSelected(clipId_);
+    }
+
+    // Store drag start info - use parent's coordinate space so position
+    // is stable when we move the component via setBounds()
+    if (parentPanel_) {
+        dragStartPos_ = e.getEventRelativeTo(parentPanel_).getPosition();
+    } else {
+        dragStartPos_ = e.getPosition();
+    }
+    dragStartBoundsPos_ = getBounds().getPosition();
+    dragStartTime_ = clip->startTime;
+    dragStartLength_ = clip->length;
+    dragStartTrackId_ = clip->trackId;
+
+    // Initialize preview state
+    previewStartTime_ = clip->startTime;
+    previewLength_ = clip->length;
+    isDragging_ = false;
+
+    // Determine drag mode based on click position
+    if (isOnLeftEdge(e.x)) {
+        dragMode_ = DragMode::ResizeLeft;
+    } else if (isOnRightEdge(e.x)) {
+        dragMode_ = DragMode::ResizeRight;
+    } else {
+        dragMode_ = DragMode::Move;
+    }
+
+    repaint();
+}
+
+void ClipComponent::mouseDrag(const juce::MouseEvent& e) {
+    if (dragMode_ == DragMode::None || !parentPanel_) {
+        return;
+    }
+
+    const auto* clip = getClipInfo();
+    if (!clip) {
+        return;
+    }
+
+    // Check if this is a multi-clip drag
+    auto& selectionManager = SelectionManager::getInstance();
+    bool isMultiDrag = dragMode_ == DragMode::Move && selectionManager.getSelectedClipCount() > 1 &&
+                       selectionManager.isClipSelected(clipId_);
+
+    if (isMultiDrag) {
+        // Delegate to parent for coordinated multi-clip movement
+        if (!isDragging_) {
+            // First drag event - start multi-clip drag
+            parentPanel_->startMultiClipDrag(clipId_,
+                                             e.getEventRelativeTo(parentPanel_).getPosition());
+            isDragging_ = true;
+        } else {
+            // Continue multi-clip drag
+            parentPanel_->updateMultiClipDrag(e.getEventRelativeTo(parentPanel_).getPosition());
+        }
+        return;
+    }
+
+    // Single clip drag logic
+    isDragging_ = true;
+
+    // Alt+drag to duplicate: mark for duplication (created in mouseUp to avoid re-entrancy)
+    if (dragMode_ == DragMode::Move && e.mods.isAltDown() && !isDuplicating_) {
+        isDuplicating_ = true;
+    }
+
+    // Convert pixel delta to time delta
+    double pixelsPerSecond = parentPanel_->getZoom();
+    if (pixelsPerSecond <= 0) {
+        return;
+    }
+
+    // Use parent's coordinate space for stable delta calculation
+    // (component position changes during drag, but parent doesn't move)
+    auto parentPos = e.getEventRelativeTo(parentPanel_).getPosition();
+    int deltaX = parentPos.x - dragStartPos_.x;
+    double deltaTime = deltaX / pixelsPerSecond;
+
+    switch (dragMode_) {
+        case DragMode::Move: {
+            // Work entirely in time domain, then convert to pixels at the end
+            double rawStartTime = juce::jmax(0.0, dragStartTime_ + deltaTime);
+            double finalTime = rawStartTime;
+
+            // Magnetic snap: if close to grid, snap to it
+            if (snapTimeToGrid) {
+                double snappedTime = snapTimeToGrid(rawStartTime);
+                double snapDeltaPixels = std::abs((snappedTime - rawStartTime) * pixelsPerSecond);
+                if (snapDeltaPixels <= SNAP_THRESHOLD_PIXELS) {
+                    finalTime = snappedTime;
+                }
+            }
+
+            previewStartTime_ = finalTime;
+
+            if (isDuplicating_) {
+                // Alt+drag duplicate: show ghost at NEW position, keep original in place
+                const auto* clip = getClipInfo();
+                if (clip && parentPanel_) {
+                    int ghostX = parentPanel_->timeToPixel(finalTime);
+                    int ghostWidth = static_cast<int>(dragStartLength_ * pixelsPerSecond);
+                    juce::Rectangle<int> ghostBounds(ghostX, getY(), juce::jmax(10, ghostWidth),
+                                                     getHeight());
+                    parentPanel_->setClipGhost(clipId_, ghostBounds, clip->colour);
+                }
+                // Don't move the original clip component
+            } else {
+                // Normal move: update component position
+                int newX = parentPanel_->timeToPixel(finalTime);
+                int newWidth = static_cast<int>(dragStartLength_ * pixelsPerSecond);
+                setBounds(newX, getY(), juce::jmax(10, newWidth), getHeight());
+            }
+            break;
+        }
+
+        case DragMode::ResizeLeft: {
+            // Work in time domain: resizing from left changes start time and length
+            double rawStartTime = juce::jmax(0.0, dragStartTime_ + deltaTime);
+            double endTime = dragStartTime_ + dragStartLength_;  // End stays fixed
+            double finalStartTime = rawStartTime;
+
+            // Magnetic snap for left edge
+            if (snapTimeToGrid) {
+                double snappedTime = snapTimeToGrid(rawStartTime);
+                double snapDeltaPixels = std::abs((snappedTime - rawStartTime) * pixelsPerSecond);
+                if (snapDeltaPixels <= SNAP_THRESHOLD_PIXELS) {
+                    finalStartTime = snappedTime;
+                }
+            }
+
+            // Ensure minimum length
+            finalStartTime = juce::jmin(finalStartTime, endTime - 0.1);
+            double finalLength = endTime - finalStartTime;
+
+            previewStartTime_ = finalStartTime;
+            previewLength_ = finalLength;
+
+            // Convert to pixels (using parent's method to account for padding)
+            int newX = parentPanel_->timeToPixel(finalStartTime);
+            int newWidth = static_cast<int>(finalLength * pixelsPerSecond);
+            setBounds(newX, getY(), juce::jmax(10, newWidth), getHeight());
+            break;
+        }
+
+        case DragMode::ResizeRight: {
+            // Work in time domain: resizing from right changes length only
+            double rawEndTime = dragStartTime_ + dragStartLength_ + deltaTime;
+            double finalEndTime = rawEndTime;
+
+            // Magnetic snap for right edge (end time)
+            if (snapTimeToGrid) {
+                double snappedEndTime = snapTimeToGrid(rawEndTime);
+                double snapDeltaPixels = std::abs((snappedEndTime - rawEndTime) * pixelsPerSecond);
+                if (snapDeltaPixels <= SNAP_THRESHOLD_PIXELS) {
+                    finalEndTime = snappedEndTime;
+                }
+            }
+
+            // Ensure minimum length
+            double finalLength = juce::jmax(0.1, finalEndTime - dragStartTime_);
+            previewLength_ = finalLength;
+
+            // Convert to pixels (using parent's method to account for padding)
+            int newX = parentPanel_->timeToPixel(dragStartTime_);
+            int newWidth = static_cast<int>(finalLength * pixelsPerSecond);
+            setBounds(newX, getY(), juce::jmax(10, newWidth), getHeight());
+            break;
+        }
+
+        default:
+            break;
+    }
+}
+
+void ClipComponent::mouseUp(const juce::MouseEvent& e) {
+    // Check if we were doing a multi-clip drag
+    auto& selectionManager = SelectionManager::getInstance();
+    if (isDragging_ && parentPanel_ && selectionManager.getSelectedClipCount() > 1 &&
+        selectionManager.isClipSelected(clipId_) && dragMode_ == DragMode::Move) {
+        // Finish multi-clip drag via parent
+        parentPanel_->finishMultiClipDrag();
+        dragMode_ = DragMode::None;
+        isDragging_ = false;
+        return;
+    }
+
+    if (isDragging_ && dragMode_ != DragMode::None) {
+        // Now apply snapping and commit to ClipManager
+        switch (dragMode_) {
+            case DragMode::Move: {
+                double finalStartTime = previewStartTime_;
+                if (snapTimeToGrid) {
+                    finalStartTime = snapTimeToGrid(finalStartTime);
+                }
+                finalStartTime = juce::jmax(0.0, finalStartTime);
+
+                // Determine target track
+                TrackId targetTrackId = dragStartTrackId_;
+                if (parentPanel_) {
+                    auto screenPos = e.getScreenPosition();
+                    auto parentPos = parentPanel_->getScreenBounds().getPosition();
+                    int localY = screenPos.y - parentPos.y;
+                    int trackIndex = parentPanel_->getTrackIndexAtY(localY);
+
+                    if (trackIndex >= 0) {
+                        auto visibleTracks = TrackManager::getInstance().getVisibleTracks(
+                            ViewModeController::getInstance().getViewMode());
+
+                        if (trackIndex < static_cast<int>(visibleTracks.size())) {
+                            targetTrackId = visibleTracks[trackIndex];
+                        }
+                    }
+                }
+
+                if (isDuplicating_) {
+                    // Clear the ghost before creating the duplicate
+                    if (parentPanel_) {
+                        parentPanel_->clearClipGhost(clipId_);
+                    }
+
+                    // Alt+drag duplicate: create duplicate at final position
+                    ClipId newClipId = ClipManager::getInstance().duplicateClipAt(
+                        clipId_, finalStartTime, targetTrackId);
+                    if (newClipId != INVALID_CLIP_ID) {
+                        // Select the new duplicate
+                        SelectionManager::getInstance().selectClip(newClipId);
+                    }
+                    // Reset duplication state
+                    isDuplicating_ = false;
+                    duplicateClipId_ = INVALID_CLIP_ID;
+                } else {
+                    // Normal move: update original clip position
+                    if (onClipMoved) {
+                        onClipMoved(clipId_, finalStartTime);
+                    }
+                    if (targetTrackId != dragStartTrackId_ && onClipMovedToTrack) {
+                        onClipMovedToTrack(clipId_, targetTrackId);
+                    }
+                }
+                break;
+            }
+
+            case DragMode::ResizeLeft: {
+                double finalStartTime = previewStartTime_;
+                double finalLength = previewLength_;
+
+                if (snapTimeToGrid) {
+                    finalStartTime = snapTimeToGrid(finalStartTime);
+                    finalLength = dragStartLength_ - (finalStartTime - dragStartTime_);
+                }
+
+                finalStartTime = juce::jmax(0.0, finalStartTime);
+                finalLength = juce::jmax(0.1, finalLength);
+
+                if (onClipResized) {
+                    onClipResized(clipId_, finalLength, true);
+                }
+                if (onClipMoved) {
+                    onClipMoved(clipId_, finalStartTime);
+                }
+                break;
+            }
+
+            case DragMode::ResizeRight: {
+                double finalLength = previewLength_;
+
+                if (snapTimeToGrid) {
+                    double endTime = snapTimeToGrid(dragStartTime_ + finalLength);
+                    finalLength = endTime - dragStartTime_;
+                }
+
+                finalLength = juce::jmax(0.1, finalLength);
+
+                if (onClipResized) {
+                    onClipResized(clipId_, finalLength, false);
+                }
+                break;
+            }
+
+            default:
+                break;
+        }
+    }
+
+    dragMode_ = DragMode::None;
+    isDragging_ = false;
+}
+
+void ClipComponent::mouseMove(const juce::MouseEvent& e) {
+    bool wasHoverLeft = hoverLeftEdge_;
+    bool wasHoverRight = hoverRightEdge_;
+
+    hoverLeftEdge_ = isOnLeftEdge(e.x);
+    hoverRightEdge_ = isOnRightEdge(e.x);
+
+    // Always update cursor to check for Alt key (blade mode)
+    updateCursor(e.mods.isAltDown());
+
+    if (hoverLeftEdge_ != wasHoverLeft || hoverRightEdge_ != wasHoverRight) {
+        repaint();
+    }
+}
+
+void ClipComponent::mouseExit(const juce::MouseEvent& /*e*/) {
+    hoverLeftEdge_ = false;
+    hoverRightEdge_ = false;
+    updateCursor(false);
+    repaint();
+}
+
+void ClipComponent::mouseDoubleClick(const juce::MouseEvent& /*e*/) {
+    if (onClipDoubleClicked) {
+        onClipDoubleClicked(clipId_);
+    }
+}
+
+// ============================================================================
+// ClipManagerListener
+// ============================================================================
+
+void ClipComponent::clipsChanged() {
+    // Ignore updates while dragging to prevent flicker
+    if (isDragging_) {
+        return;
+    }
+
+    // Clip may have been deleted
+    const auto* clip = getClipInfo();
+    if (!clip) {
+        // This clip was deleted - parent should remove this component
+        return;
+    }
+    repaint();
+}
+
+void ClipComponent::clipPropertyChanged(ClipId clipId) {
+    // Ignore updates while dragging to prevent flicker
+    if (isDragging_) {
+        return;
+    }
+
+    if (clipId == clipId_) {
+        repaint();
+    }
+}
+
+void ClipComponent::clipSelectionChanged(ClipId clipId) {
+    // Ignore updates while dragging to prevent flicker
+    if (isDragging_) {
+        return;
+    }
+
+    bool wasSelected = isSelected_;
+    // Check both single clip selection and multi-clip selection
+    isSelected_ = (clipId == clipId_) || SelectionManager::getInstance().isClipSelected(clipId_);
+
+    if (wasSelected != isSelected_) {
+        repaint();
+    }
+}
+
+// ============================================================================
+// Selection
+// ============================================================================
+
+void ClipComponent::setSelected(bool selected) {
+    if (isSelected_ != selected) {
+        isSelected_ = selected;
+        repaint();
+    }
+}
+
+void ClipComponent::setMarqueeHighlighted(bool highlighted) {
+    if (isMarqueeHighlighted_ != highlighted) {
+        isMarqueeHighlighted_ = highlighted;
+        repaint();
+    }
+}
+
+bool ClipComponent::isPartOfMultiSelection() const {
+    auto& selectionManager = SelectionManager::getInstance();
+    return selectionManager.getSelectedClipCount() > 1 && selectionManager.isClipSelected(clipId_);
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+bool ClipComponent::isOnLeftEdge(int x) const {
+    return x < RESIZE_HANDLE_WIDTH;
+}
+
+bool ClipComponent::isOnRightEdge(int x) const {
+    return x > getWidth() - RESIZE_HANDLE_WIDTH;
+}
+
+void ClipComponent::updateCursor(bool isAltDown) {
+    // Alt key = blade/scissors mode
+    if (isAltDown) {
+        setMouseCursor(juce::MouseCursor::CrosshairCursor);
+        return;
+    }
+
+    bool isClipSelected = SelectionManager::getInstance().isClipSelected(clipId_);
+
+    if (isClipSelected && (hoverLeftEdge_ || hoverRightEdge_)) {
+        // Resize cursor only when selected
+        setMouseCursor(juce::MouseCursor::LeftRightResizeCursor);
+    } else if (isClipSelected) {
+        // Grab cursor when selected (can drag)
+        setMouseCursor(juce::MouseCursor::DraggingHandCursor);
+    } else {
+        // Normal cursor when not selected (need to click to select first)
+        setMouseCursor(juce::MouseCursor::NormalCursor);
+    }
+}
+
+const ClipInfo* ClipComponent::getClipInfo() const {
+    return ClipManager::getInstance().getClip(clipId_);
+}
+
+}  // namespace magda

@@ -93,7 +93,7 @@ int main() {
 
     // Test the 8B model
     LLMModel model("llama31-8b",
-                   "/Volumes/External SSD/MAGICA/models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf");
+                   "/Volumes/External SSD/MAGDA/models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf");
 
     if (!model.load()) {
         std::cerr << "❌ Failed to load model" << std::endl;

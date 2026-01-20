@@ -1,6 +1,6 @@
-# Magica DAW - Terminology Glossary
+# MAGDA - Terminology Glossary
 
-This comprehensive glossary defines all terminology used throughout the Magica DAW project to ensure consistent communication during development.
+This comprehensive glossary defines all terminology used throughout the MAGDA project to ensure consistent communication during development.
 
 ---
 
@@ -8,7 +8,7 @@ This comprehensive glossary defines all terminology used throughout the Magica D
 
 ### **DAW (Digital Audio Workstation)**
 - The complete software application for music production
-- Magica is a DAW built with JUCE framework
+- MAGDA is a DAW built with JUCE framework
 
 ### **Project**
 - A complete music production session
@@ -318,7 +318,7 @@ This comprehensive glossary defines all terminology used throughout the Magica D
 ## Code Organization
 
 ### **Namespaces**
-- `magica`: Main project namespace
+- `magda`: Main project namespace
 - Component-specific namespaces for organization
 
 ### **File Extensions**
@@ -341,4 +341,4 @@ This comprehensive glossary defines all terminology used throughout the Magica D
 
 ---
 
-*This glossary should be updated as the project evolves and new terminology is introduced.* 
+*This glossary should be updated as the project evolves and new terminology is introduced.*

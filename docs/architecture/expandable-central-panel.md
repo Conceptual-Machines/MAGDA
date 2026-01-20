@@ -229,7 +229,7 @@ case juce::KeyPress::escapeKey:
 ## File Structure
 
 ```
-magica/daw/
+magda/daw/
 ├── core/
 │   └── CentralPanelController.hpp/cpp  // NEW: Mode management
 ├── ui/

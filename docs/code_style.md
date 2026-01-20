@@ -1,10 +1,10 @@
 # Code Style Guidelines
 
-This document outlines the coding standards and quality tools used in the Magica DAW project.
+This document outlines the coding standards and quality tools used in the MAGDA project.
 
 ## Overview
 
-The Magica DAW project uses automated code quality tools to ensure consistent, maintainable, and high-quality C++ code. Our toolchain includes:
+The MAGDA project uses automated code quality tools to ensure consistent, maintainable, and high-quality C++ code. Our toolchain includes:
 
 - **clang-format**: Automatic code formatting
 - **clang-tidy**: Static analysis and linting
@@ -101,7 +101,7 @@ private:
 
 ### Namespaces
 ```cpp
-namespace magica {
+namespace magda {
     // lower_case for namespaces
 namespace audio_engine {
     // lower_case with underscores
@@ -215,10 +215,10 @@ brew install llvm@15  # Try older version
 audioProcessor.processBuffer(inputBuffer, outputBuffer, numSamples, sampleRate, true);
 
 // Good: Break into multiple lines
-audioProcessor.processBuffer(inputBuffer, 
-                           outputBuffer, 
-                           numSamples, 
-                           sampleRate, 
+audioProcessor.processBuffer(inputBuffer,
+                           outputBuffer,
+                           numSamples,
+                           sampleRate,
                            true);
 ```
 
@@ -278,7 +278,7 @@ Install the C/C++ extension and configure:
 void processAudio(const float* input, float* output, int numSamples) {
     // Good: Stack allocation, const-correctness
     constexpr float gain = 0.5f;
-    
+
     for (int i = 0; i < numSamples; ++i) {
         output[i] = input[i] * gain;
     }
@@ -295,4 +295,4 @@ When contributing to the project:
 4. Add appropriate comments for complex logic
 5. Use the provided make targets for consistency
 
-For questions about code style or tool usage, please refer to the project documentation or open an issue. 
+For questions about code style or tool usage, please refer to the project documentation or open an issue.

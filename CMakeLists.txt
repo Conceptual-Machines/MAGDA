@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(Magica VERSION 0.1.0 LANGUAGES C CXX)
+project(Magda VERSION 0.1.0 LANGUAGES C CXX)
 
 # Set C++ standard (required for Tracktion Engine)
 set(CMAKE_CXX_STANDARD 20)
@@ -21,9 +21,9 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -Wall -Wextra")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 
 # Options
-option(MAGICA_BUILD_TESTS "Build tests" ON)
-option(MAGICA_BUILD_EXAMPLES "Build examples" ON)
-option(MAGICA_BUILD_JUCE_ADAPTER "Build JUCE/Tracktion adapter" OFF)
+option(MAGDA_BUILD_TESTS "Build tests" ON)
+option(MAGDA_BUILD_EXAMPLES "Build examples" ON)
+option(MAGDA_BUILD_JUCE_ADAPTER "Build JUCE/Tracktion adapter" OFF)
 
 # Find packages
 find_package(Threads REQUIRED)
@@ -58,7 +58,7 @@ set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 add_subdirectory(third_party/tracktion_engine)
 
 # Catch2 for testing
-if(MAGICA_BUILD_TESTS)
+if(MAGDA_BUILD_TESTS)
     FetchContent_Declare(
         Catch2
         GIT_REPOSITORY https://github.com/catchorg/Catch2.git
@@ -68,34 +68,34 @@ endif()
 
 # No external dependencies needed for simple agent system
 
-if(MAGICA_BUILD_TESTS)
+if(MAGDA_BUILD_TESTS)
     FetchContent_MakeAvailable(Catch2)
 endif()
 
 # Simple agent system - no external dependencies needed
 
 # Product-based subdirectories
-add_subdirectory(magica/daw)
-add_subdirectory(magica/agents)
+add_subdirectory(magda/daw)
+add_subdirectory(magda/agents)
 
 # Examples
-if(MAGICA_BUILD_EXAMPLES)
+if(MAGDA_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
 # Tests
-if(MAGICA_BUILD_TESTS)
+if(MAGDA_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
 
 # JUCE adapter (optional)
-if(MAGICA_BUILD_JUCE_ADAPTER)
+if(MAGDA_BUILD_JUCE_ADAPTER)
     add_subdirectory(adapters/juce)
 endif()
 
 # Install rules
-install(TARGETS magica_daw_app
+install(TARGETS magda_daw_app
     BUNDLE DESTINATION .
     RUNTIME DESTINATION bin
 )

@@ -1,7 +1,7 @@
 # Local LLM Proof of Concept - Summary Report
 
 ## Overview
-This document summarizes the exploration of local Large Language Model (LLM) integration for the Magica DAW project, conducted on the `local-llm-poc` branch.
+This document summarizes the exploration of local Large Language Model (LLM) integration for the MAGDA project, conducted on the `local-llm-poc` branch.
 
 ## Goals
 - Test feasibility of local LLM inference for DAW command processing

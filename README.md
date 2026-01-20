@@ -1,8 +1,8 @@
-# 🔮 Magica — Multi-Agent Generative Interface for Creative Audio
+# 🎵 MAGDA — Multi Agent Generative Digital Audio
 
-**Magica** (**M**ulti-**A**gent **G**enerative **I**nterface for **C**reative **A**udio) is an experimental AI-driven Digital Audio Workstation built from the ground up for multi-agent collaboration. It combines a modern DAW engine with a comprehensive API, enabling intelligent agents to compose, arrange, and manipulate music in real-time.
+**MAGDA** (**M**ulti-**A**gent **G**enerative **D**igital **A**udio) is an experimental AI-driven Digital Audio Workstation built from the ground up for multi-agent collaboration. It combines a modern DAW engine with a comprehensive API, enabling intelligent agents to compose, arrange, and manipulate music in real-time.
 
-## 🎵 What Makes Magica Special
+## 🎵 What Makes MAGDA Special
 
 - **AI-First Design**: Built specifically for AI agent collaboration
 - **Universal API**: Agents can be written in any language (Python, Go, JavaScript, etc.)
@@ -15,7 +15,7 @@
 ```
 🤖 AI Agents (Python/Go/JS)
        ↓ MCP
-🔮 Magica System
+🔮 MAGDA System
    ├── 🎵 DAW Domain (C++)
    │   ├── Audio Engine (+ aideas-core)
    │   ├── UI Components
@@ -28,17 +28,17 @@
 
 ## 🚀 Quick Start
 
-### 1. Start Magica DAW
+### 1. Start MAGDA DAW
 ```bash
 # Build and run the DAW
 make build
-./build/magica_daw_app
+./build/magda_daw_app
 
 # Output:
 # ✓ Audio engine initialized
-# 🚀 Magica DAW communication server ready
+# 🚀 MAGDA DAW communication server ready
 # 🤖 Ready for AI agents to connect!
-# 🔮 Magica DAW is ready!
+# 🔮 MAGDA DAW is ready!
 ```
 
 ### 2. Connect AI Agents
@@ -50,7 +50,7 @@ go run mcp/agents/utility_agent.go --daw localhost:50051 --action listen
 # Output:
 # 🤖 Starting Utility Agent...
 # ✓ Registered as agent: util_7f8a9b2c
-# 🔗 Connected to Magica DAW at localhost:50051
+# 🔗 Connected to MAGDA DAW at localhost:50051
 # 👂 Listening for events... (Press Ctrl+C to exit)
 ```
 
@@ -59,17 +59,17 @@ go run mcp/agents/utility_agent.go --daw localhost:50051 --action listen
 python mcp/agents/orchestrator.py --daw localhost:50051
 
 # Output:
-# 🔗 Connecting to Magica DAW at localhost:50051
+# 🔗 Connecting to MAGDA DAW at localhost:50051
 # ✅ Registered as orchestrator: orch_001
 # 🎹 Interactive mode started. Type 'quit' to exit.
 #
-# 🔮 Magica>
+# 🔮 MAGDA>
 ```
 
 ### 3. Use Natural Language Commands
 
 ```bash
-🔮 Magica> Clean up the piano recording
+🔮 MAGDA> Clean up the piano recording
 
 # 📊 Session context: 3 tracks, 120 BPM
 # 🤖 Found 2 connected agents:
@@ -95,7 +95,7 @@ python mcp/agents/orchestrator.py --daw localhost:50051
 
 ## 🎛️ Agent Communication
 
-Magica exposes a comprehensive API covering all DAW functionality:
+MAGDA exposes a comprehensive API covering all DAW functionality:
 
 ### **Transport Control**
 ```python
@@ -254,7 +254,7 @@ Workflow:
 ```bash
 # Clone repository with submodules
 git clone --recursive https://github.com/Conceptual-Machines/MAGICA.git
-cd magica
+cd magda
 
 # Run automated setup (handles submodules, dependencies, pre-commit)
 make setup
@@ -267,8 +267,8 @@ make run
 ### **Manual Build Steps**
 ```bash
 # Clone repository (if not done with --recursive)
-git clone https://github.com/yourusername/magica.git
-cd magica
+git clone https://github.com/yourusername/magda.git
+cd magda
 
 # Initialize submodules (required for Tracktion Engine + JUCE)
 git submodule update --init --recursive
@@ -302,7 +302,7 @@ make debug          # Build project
 ### **Dependencies**
 ```cmake
 # Core Dependencies (as Git submodules):
-# - Tracktion Engine (audio engine) - magica-minimal branch
+# - Tracktion Engine (audio engine) - magda-minimal branch
 # - JUCE 8.0.10 (GUI framework)
 
 # Automatically fetched via CMake FetchContent:
@@ -312,7 +312,7 @@ make debug          # Build project
 
 ## 🔧 Development & Code Quality
 
-Magica uses automated code quality tools to ensure consistent, maintainable, and high-quality C++ code throughout the project.
+MAGDA uses automated code quality tools to ensure consistent, maintainable, and high-quality C++ code throughout the project.
 
 ### **Code Quality Tools**
 
@@ -391,9 +391,9 @@ Every pull request automatically runs:
 - **Developer-friendly**: Tools are configured to be helpful, not obstructive
 - **Documentation**: Full style guide available in [`docs/code_style.md`](docs/code_style.md)
 
-## 🎼 Why Magica?
+## 🎼 Why MAGDA?
 
-**Traditional DAWs** were designed for human workflows. **Magica** is designed for **human-AI collaboration**:
+**Traditional DAWs** were designed for human workflows. **MAGDA** is designed for **human-AI collaboration**:
 
 - **Natural Language Interface**: Talk to your DAW like a collaborator
 - **Real-time AI Assistance**: Agents continuously help with composition and arrangement
@@ -403,14 +403,14 @@ Every pull request automatically runs:
 
 ## 🤝 Contributing
 
-Magica is an experimental project exploring the future of AI-driven music production. Contributions welcome!
+MAGDA is an experimental project exploring the future of AI-driven music production. Contributions welcome!
 
 ### **Getting Started**
 
 1. **Fork and clone** the repository:
    ```bash
    git clone --recursive https://github.com/Conceptual-Machines/MAGICA.git
-   cd magica
+   cd magda
    ```
 
 2. **Run automated setup**:
@@ -525,21 +525,21 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**Magica** - Where AI and music creation meet. 🎵🤖
+**MAGDA** - Where AI and music creation meet. 🎵🤖
 
 ---
 
 ## 🏗️ Project Structure
 
-Magica follows a **product-based** architecture with two main domains:
+MAGDA follows a **product-based** architecture with two main domains:
 
 ```
-magica/
+magda/
 ├── 🎵 daw/                    # DAW Product Domain
 │   ├── Audio engine + aideas-core integration
 │   ├── User interface components
 │   ├── DAW core logic and interfaces
-│   └── Main application (magica_daw_app)
+│   └── Main application (magda_daw_app)
 │
 └── 🤖 mcp/                    # Multi-Agent Communication Domain
     ├── MCP server implementation
@@ -574,7 +574,7 @@ The multi-agent communication system:
 
 ## 🧪 Status
 
-Magica is in early research and prototyping. It is **not yet ready for production use**, but contributors and feedback are welcome as we design the core protocols and data model.
+MAGDA is in early research and prototyping. It is **not yet ready for production use**, but contributors and feedback are welcome as we design the core protocols and data model.
 
 See [VISION.md](VISION.md) for the detailed architecture specification and roadmap.
 

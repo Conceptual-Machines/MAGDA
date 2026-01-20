@@ -1,7 +1,7 @@
-# Magica DAW - Project Vision & Feature Requirements
+# MAGDA - Project Vision & Feature Requirements
 
 ## Project Overview
-Magica is a **Multi-Agent Generative Interface for Creative Audio** - a DAW that combines traditional audio production with AI-driven multi-agent collaboration. Beyond the multi-agent framework we've discussed, here are the core DAW features and design principles.
+MAGDA is a **Multi-Agent Generative Interface for Creative Audio** - a DAW that combines traditional audio production with AI-driven multi-agent collaboration. Beyond the multi-agent framework we've discussed, here are the core DAW features and design principles.
 
 ## Core DAW Features
 
@@ -251,7 +251,7 @@ Not just different views, but different **CPU optimization strategies**:
 **Core Voice Features**:
 
 **1. Always-On Listening Mode**
-- **Wake Word**: Configurable activation phrase ("Hey Magica", "OK Magica", custom)
+- **Wake Word**: Configurable activation phrase ("Hey MAGDA", "OK MAGDA", custom)
 - **Push-to-Talk**: Hardware button or foot pedal activation
 - **Continuous Mode**: Always listening during recording sessions
 - **Privacy Controls**: Local processing option, no cloud required
@@ -287,7 +287,7 @@ Not just different views, but different **CPU optimization strategies**:
 
 **Agent Interaction**:
 ```
-"Hey Magica, make this warmer"
+"Hey MAGDA, make this warmer"
 "Suggest some drum patterns"
 "Clean up this vocal take"
 "Find me a similar bassline"
@@ -446,7 +446,7 @@ public:
 
 **Engine Implementations**:
 - `TracktionAudioEngine` (Phase 1)
-- `MagicaAudioEngine` (Phase 2)
+- `MAGDAAudioEngine` (Phase 2)
 - `BareMetalAudioEngine` (Phase 3)
 
 **UI Framework Interface**
@@ -499,10 +499,10 @@ public:
 
 **Core Abstraction Layers**:
 ```
-Magica Application Layer
+MAGDA Application Layer
 ├── Audio Engine Interface
 │   ├── TracktionAudioEngine
-│   ├── MagicaAudioEngine (future)
+│   ├── MAGDAAudioEngine (future)
 │   └── BareMetalAudioEngine (future)
 ├── UI Framework Interface
 │   ├── JUCEUIFramework
@@ -557,7 +557,7 @@ Magica Application Layer
 **Primary Format: JSON**
 ```json
 {
-  "magica_project": {
+  "magda_project": {
     "version": "1.0.0",
     "metadata": {
       "name": "My Song",
@@ -677,7 +677,7 @@ Disadvantages: Not version-control friendly, not human readable
 
 **YAML**
 ```yaml
-magica_project:
+magda_project:
   version: "1.0.0"
   tracks:
     - name: "Drums"
@@ -691,7 +691,7 @@ magica_project:
 
 **File Structure**:
 ```
-MyProject.magica/
+MyProject.magda/
 ├── project.json              # Main project data
 ├── audio/                    # Audio file references
 │   ├── source/              # Original audio files
@@ -703,7 +703,7 @@ MyProject.magica/
 ├── data/                    # Large binary data chunks
 │   ├── automation/         # Dense automation data
 │   └── plugin_states/      # Binary plugin states
-└── .magica/                # Version control data
+└── .magda/                # Version control data
     ├── versions.db
     └── objects/
 ```
@@ -770,7 +770,7 @@ Track → Import Track from DAWproject...
 class DAWprojectImporter {
 public:
     // Full project import
-    MagicaProject importProject(const std::string& dawprojectPath);
+    MAGDAProject importProject(const std::string& dawprojectPath);
 
     // Selective track import
     std::vector<Track> importTracks(const std::string& dawprojectPath,
@@ -791,26 +791,26 @@ private:
 
 **1. Track Mapping**
 ```
-DAWproject Track → Magica Hybrid Track
+DAWproject Track → MAGDA Hybrid Track
 ├── Audio clips → Audio clips (direct)
 ├── MIDI clips → MIDI clips (direct)
 ├── Plugin chain → Converted plugin chain
-├── Automation → Magica automation format
-└── Routing → Magica routing system
+├── Automation → MAGDA automation format
+└── Routing → MAGDA routing system
 ```
 
 **2. Plugin Compatibility**
 ```
 Priority Order:
 1. Direct plugin match (same VST/AU)
-2. Generic plugin mapping (EQ → Magica EQ)
+2. Generic plugin mapping (EQ → MAGDA EQ)
 3. DSP Agent recreation ("Create similar reverb")
 4. Bypass with notification
 ```
 
 **3. Time/Musical Mapping**
 ```
-DAWproject Timeline → Magica Timeline
+DAWproject Timeline → MAGDA Timeline
 ├── Tempo changes → Tempo automation
 ├── Time signatures → Time signature events
 ├── Musical timing → Beat-based positioning
@@ -824,7 +824,7 @@ DAWproject Timeline → Magica Timeline
 class DAWprojectExporter {
 public:
     // Export full project
-    bool exportProject(const MagicaProject& project,
+    bool exportProject(const MAGDAProject& project,
                       const std::string& outputPath);
 
     // Export selected tracks
@@ -858,7 +858,7 @@ public:
 **Use Cases**:
 
 **1. Multi-DAW Workflow**
-- Start composition in Bitwig, import to Magica for mixing
+- Start composition in Bitwig, import to MAGDA for mixing
 - Move between DAWs for different production stages
 - Collaborate with users of different DAWs
 
@@ -872,9 +872,9 @@ public:
 - Share project components with other producers
 - Version control with external collaborators
 
-**Benefits for Magica**:
+**Benefits for MAGDA**:
 - **Ecosystem Integration**: Works with existing DAW ecosystem
-- **Migration Path**: Easy migration from other DAWs to Magica
+- **Migration Path**: Easy migration from other DAWs to MAGDA
 - **Collaboration**: Enhanced collaboration across different platforms
 - **Track Reuse**: Extensive track and stem library capabilities
 - **Learning**: Analyze projects from other DAWs for educational purposes
@@ -929,9 +929,9 @@ public:
         static clap_host_t host = {
             .clap_version = CLAP_VERSION,
             .host_data = nullptr,
-            .name = "Magica DAW",
-            .vendor = "Magica",
-            .url = "https://magica-daw.com",
+            .name = "MAGDA",
+            .vendor = "MAGDA",
+            .url = "https://magda-daw.com",
             .version = MAGICA_VERSION,
             .get_extension = getExtension,
             .request_restart = requestRestart,
@@ -1187,12 +1187,12 @@ public:
 - **Cross-Platform**: Handle format differences between platforms
 - **Version Control**: Track plugin format changes in project history
 
-**Benefits for Magica**:
+**Benefits for MAGDA**:
 - **Future-Proof**: CLAP is the modern standard for audio plugins
 - **Performance**: Lower latency and better threading than VST3
 - **Ecosystem**: Growing CLAP plugin ecosystem
 - **Innovation**: Access to CLAP-specific features like note expressions
-- **Competitive Advantage**: Early CLAP adoption positions Magica as forward-thinking
+- **Competitive Advantage**: Early CLAP adoption positions MAGDA as forward-thinking
 
 #### Multi-Agent Threading & Process Architecture
 
@@ -1244,12 +1244,12 @@ Background Services (Low Priority)
 
 **Option A: Separate Process (Recommended)**
 ```
-Magica DAW Process:
+MAGDA Process:
 ├── Real-time Audio Thread
 ├── UI Thread
 └── Audio Engine Components
 
-Magica Agent Process:
+MAGDA Agent Process:
 ├── Agent Orchestrator
 ├── Individual Agent Threads
 ├── ML Model Inference
@@ -1264,7 +1264,7 @@ Magica Agent Process:
 
 **Option B: Thread Pool (Alternative)**
 ```
-Single Magica Process:
+Single MAGDA Process:
 ├── Real-time Audio Thread (isolated)
 ├── UI Thread
 ├── Agent Thread Pool
@@ -1405,7 +1405,7 @@ Main Project
 **Storage Strategy**:
 ```
 Project Repository Structure:
-├── .magica/
+├── .magda/
 │   ├── versions.db          # Version metadata and tree
 │   ├── objects/             # Deduplicated project components
 │   │   ├── audio/          # Audio file chunks and diffs
@@ -1576,7 +1576,7 @@ tracks().filter(type="audio").each(t => t.export(path="/stems/{name}.wav"))
 | **AI Agent** | Natural language → LLM → DSL | "Delete short clips" → `clips().filter(duration_lt=0.1).delete()` |
 | **Power User** | Direct DSL typing | User types `clips().filter(duration_lt=0.1).delete()` |
 | **Macro Recording** | Actions → DSL script | Record actions, export as reusable script |
-| **Script Files** | Load .magica scripts | `magica run cleanup.magica` |
+| **Script Files** | Load .magda scripts | `magda run cleanup.magda` |
 
 #### User Interface
 
@@ -1595,7 +1595,7 @@ tracks().filter(type="audio").each(t => t.export(path="/stems/{name}.wav"))
 - Multi-line script editing
 - Syntax highlighting and validation
 - Run selection or full script
-- Save/load .magica script files
+- Save/load .magda script files
 
 #### C++ Implementation
 
@@ -1625,7 +1625,7 @@ public:
 };
 
 // DSL Implementation with Tracktion access
-class MagicaDSL {
+class MAGDADSL {
     tracktion::Edit& edit;  // Direct access to DAW state
 public:
     void registerAll(DSLEngine& engine);
@@ -1788,7 +1788,7 @@ Project
 
 ### Open API Structure
 ```
-MagicaAPI
+MAGDAAPI
 ├── Project
 │   ├── Tracks
 │   ├── Transport
@@ -1928,7 +1928,7 @@ This document should generate issues like:
 
 ## Philosophy & Vision
 
-**A DAW that thinks like a musician** - Magica combines the flexibility of open-source audio tools with the intelligence of AI assistance. The goal is not to replace human creativity but to amplify it through:
+**A DAW that thinks like a musician** - MAGDA combines the flexibility of open-source audio tools with the intelligence of AI assistance. The goal is not to replace human creativity but to amplify it through:
 
 - **Intelligent Assistance**: AI agents that understand musical context
 - **Unlimited Extensibility**: Every aspect programmable and customizable

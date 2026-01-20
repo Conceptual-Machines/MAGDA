@@ -4,7 +4,7 @@
 #include <functional>
 #include <iostream>
 
-namespace magica {
+namespace magda {
 
 /**
  * @brief Simplified ZoomManager for testing purposes
@@ -103,9 +103,9 @@ class SimpleZoomManager {
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SimpleZoomManager)
 };
 
-}  // namespace magica
+}  // namespace magda
 
-using namespace magica;
+using namespace magda;
 
 class ZoomManagerTest final : public juce::UnitTest {
   public:

@@ -464,7 +464,7 @@ Controller devices are a UI layer over the routing config:
 ### 6.1 Project File Structure
 
 ```
-project.magica
+project.magda
 ├── tracks/
 │   ├── track_001.json      # Track metadata, routing config
 │   ├── track_002.json

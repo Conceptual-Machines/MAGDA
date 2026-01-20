@@ -4,10 +4,10 @@
 #include <string>
 #include <vector>
 
-#include "../magica/daw/interfaces/clip_interface.hpp"
-#include "../magica/daw/interfaces/mixer_interface.hpp"
-#include "../magica/daw/interfaces/track_interface.hpp"
-#include "../magica/daw/interfaces/transport_interface.hpp"
+#include "../magda/daw/interfaces/clip_interface.hpp"
+#include "../magda/daw/interfaces/mixer_interface.hpp"
+#include "../magda/daw/interfaces/track_interface.hpp"
+#include "../magda/daw/interfaces/transport_interface.hpp"
 
 // Mock implementation of TransportInterface for testing
 class MockTransportInterface : public TransportInterface {
@@ -300,7 +300,7 @@ TEST_CASE("TrackInterface Mock Implementation", "[track]") {
 
 TEST_CASE("MidiNote Structure", "[clip]") {
     SECTION("Create MIDI note") {
-        magica::MidiNote note;  // Middle C, velocity 100, start at 0, duration 1 beat
+        magda::MidiNote note;  // Middle C, velocity 100, start at 0, duration 1 beat
         note.noteNumber = 60;
         note.velocity = 100;
         note.startBeat = 0.0;
@@ -313,13 +313,13 @@ TEST_CASE("MidiNote Structure", "[clip]") {
     }
 
     SECTION("MIDI note boundaries") {
-        magica::MidiNote low_note;
+        magda::MidiNote low_note;
         low_note.noteNumber = 0;
         low_note.velocity = 1;
         low_note.startBeat = 0.0;
         low_note.lengthBeats = 0.25;
 
-        magica::MidiNote high_note;
+        magda::MidiNote high_note;
         high_note.noteNumber = 127;
         high_note.velocity = 127;
         high_note.startBeat = 4.0;

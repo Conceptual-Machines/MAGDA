@@ -5,7 +5,7 @@ description: Work with Tracktion Engine audio DAW framework. Use when creating/m
 
 # Tracktion Engine
 
-Tracktion Engine is the audio engine powering MAGICA. This skill covers core patterns for working with the API.
+Tracktion Engine is the audio engine powering MAGDA. This skill covers core patterns for working with the API.
 
 ## Core Object Hierarchy
 
@@ -31,7 +31,7 @@ Engine (singleton, app lifecycle)
 namespace te = tracktion;
 
 // Initialize engine (once, at app startup)
-te::Engine engine("MAGICA");
+te::Engine engine("MAGDA");
 
 // Create a new edit
 auto edit = te::Edit::createSingleTrackEdit(engine);
