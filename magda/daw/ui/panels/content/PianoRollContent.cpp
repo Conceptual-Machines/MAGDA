@@ -250,7 +250,7 @@ void PianoRollContent::resized() {
         // Chord row at the very top
         auto chordRowArea = bounds.removeFromTop(CHORD_ROW_HEIGHT);
         auto chordToggleArea = chordRowArea.removeFromLeft(KEYBOARD_WIDTH);
-        chordRowToggle_->setBounds(chordToggleArea.reduced(4, 2));
+        chordRowToggle_->setBounds(chordToggleArea.reduced(2, 1));
 
         // Ruler row below chord row
         auto headerArea = bounds.removeFromTop(RULER_HEIGHT);
@@ -264,7 +264,7 @@ void PianoRollContent::resized() {
 
         // Stack the two buttons vertically
         auto topHalf = buttonArea.removeFromTop(buttonArea.getHeight() / 2);
-        chordRowToggle_->setBounds(topHalf.reduced(4, 1));
+        chordRowToggle_->setBounds(topHalf.reduced(2, 0));
         timeModeButton_->setBounds(buttonArea.reduced(4, 1));
 
         timeRuler_->setBounds(headerArea);
