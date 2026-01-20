@@ -62,4 +62,4 @@ magda/
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+GPL v3 - see [LICENSE](LICENSE) for details.
