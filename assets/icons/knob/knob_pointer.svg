@@ -1,0 +1,6 @@
+<svg width="4" height="12" viewBox="0 0 4 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Pointer line -->
+  <rect x="1" y="0" width="2" height="10" rx="1" fill="#5588AA"/>
+  <!-- Bright tip -->
+  <circle cx="2" cy="2" r="1.5" fill="#88AACC"/>
+</svg>

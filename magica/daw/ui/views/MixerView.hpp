@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "../components/mixer/MasterChannelStrip.hpp"
+#include "../themes/MixerLookAndFeel.hpp"
 #include "core/TrackManager.hpp"
 #include "core/ViewModeController.hpp"
 
@@ -67,7 +68,9 @@ class MixerView : public juce::Component,
     // Channel strip component
     class ChannelStrip : public juce::Component {
       public:
-        ChannelStrip(const TrackInfo& track, bool isMaster = false);
+        ChannelStrip(const TrackInfo& track, juce::LookAndFeel* faderLookAndFeel,
+                     bool isMaster = false);
+        ~ChannelStrip() override;
 
         void paint(juce::Graphics& g) override;
         void resized() override;
@@ -103,6 +106,7 @@ class MixerView : public juce::Component,
         float meterLevel = 0.0f;
         juce::Colour trackColour_;
         juce::String trackName_;
+        juce::LookAndFeel* faderLookAndFeel_ = nullptr;
 
         std::unique_ptr<juce::Label> trackLabel;
         std::unique_ptr<juce::Slider> panKnob;
@@ -136,6 +140,9 @@ class MixerView : public juce::Component,
 
     // View mode state
     ViewMode currentViewMode_ = ViewMode::Mix;
+
+    // Custom look and feel for faders
+    MixerLookAndFeel mixerLookAndFeel_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MixerView)
 };

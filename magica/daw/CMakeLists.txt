@@ -60,6 +60,12 @@ juce_add_binary_data(MagicaAssets
     ../../assets/icons/sidebar/info.svg
     ../../assets/icons/sidebar/console.svg
     ../../assets/icons/script.svg
+    # Mixer fader icons
+    ../../assets/icons/fader/fader_thumb.svg
+    ../../assets/icons/fader/fader_track.svg
+    # Mixer knob icons
+    ../../assets/icons/knob/knob_body.svg
+    ../../assets/icons/knob/knob_pointer.svg
 )
 
 # DAW Core sources
@@ -90,6 +96,7 @@ set(DAW_UI_SOURCES
     ui/themes/DarkTheme.cpp
     ui/themes/FontManager.cpp
     ui/themes/CursorManager.cpp
+    ui/themes/MixerLookAndFeel.cpp
     # Windows
     ui/windows/MainWindow.cpp
     ui/windows/MenuManager.cpp
@@ -176,6 +183,7 @@ set(DAW_HEADERS
     ui/themes/DarkTheme.hpp
     ui/themes/FontManager.hpp
     ui/themes/CursorManager.hpp
+    ui/themes/MixerLookAndFeel.hpp
     # Windows
     ui/windows/MainWindow.hpp
     ui/windows/MenuManager.hpp

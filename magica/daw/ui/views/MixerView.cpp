@@ -1,11 +1,68 @@
 #include "MixerView.hpp"
 
+#include <cmath>
+
 #include "../themes/DarkTheme.hpp"
 #include "core/ViewModeController.hpp"
 
 namespace magica {
 
-// Level meter component
+// dB conversion helpers
+namespace {
+constexpr float MIN_DB = -60.0f;
+constexpr float MAX_DB = 6.0f;
+constexpr float UNITY_DB = 0.0f;
+
+// Convert linear gain (0-1) to dB
+float gainToDb(float gain) {
+    if (gain <= 0.0f)
+        return MIN_DB;
+    return 20.0f * std::log10(gain);
+}
+
+// Convert dB to linear gain
+float dbToGain(float db) {
+    if (db <= MIN_DB)
+        return 0.0f;
+    return std::pow(10.0f, db / 20.0f);
+}
+
+// Convert dB to normalized fader position (0-1) with proper scaling
+// Unity (0dB) at ~75% position
+float dbToFaderPos(float db) {
+    if (db <= MIN_DB)
+        return 0.0f;
+    if (db >= MAX_DB)
+        return 1.0f;
+
+    // Use a curve that puts 0dB at 0.75
+    if (db < UNITY_DB) {
+        // Below unity: map MIN_DB..0dB to 0..0.75
+        return 0.75f * (db - MIN_DB) / (UNITY_DB - MIN_DB);
+    } else {
+        // Above unity: map 0dB..MAX_DB to 0.75..1.0
+        return 0.75f + 0.25f * (db - UNITY_DB) / (MAX_DB - UNITY_DB);
+    }
+}
+
+// Convert fader position to dB
+float faderPosToDb(float pos) {
+    if (pos <= 0.0f)
+        return MIN_DB;
+    if (pos >= 1.0f)
+        return MAX_DB;
+
+    if (pos < 0.75f) {
+        // Below unity
+        return MIN_DB + (pos / 0.75f) * (UNITY_DB - MIN_DB);
+    } else {
+        // Above unity
+        return UNITY_DB + ((pos - 0.75f) / 0.25f) * (MAX_DB - UNITY_DB);
+    }
+}
+}  // namespace
+
+// Level meter component with dB labels
 class MixerView::ChannelStrip::LevelMeter : public juce::Component {
   public:
     LevelMeter() = default;
@@ -20,33 +77,56 @@ class MixerView::ChannelStrip::LevelMeter : public juce::Component {
     }
 
     void paint(juce::Graphics& g) override {
-        auto bounds = getLocalBounds().toFloat();
+        auto bounds = getLocalBounds();
+
+        // Reserve space for labels on the right
+        auto labelWidth = 20;
+        auto meterBounds = bounds.removeFromLeft(bounds.getWidth() - labelWidth).toFloat();
+        auto labelBounds = bounds.toFloat();
 
         // Background
         g.setColour(DarkTheme::getColour(DarkTheme::SURFACE));
-        g.fillRoundedRectangle(bounds, 2.0f);
+        g.fillRoundedRectangle(meterBounds, 2.0f);
 
-        // Meter fill
-        float meterHeight = bounds.getHeight() * level;
-        auto meterBounds = bounds.removeFromBottom(meterHeight);
+        // Meter fill (using dB-scaled level)
+        float meterHeight = meterBounds.getHeight() * level;
+        auto fillBounds = meterBounds;
+        fillBounds = fillBounds.removeFromBottom(meterHeight);
 
-        // Gradient from green to yellow to red
-        if (level < 0.6f) {
+        // Gradient from green to yellow to red based on dB
+        float dbLevel = gainToDb(level);
+        if (dbLevel < -12.0f) {
             g.setColour(juce::Colour(0xFF55AA55));  // Green
-        } else if (level < 0.85f) {
+        } else if (dbLevel < -3.0f) {
             g.setColour(juce::Colour(0xFFAAAA55));  // Yellow
         } else {
             g.setColour(juce::Colour(0xFFAA5555));  // Red
         }
-        g.fillRoundedRectangle(meterBounds, 2.0f);
+        g.fillRoundedRectangle(fillBounds, 2.0f);
 
-        // Segment lines
-        g.setColour(DarkTheme::getColour(DarkTheme::BACKGROUND).withAlpha(0.5f));
-        int numSegments = 20;
-        float segmentHeight = bounds.getHeight() / numSegments;
-        for (int i = 1; i < numSegments; ++i) {
-            float y = getHeight() - i * segmentHeight;
-            g.drawHorizontalLine(static_cast<int>(y), 0.0f, static_cast<float>(getWidth()));
+        // Draw dB labels
+        g.setColour(DarkTheme::getColour(DarkTheme::TEXT_DIM));
+        g.setFont(9.0f);
+
+        // dB markings: +6, 0, -6, -12, -24, -48
+        const float dbMarks[] = {6.0f, 0.0f, -6.0f, -12.0f, -24.0f, -48.0f};
+        for (float db : dbMarks) {
+            float pos = dbToFaderPos(db);
+            float y = meterBounds.getBottom() - pos * meterBounds.getHeight();
+
+            juce::String label;
+            if (db > 0)
+                label = "+" + juce::String((int)db);
+            else if (db == 0)
+                label = "0";
+            else
+                label = juce::String((int)db);
+
+            g.drawText(label, labelBounds.getX(), y - 5, labelWidth, 10,
+                       juce::Justification::centredLeft, false);
+
+            // Small tick mark
+            g.drawHorizontalLine((int)y, meterBounds.getRight() - 2, meterBounds.getRight());
         }
     }
 
@@ -55,10 +135,25 @@ class MixerView::ChannelStrip::LevelMeter : public juce::Component {
 };
 
 // Channel strip implementation
-MixerView::ChannelStrip::ChannelStrip(const TrackInfo& track, bool isMaster)
-    : trackId_(track.id), isMaster_(isMaster), trackColour_(track.colour), trackName_(track.name) {
+MixerView::ChannelStrip::ChannelStrip(const TrackInfo& track, juce::LookAndFeel* faderLookAndFeel,
+                                      bool isMaster)
+    : trackId_(track.id),
+      isMaster_(isMaster),
+      trackColour_(track.colour),
+      trackName_(track.name),
+      faderLookAndFeel_(faderLookAndFeel) {
     setupControls();
     updateFromTrack(track);
+}
+
+MixerView::ChannelStrip::~ChannelStrip() {
+    // Clear look and feel before destruction to avoid dangling pointer issues
+    if (volumeFader) {
+        volumeFader->setLookAndFeel(nullptr);
+    }
+    if (panKnob) {
+        panKnob->setLookAndFeel(nullptr);
+    }
 }
 
 void MixerView::ChannelStrip::updateFromTrack(const TrackInfo& track) {
@@ -69,7 +164,10 @@ void MixerView::ChannelStrip::updateFromTrack(const TrackInfo& track) {
         trackLabel->setText(isMaster_ ? "Master" : track.name, juce::dontSendNotification);
     }
     if (volumeFader) {
-        volumeFader->setValue(track.volume, juce::dontSendNotification);
+        // Convert linear gain to fader position
+        float db = gainToDb(track.volume);
+        float faderPos = dbToFaderPos(db);
+        volumeFader->setValue(faderPos, juce::dontSendNotification);
     }
     if (panKnob) {
         panKnob->setValue(track.pan, juce::dontSendNotification);
@@ -110,26 +208,38 @@ void MixerView::ChannelStrip::setupControls() {
     panKnob->onValueChange = [this]() {
         TrackManager::getInstance().setTrackPan(trackId_, static_cast<float>(panKnob->getValue()));
     };
+    // Apply custom look and feel for knob styling
+    if (faderLookAndFeel_) {
+        panKnob->setLookAndFeel(faderLookAndFeel_);
+    }
     addAndMakeVisible(*panKnob);
 
     // Level meter
     levelMeter = std::make_unique<LevelMeter>();
     addAndMakeVisible(*levelMeter);
 
-    // Volume fader
+    // Volume fader - using dB scale with unity at 0.75 position
     volumeFader =
         std::make_unique<juce::Slider>(juce::Slider::LinearVertical, juce::Slider::NoTextBox);
-    volumeFader->setRange(0.0, 1.0, 0.01);
-    volumeFader->setValue(0.75);
+    volumeFader->setRange(0.0, 1.0, 0.001);             // Internal 0-1 range
+    volumeFader->setValue(0.75);                        // Unity gain (0 dB) at 75%
+    volumeFader->setSliderSnapsToMousePosition(false);  // Relative drag, not jump to click
     volumeFader->setColour(juce::Slider::trackColourId, DarkTheme::getColour(DarkTheme::SURFACE));
     volumeFader->setColour(juce::Slider::backgroundColourId,
                            DarkTheme::getColour(DarkTheme::SURFACE));
     volumeFader->setColour(juce::Slider::thumbColourId,
                            DarkTheme::getColour(DarkTheme::ACCENT_BLUE));
     volumeFader->onValueChange = [this]() {
-        TrackManager::getInstance().setTrackVolume(trackId_,
-                                                   static_cast<float>(volumeFader->getValue()));
+        // Convert fader position to dB, then to linear gain for TrackManager
+        float faderPos = static_cast<float>(volumeFader->getValue());
+        float db = faderPosToDb(faderPos);
+        float gain = dbToGain(db);
+        TrackManager::getInstance().setTrackVolume(trackId_, gain);
     };
+    // Apply custom look and feel for fader styling
+    if (faderLookAndFeel_) {
+        volumeFader->setLookAndFeel(faderLookAndFeel_);
+    }
     addAndMakeVisible(*volumeFader);
 
     // Mute button
@@ -249,20 +359,17 @@ void MixerView::ChannelStrip::resized() {
 
     // Fader and meter in remaining space
     int faderWidth = 24;
-    int meterWidth = METER_WIDTH;
+    int meterWidth = METER_WIDTH + 22;  // Extra space for dB labels
     int totalWidth = faderWidth + 4 + meterWidth;
-    int xOffset = (bounds.getWidth() - totalWidth) / 2;
 
     auto faderMeterArea = bounds;
-    faderMeterArea.setX(bounds.getX() + xOffset);
-    faderMeterArea.setWidth(totalWidth);
 
-    // Meter on left
+    // Meter on left (with labels)
     levelMeter->setBounds(faderMeterArea.removeFromLeft(meterWidth));
     faderMeterArea.removeFromLeft(4);
 
-    // Fader on right
-    volumeFader->setBounds(faderMeterArea);
+    // Fader takes remaining space
+    volumeFader->setBounds(faderMeterArea.removeFromLeft(faderWidth));
 }
 
 void MixerView::ChannelStrip::setMeterLevel(float level) {
@@ -330,7 +437,7 @@ void MixerView::rebuildChannelStrips() {
             continue;
         }
 
-        auto strip = std::make_unique<ChannelStrip>(track, false);
+        auto strip = std::make_unique<ChannelStrip>(track, &mixerLookAndFeel_, false);
         strip->onClicked = [this](int trackId, bool isMaster) {
             // Find the index of this track in the visible strips
             for (size_t i = 0; i < channelStrips.size(); ++i) {
