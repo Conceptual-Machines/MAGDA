@@ -60,6 +60,9 @@ PianoRollContent::PianoRollContent() {
     timeModeButton_->setTooltip("Toggle between Relative (clip) and Absolute (project) time");
     timeModeButton_->setClickingTogglesState(true);
     timeModeButton_->setToggleState(relativeTimeMode_, juce::dontSendNotification);
+    timeModeButton_->setConnectedEdges(
+        juce::Button::ConnectedOnLeft | juce::Button::ConnectedOnRight |
+        juce::Button::ConnectedOnTop | juce::Button::ConnectedOnBottom);
     timeModeButton_->onClick = [this]() { setRelativeTimeMode(timeModeButton_->getToggleState()); };
     addAndMakeVisible(timeModeButton_.get());
 
@@ -68,6 +71,9 @@ PianoRollContent::PianoRollContent() {
     chordRowToggle_->setTooltip("Toggle chord detection row visibility");
     chordRowToggle_->setClickingTogglesState(true);
     chordRowToggle_->setToggleState(showChordRow_, juce::dontSendNotification);
+    chordRowToggle_->setConnectedEdges(
+        juce::Button::ConnectedOnLeft | juce::Button::ConnectedOnRight |
+        juce::Button::ConnectedOnTop | juce::Button::ConnectedOnBottom);
     chordRowToggle_->onClick = [this]() { setChordRowVisible(chordRowToggle_->getToggleState()); };
     addAndMakeVisible(chordRowToggle_.get());
 
