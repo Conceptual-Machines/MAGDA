@@ -2,6 +2,7 @@
 
 #include <cmath>
 
+#include "../../debug/DebugSettings.hpp"
 #include "../../themes/DarkTheme.hpp"
 #include "../../themes/FontManager.hpp"
 #include "../../themes/MixerMetrics.hpp"
@@ -361,7 +362,7 @@ class TrackChainContent::DeviceSlotComponent : public NodeComponent {
     }
 
     int getExpandedWidth() const {
-        return getTotalWidth(BASE_WIDTH);
+        return getTotalWidth(DebugSettings::getInstance().getDeviceSlotWidth());
     }
 
     bool isModPanelVisible() const {
@@ -466,6 +467,12 @@ float dbToGain(float db) {
 
 TrackChainContent::TrackChainContent() {
     setName("Track Chain");
+
+    // Listen for debug settings changes
+    DebugSettings::getInstance().addListener([this]() {
+        resized();
+        repaint();
+    });
 
     // No selection label
     noSelectionLabel_.setText("Select a track to view its signal chain",

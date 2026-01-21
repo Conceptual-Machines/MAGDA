@@ -108,6 +108,8 @@ set(DAW_UI_SOURCES
     ui/dialogs/ParameterConfigDialog.cpp
     ui/dialogs/PreferencesDialog.cpp
     ui/dialogs/TrackManagerDialog.cpp
+    # Debug
+    ui/debug/DebugDialog.cpp
     # Panels
     ui/panels/TransportPanel.cpp
     ui/panels/TimelineHeaderPanel.cpp

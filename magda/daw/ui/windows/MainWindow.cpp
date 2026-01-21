@@ -1,5 +1,7 @@
 #include "MainWindow.hpp"
 
+#include "../debug/DebugDialog.hpp"
+#include "../debug/DebugSettings.hpp"
 #include "../dialogs/AudioSettingsDialog.hpp"
 #include "../dialogs/PreferencesDialog.hpp"
 #include "../dialogs/TrackManagerDialog.hpp"
@@ -97,7 +99,13 @@ MainWindow::MainComponent::MainComponent() {
     transportHeight = layout.defaultTransportHeight;
     leftPanelWidth = layout.defaultLeftPanelWidth;
     rightPanelWidth = layout.defaultRightPanelWidth;
-    bottomPanelHeight = layout.defaultBottomPanelHeight;
+    bottomPanelHeight = daw::ui::DebugSettings::getInstance().getBottomPanelHeight();
+
+    // Listen for debug settings changes
+    daw::ui::DebugSettings::getInstance().addListener([this]() {
+        bottomPanelHeight = daw::ui::DebugSettings::getInstance().getBottomPanelHeight();
+        resized();
+    });
 
     // Initialize panel visibility from Config
     auto& config = Config::getInstance();
@@ -292,6 +300,14 @@ MainWindow::MainComponent::~MainComponent() {
 }
 
 bool MainWindow::MainComponent::keyPressed(const juce::KeyPress& key) {
+    // Cmd/Ctrl+Shift+D: Open Debug Dialog
+    if (key ==
+        juce::KeyPress('d', juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier,
+                       0)) {
+        daw::ui::DebugDialog::show();
+        return true;
+    }
+
     // Cmd/Ctrl+T: Add Track (through undo system)
     if (key == juce::KeyPress('t', juce::ModifierKeys::commandModifier, 0)) {
         auto cmd = std::make_unique<CreateTrackCommand>(TrackType::Audio);
