@@ -220,7 +220,7 @@ class DeviceButtonLookAndFeel : public juce::LookAndFeel_V4 {
 
     void drawButtonText(juce::Graphics& g, juce::TextButton& button, bool /*isMouseOver*/,
                         bool /*isButtonDown*/) override {
-        auto font = FontManager::getInstance().getUIFont(9.0f);
+        auto font = FontManager::getInstance().getUIFont(10.0f);
         g.setFont(font);
         g.setColour(button.findColour(button.getToggleState() ? juce::TextButton::textColourOnId
                                                               : juce::TextButton::textColourOffId));
@@ -312,7 +312,7 @@ class TrackChainContent::DeviceSlotComponent : public NodeComponent {
         for (int i = 0; i < NUM_PARAMS; ++i) {
             paramLabels_[i] = std::make_unique<juce::Label>();
             paramLabels_[i]->setText(mockParamNames[i], juce::dontSendNotification);
-            paramLabels_[i]->setFont(FontManager::getInstance().getUIFont(8.0f));
+            paramLabels_[i]->setFont(FontManager::getInstance().getUIFont(9.0f));
             paramLabels_[i]->setColour(juce::Label::textColourId,
                                        DarkTheme::getSecondaryTextColour());
             paramLabels_[i]->setJustificationType(juce::Justification::centredLeft);
