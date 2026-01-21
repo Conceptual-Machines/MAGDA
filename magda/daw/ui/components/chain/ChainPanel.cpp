@@ -1,6 +1,7 @@
 #include "ChainPanel.hpp"
 
 #include "NodeComponent.hpp"
+#include "ui/components/common/TextSlider.hpp"
 #include "ui/themes/DarkTheme.hpp"
 #include "ui/themes/FontManager.hpp"
 #include "ui/themes/SmallButtonLookAndFeel.hpp"
@@ -37,8 +38,16 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
             }
         };
 
-        // Hide param button - params shown at chain level instead
+        // Hide param button - params shown inline instead
         setParamButtonVisible(false);
+
+        // Create param sliders (mock params for now)
+        for (int i = 0; i < NUM_PARAMS; ++i) {
+            paramSliders_[i] = std::make_unique<TextSlider>(TextSlider::Format::Decimal);
+            paramSliders_[i]->setRange(0.0, 1.0, 0.01);
+            paramSliders_[i]->setValue(0.5, juce::dontSendNotification);
+            addAndMakeVisible(*paramSliders_[i]);
+        }
     }
 
     magda::DeviceId getDeviceId() const {
@@ -60,12 +69,31 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
 
   protected:
     void paintContent(juce::Graphics& g, juce::Rectangle<int> contentArea) override {
-        // Device name in content area
+        // Manufacturer label at top
+        auto labelArea = contentArea.removeFromTop(14);
         auto textColour = isBypassed() ? DarkTheme::getSecondaryTextColour().withAlpha(0.5f)
-                                       : DarkTheme::getTextColour();
+                                       : DarkTheme::getSecondaryTextColour();
         g.setColour(textColour);
-        g.setFont(FontManager::getInstance().getUIFontBold(9.0f));
-        g.drawText(device_.manufacturer, contentArea.reduced(4), juce::Justification::centred);
+        g.setFont(FontManager::getInstance().getUIFont(8.0f));
+        g.drawText(device_.manufacturer, labelArea.reduced(2, 0), juce::Justification::centredLeft);
+    }
+
+    void resizedContent(juce::Rectangle<int> contentArea) override {
+        // Skip manufacturer label area
+        contentArea.removeFromTop(14);
+        contentArea = contentArea.reduced(2, 0);
+
+        // Layout param sliders in a 2x2 grid
+        int sliderWidth = (contentArea.getWidth() - 2) / 2;
+        int sliderHeight = 16;
+
+        for (int i = 0; i < NUM_PARAMS; ++i) {
+            int row = i / 2;
+            int col = i % 2;
+            int x = contentArea.getX() + col * (sliderWidth + 2);
+            int y = contentArea.getY() + row * (sliderHeight + 2);
+            paramSliders_[i]->setBounds(x, y, sliderWidth, sliderHeight);
+        }
     }
 
   private:
@@ -74,6 +102,9 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
     magda::RackId rackId_;
     magda::ChainId chainId_;
     magda::DeviceInfo device_;
+
+    static constexpr int NUM_PARAMS = 4;
+    std::unique_ptr<TextSlider> paramSliders_[NUM_PARAMS];
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DeviceSlotComponent)
 };
