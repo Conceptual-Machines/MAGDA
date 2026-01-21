@@ -121,6 +121,11 @@ class PluginBrowserContent::CategoryTreeItem : public juce::TreeViewItem {
                    juce::Justification::centredRight);
     }
 
+    void itemClicked(const juce::MouseEvent&) override {
+        // Toggle open/closed state when clicked (since we hide JUCE's built-in buttons)
+        setOpen(!isOpen());
+    }
+
     int getItemHeight() const override {
         return 26;
     }
@@ -418,6 +423,10 @@ void PluginBrowserContent::showPluginContextMenu(const MockPluginInfo& plugin,
             switch (result) {
                 case 1: {
                     // Add to selected track
+                    // TODO: Make insertion position user-configurable:
+                    // - Currently adds to track->devices which displays BEFORE racks
+                    // - Option to add after racks (true end of signal chain)
+                    // - Option to add to first chain if racks exist
                     auto selectedTrack = tm.getSelectedTrack();
                     if (selectedTrack != magda::INVALID_TRACK_ID) {
                         tm.addDeviceToTrack(selectedTrack, createDevice());
