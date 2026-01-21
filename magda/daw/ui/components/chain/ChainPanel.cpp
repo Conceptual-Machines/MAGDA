@@ -64,7 +64,8 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
                                                         BinaryData::sinewave_svgSize);
         modButton_->setClickingTogglesState(true);
         modButton_->setNormalColor(DarkTheme::getSecondaryTextColour());
-        modButton_->setActiveColor(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
+        modButton_->setActiveColor(DarkTheme::getTextColour());
+        modButton_->setActiveBackgroundColor(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
         modButton_->onClick = [this]() {
             modButton_->setActive(modButton_->getToggleState());
             modPanelVisible_ = modButton_->getToggleState();

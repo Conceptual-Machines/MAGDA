@@ -117,12 +117,15 @@ void SvgButton::paintButton(juce::Graphics& g, bool shouldDrawButtonAsHighlighte
     }
 
     // Draw background if pressed or active
-    if (shouldDrawButtonAsDown || active) {
-        g.setColour(iconColor.withAlpha(0.1f));
-        g.fillRoundedRectangle(getLocalBounds().toFloat(), 4.0f);
+    if (active && hasActiveBackgroundColor) {
+        g.setColour(activeBackgroundColor);
+        g.fillRoundedRectangle(getLocalBounds().toFloat(), 2.0f);
+    } else if (shouldDrawButtonAsDown) {
+        g.setColour(iconColor.withAlpha(0.2f));
+        g.fillRoundedRectangle(getLocalBounds().toFloat(), 2.0f);
     } else if (shouldDrawButtonAsHighlighted) {
-        g.setColour(iconColor.withAlpha(0.05f));
-        g.fillRoundedRectangle(getLocalBounds().toFloat(), 4.0f);
+        g.setColour(iconColor.withAlpha(0.1f));
+        g.fillRoundedRectangle(getLocalBounds().toFloat(), 2.0f);
     }
 
     // Calculate icon bounds (centered with some padding)

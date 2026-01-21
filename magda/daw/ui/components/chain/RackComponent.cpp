@@ -33,7 +33,8 @@ RackComponent::RackComponent(magda::TrackId trackId, const magda::RackInfo& rack
                                                     BinaryData::sinewave_svgSize);
     modButton_->setClickingTogglesState(true);
     modButton_->setNormalColor(DarkTheme::getSecondaryTextColour());
-    modButton_->setActiveColor(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
+    modButton_->setActiveColor(DarkTheme::getTextColour());
+    modButton_->setActiveBackgroundColor(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
     modButton_->onClick = [this]() {
         modButton_->setActive(modButton_->getToggleState());
         modPanelVisible_ = modButton_->getToggleState();
@@ -49,7 +50,8 @@ RackComponent::RackComponent(magda::TrackId trackId, const magda::RackInfo& rack
         std::make_unique<magda::SvgButton>("Macro", BinaryData::link_svg, BinaryData::link_svgSize);
     macroButton_->setClickingTogglesState(true);
     macroButton_->setNormalColor(DarkTheme::getSecondaryTextColour());
-    macroButton_->setActiveColor(DarkTheme::getColour(DarkTheme::ACCENT_PURPLE));
+    macroButton_->setActiveColor(DarkTheme::getTextColour());
+    macroButton_->setActiveBackgroundColor(DarkTheme::getColour(DarkTheme::ACCENT_PURPLE));
     macroButton_->onClick = [this]() {
         macroButton_->setActive(macroButton_->getToggleState());
         paramPanelVisible_ = macroButton_->getToggleState();

@@ -37,6 +37,10 @@ class SvgButton : public juce::Button {
     void setActiveColor(juce::Colour color) {
         activeColor = color;
     }
+    void setActiveBackgroundColor(juce::Colour color) {
+        activeBackgroundColor = color;
+        hasActiveBackgroundColor = true;
+    }
     void setOriginalColor(juce::Colour color) {
         originalColor = color;
         hasOriginalColor = true;
@@ -65,6 +69,8 @@ class SvgButton : public juce::Button {
     juce::Colour activeColor = DarkTheme::getColour(DarkTheme::ACCENT_BLUE);
     juce::Colour originalColor;  // Original SVG fill color to replace
     bool hasOriginalColor = false;
+    juce::Colour activeBackgroundColor;  // Background color when active
+    bool hasActiveBackgroundColor = false;
 
     bool active = false;
 
