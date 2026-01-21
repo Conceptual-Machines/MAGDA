@@ -159,32 +159,40 @@ void ChainRowComponent::setSelected(bool selected) {
 void ChainRowComponent::resized() {
     auto bounds = getLocalBounds().reduced(3, 2);
 
-    // Layout: [Name] [Gain] [Pan] [MOD] [MACRO] [M] [S] [On] [X]
+    // Layout: [Name] [Gain] [Pan] ... [MOD] [MACRO] [M] [S] [On] [X]
+    // Spread across full width with right-side buttons anchored to the right
+
+    // Right side buttons (from right to left)
+    deleteButton_.setBounds(bounds.removeFromRight(16));
+    bounds.removeFromRight(2);
+
+    onButton_.setBounds(bounds.removeFromRight(16));
+    bounds.removeFromRight(2);
+
+    soloButton_.setBounds(bounds.removeFromRight(16));
+    bounds.removeFromRight(2);
+
+    muteButton_.setBounds(bounds.removeFromRight(16));
+    bounds.removeFromRight(2);
+
+    macroButton_->setBounds(bounds.removeFromRight(16));
+    bounds.removeFromRight(2);
+
+    modButton_->setBounds(bounds.removeFromRight(16));
+    bounds.removeFromRight(8);
+
+    // Left side elements
     nameLabel_.setBounds(bounds.removeFromLeft(50));
     bounds.removeFromLeft(4);
 
-    gainSlider_.setBounds(bounds.removeFromLeft(40));
-    bounds.removeFromLeft(4);
+    // Remaining space for gain and pan sliders (spread them out)
+    int remainingWidth = bounds.getWidth();
+    int sliderWidth = (remainingWidth - 8) / 2;  // Split remaining space, minus gap
 
-    panSlider_.setBounds(bounds.removeFromLeft(35));
-    bounds.removeFromLeft(4);
+    gainSlider_.setBounds(bounds.removeFromLeft(sliderWidth));
+    bounds.removeFromLeft(8);
 
-    modButton_->setBounds(bounds.removeFromLeft(16));
-    bounds.removeFromLeft(2);
-
-    macroButton_->setBounds(bounds.removeFromLeft(16));
-    bounds.removeFromLeft(2);
-
-    muteButton_.setBounds(bounds.removeFromLeft(16));
-    bounds.removeFromLeft(2);
-
-    soloButton_.setBounds(bounds.removeFromLeft(16));
-    bounds.removeFromLeft(2);
-
-    onButton_.setBounds(bounds.removeFromLeft(16));
-    bounds.removeFromLeft(2);
-
-    deleteButton_.setBounds(bounds.removeFromLeft(16));
+    panSlider_.setBounds(bounds.removeFromLeft(sliderWidth));
 }
 
 int ChainRowComponent::getPreferredHeight() const {
