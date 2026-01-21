@@ -9,6 +9,8 @@ namespace magda {
 class PianoRollGridComponent;
 class PianoRollKeyboard;
 class TimeRuler;
+class SvgButton;
+class VelocityLaneComponent;
 }  // namespace magda
 
 namespace magda::daw::ui {
@@ -66,10 +68,17 @@ class PianoRollContent : public PanelContent, public magda::ClipManagerListener 
         return showChordRow_;
     }
 
+    // Velocity drawer visibility
+    void setVelocityDrawerVisible(bool visible);
+    bool isVelocityDrawerVisible() const {
+        return velocityDrawerOpen_;
+    }
+
   private:
     magda::ClipId editingClipId_ = magda::INVALID_CLIP_ID;
 
     // Layout constants
+    static constexpr int SIDEBAR_WIDTH = 32;
     static constexpr int KEYBOARD_WIDTH = 60;
     static constexpr int DEFAULT_NOTE_HEIGHT = 12;
     static constexpr int CHORD_ROW_HEIGHT = 24;                            // Chord detection row
@@ -78,6 +87,8 @@ class PianoRollContent : public PanelContent, public magda::ClipManagerListener 
     static constexpr int MIN_NOTE = 21;                                    // A0
     static constexpr int MAX_NOTE = 108;                                   // C8
     static constexpr int GRID_LEFT_PADDING = 2;  // Small padding for timeline label visibility
+    static constexpr int VELOCITY_LANE_HEIGHT = 80;
+    static constexpr int VELOCITY_HEADER_HEIGHT = 20;
 
     // Zoom limits
     static constexpr double MIN_HORIZONTAL_ZOOM = 10.0;   // pixels per beat
@@ -95,6 +106,9 @@ class PianoRollContent : public PanelContent, public magda::ClipManagerListener 
     // Chord row visibility
     bool showChordRow_ = true;  // Default to visible
 
+    // Velocity drawer visibility
+    bool velocityDrawerOpen_ = false;  // Default to closed
+
     // Components
     std::unique_ptr<juce::Viewport> viewport_;
     std::unique_ptr<magda::PianoRollGridComponent> gridComponent_;
@@ -102,16 +116,27 @@ class PianoRollContent : public PanelContent, public magda::ClipManagerListener 
     std::unique_ptr<magda::TimeRuler> timeRuler_;
     std::unique_ptr<juce::TextButton> timeModeButton_;
     std::unique_ptr<juce::LookAndFeel> buttonLookAndFeel_;
+    std::unique_ptr<magda::SvgButton> chordToggle_;
+    std::unique_ptr<magda::SvgButton> velocityToggle_;
+    std::unique_ptr<magda::VelocityLaneComponent> velocityLane_;
 
     // Grid component management
     void setupGridCallbacks();
     void updateGridSize();
     void updateTimeRuler();
+    void drawSidebar(juce::Graphics& g, juce::Rectangle<int> area);
     void drawChordRow(juce::Graphics& g, juce::Rectangle<int> area);
+    void drawVelocityHeader(juce::Graphics& g, juce::Rectangle<int> area);
+    void updateVelocityLane();
 
     // Helper to get current header height based on chord row visibility
     int getHeaderHeight() const {
         return showChordRow_ ? HEADER_HEIGHT : RULER_HEIGHT;
+    }
+
+    // Helper to get current drawer height
+    int getDrawerHeight() const {
+        return velocityDrawerOpen_ ? (VELOCITY_LANE_HEIGHT + VELOCITY_HEADER_HEIGHT) : 0;
     }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PianoRollContent)

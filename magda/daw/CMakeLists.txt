@@ -157,6 +157,7 @@ set(DAW_UI_SOURCES
     ui/components/pianoroll/NoteComponent.cpp
     ui/components/pianoroll/PianoRollGridComponent.cpp
     ui/components/pianoroll/PianoRollKeyboard.cpp
+    ui/components/pianoroll/VelocityLaneComponent.cpp
     # Components - Mixer
     ui/components/mixer/MasterChannelStrip.cpp
     ui/components/mixer/RoutingSelector.cpp
@@ -265,6 +266,7 @@ set(DAW_HEADERS
     ui/components/pianoroll/NoteComponent.hpp
     ui/components/pianoroll/PianoRollGridComponent.hpp
     ui/components/pianoroll/PianoRollKeyboard.hpp
+    ui/components/pianoroll/VelocityLaneComponent.hpp
     # Components - Mixer
     ui/components/mixer/MasterChannelStrip.hpp
     ui/components/mixer/RoutingSelector.hpp

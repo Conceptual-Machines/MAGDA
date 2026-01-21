@@ -3,10 +3,14 @@
 #include "../../state/TimelineController.hpp"
 #include "../../themes/DarkTheme.hpp"
 #include "../../themes/FontManager.hpp"
+#include "BinaryData.h"
 #include "core/MidiNoteCommands.hpp"
+#include "core/SelectionManager.hpp"
 #include "core/UndoManager.hpp"
+#include "ui/components/common/SvgButton.hpp"
 #include "ui/components/pianoroll/PianoRollGridComponent.hpp"
 #include "ui/components/pianoroll/PianoRollKeyboard.hpp"
+#include "ui/components/pianoroll/VelocityLaneComponent.hpp"
 #include "ui/components/timeline/TimeRuler.hpp"
 
 namespace magda::daw::ui {
@@ -86,6 +90,43 @@ PianoRollContent::PianoRollContent() {
     timeModeButton_->onClick = [this]() { setRelativeTimeMode(timeModeButton_->getToggleState()); };
     addAndMakeVisible(timeModeButton_.get());
 
+    // Create chord toggle button for sidebar
+    chordToggle_ = std::make_unique<magda::SvgButton>("ChordToggle", BinaryData::Chords2_svg,
+                                                      BinaryData::Chords2_svgSize);
+    chordToggle_->setTooltip("Toggle chord detection row");
+    chordToggle_->setOriginalColor(juce::Colour(0xFFB3B3B3));  // SVG fill color
+    chordToggle_->setActive(showChordRow_);
+    chordToggle_->onClick = [this]() {
+        setChordRowVisible(!showChordRow_);
+        chordToggle_->setActive(showChordRow_);
+    };
+    addAndMakeVisible(chordToggle_.get());
+
+    // Create velocity toggle button for sidebar (using volume icon as placeholder)
+    velocityToggle_ = std::make_unique<magda::SvgButton>(
+        "VelocityToggle", BinaryData::volume_up_svg, BinaryData::volume_up_svgSize);
+    velocityToggle_->setTooltip("Toggle velocity lane");
+    velocityToggle_->setOriginalColor(juce::Colour(0xFFB3B3B3));
+    velocityToggle_->setActive(velocityDrawerOpen_);
+    velocityToggle_->onClick = [this]() {
+        setVelocityDrawerVisible(!velocityDrawerOpen_);
+        velocityToggle_->setActive(velocityDrawerOpen_);
+    };
+    addAndMakeVisible(velocityToggle_.get());
+
+    // Create velocity lane component
+    velocityLane_ = std::make_unique<magda::VelocityLaneComponent>();
+    velocityLane_->setLeftPadding(GRID_LEFT_PADDING);
+    velocityLane_->onVelocityChanged = [this](magda::ClipId clipId, size_t noteIndex,
+                                              int newVelocity) {
+        auto cmd =
+            std::make_unique<magda::SetMidiNoteVelocityCommand>(clipId, noteIndex, newVelocity);
+        magda::UndoManager::getInstance().executeCommand(std::move(cmd));
+        velocityLane_->refreshNotes();
+        gridComponent_->refreshNotes();
+    };
+    addChildComponent(velocityLane_.get());  // Start hidden
+
     // Create keyboard component
     keyboard_ = std::make_unique<magda::PianoRollKeyboard>();
     keyboard_->setNoteHeight(noteHeight_);
@@ -123,6 +164,9 @@ PianoRollContent::PianoRollContent() {
     scrollViewport->onScrolled = [this](int x, int y) {
         keyboard_->setScrollOffset(y);
         timeRuler_->setScrollOffset(x);
+        if (velocityLane_) {
+            velocityLane_->setScrollOffset(x);
+        }
     };
     scrollViewport->timeRulerToRepaint = timeRuler_.get();
     scrollViewport->keyboardToUpdate = keyboard_.get();
@@ -237,29 +281,67 @@ void PianoRollContent::setupGridCallbacks() {
         gridComponent_->refreshNotes();
     };
 
-    // Handle note selection
-    gridComponent_->onNoteSelected = [](magda::ClipId /*clipId*/, size_t /*noteIndex*/) {
-        // Currently just updates selection state in the grid component
+    // Handle note selection - update SelectionManager
+    gridComponent_->onNoteSelected = [](magda::ClipId clipId, size_t noteIndex) {
+        magda::SelectionManager::getInstance().selectNote(clipId, noteIndex);
     };
 }
 
 void PianoRollContent::paint(juce::Graphics& g) {
     g.fillAll(DarkTheme::getPanelBackgroundColour());
 
+    // Draw sidebar on the left
+    auto sidebarArea = getLocalBounds().removeFromLeft(SIDEBAR_WIDTH);
+    drawSidebar(g, sidebarArea);
+
     // Draw chord row at the top (if visible)
     if (showChordRow_) {
-        auto chordArea = getLocalBounds().removeFromTop(CHORD_ROW_HEIGHT);
+        auto chordArea = getLocalBounds();
+        chordArea.removeFromLeft(SIDEBAR_WIDTH);  // Skip sidebar
+        chordArea = chordArea.removeFromTop(CHORD_ROW_HEIGHT);
         chordArea.removeFromLeft(KEYBOARD_WIDTH);  // Skip the button area
         drawChordRow(g, chordArea);
+    }
+
+    // Draw velocity drawer header (if open)
+    if (velocityDrawerOpen_) {
+        auto drawerHeaderArea = getLocalBounds();
+        drawerHeaderArea.removeFromLeft(SIDEBAR_WIDTH);  // Skip sidebar
+        drawerHeaderArea =
+            drawerHeaderArea.removeFromBottom(VELOCITY_LANE_HEIGHT + VELOCITY_HEADER_HEIGHT);
+        drawerHeaderArea = drawerHeaderArea.removeFromTop(VELOCITY_HEADER_HEIGHT);
+        drawVelocityHeader(g, drawerHeaderArea);
     }
 }
 
 void PianoRollContent::resized() {
     auto bounds = getLocalBounds();
 
+    // Skip sidebar (painted in paint())
+    bounds.removeFromLeft(SIDEBAR_WIDTH);
+
+    // Position sidebar icons at the top of the sidebar
+    int iconSize = 24;
+    int padding = (SIDEBAR_WIDTH - iconSize) / 2;
+    chordToggle_->setBounds(padding, padding, iconSize, iconSize);
+    velocityToggle_->setBounds(padding, padding + iconSize + 4, iconSize, iconSize);
+
     // Skip chord row space if visible (drawn in paint)
     if (showChordRow_) {
         bounds.removeFromTop(CHORD_ROW_HEIGHT);
+    }
+
+    // Velocity drawer at bottom (if open)
+    if (velocityDrawerOpen_) {
+        auto drawerArea = bounds.removeFromBottom(VELOCITY_LANE_HEIGHT + VELOCITY_HEADER_HEIGHT);
+        // Header area (drawn in paint)
+        drawerArea.removeFromTop(VELOCITY_HEADER_HEIGHT);
+        // Skip keyboard width for alignment
+        drawerArea.removeFromLeft(KEYBOARD_WIDTH);
+        velocityLane_->setBounds(drawerArea);
+        velocityLane_->setVisible(true);
+    } else {
+        velocityLane_->setVisible(false);
     }
 
     // Ruler row with time mode button
@@ -278,14 +360,16 @@ void PianoRollContent::resized() {
     // Update the grid size
     updateGridSize();
     updateTimeRuler();
+    updateVelocityLane();
 }
 
 void PianoRollContent::mouseWheelMove(const juce::MouseEvent& e,
                                       const juce::MouseWheelDetails& wheel) {
     int headerHeight = getHeaderHeight();
+    int leftPanelWidth = SIDEBAR_WIDTH + KEYBOARD_WIDTH;
 
     // Check if mouse is over the chord row area (very top, only when visible)
-    if (showChordRow_ && e.y < CHORD_ROW_HEIGHT && e.x >= KEYBOARD_WIDTH) {
+    if (showChordRow_ && e.y < CHORD_ROW_HEIGHT && e.x >= leftPanelWidth) {
         // Forward horizontal scrolling in chord row area
         if (timeRuler_->onScrollRequested) {
             float delta = (wheel.deltaX != 0.0f) ? wheel.deltaX : wheel.deltaY;
@@ -299,7 +383,7 @@ void PianoRollContent::mouseWheelMove(const juce::MouseEvent& e,
 
     // Check if mouse is over the time ruler area
     int rulerTop = showChordRow_ ? CHORD_ROW_HEIGHT : 0;
-    if (e.y >= rulerTop && e.y < headerHeight && e.x >= KEYBOARD_WIDTH) {
+    if (e.y >= rulerTop && e.y < headerHeight && e.x >= leftPanelWidth) {
         // Forward to time ruler for horizontal scrolling
         if (timeRuler_->onScrollRequested) {
             float delta = (wheel.deltaX != 0.0f) ? wheel.deltaX : wheel.deltaY;
@@ -312,7 +396,7 @@ void PianoRollContent::mouseWheelMove(const juce::MouseEvent& e,
     }
 
     // Check if mouse is over the keyboard area (left side, below header)
-    if (e.x < KEYBOARD_WIDTH && e.y >= headerHeight) {
+    if (e.x >= SIDEBAR_WIDTH && e.x < leftPanelWidth && e.y >= headerHeight) {
         // Forward to keyboard for vertical scrolling
         if (keyboard_->onScrollRequested) {
             int scrollAmount = static_cast<int>(-wheel.deltaY * 100.0f);
@@ -329,7 +413,7 @@ void PianoRollContent::mouseWheelMove(const juce::MouseEvent& e,
         double zoomFactor = 1.0 + (wheel.deltaY * 0.1);
 
         // Calculate anchor point - where in the content the mouse is pointing
-        int mouseXInContent = e.x - KEYBOARD_WIDTH + viewport_->getViewPositionX();
+        int mouseXInContent = e.x - leftPanelWidth + viewport_->getViewPositionX();
         double anchorBeat =
             static_cast<double>(mouseXInContent - GRID_LEFT_PADDING) / horizontalZoom_;
 
@@ -347,7 +431,7 @@ void PianoRollContent::mouseWheelMove(const juce::MouseEvent& e,
 
             // Adjust scroll position to keep anchor point under mouse
             int newAnchorX = static_cast<int>(anchorBeat * horizontalZoom_) + GRID_LEFT_PADDING;
-            int newScrollX = newAnchorX - (e.x - KEYBOARD_WIDTH);
+            int newScrollX = newAnchorX - (e.x - leftPanelWidth);
             newScrollX = juce::jmax(0, newScrollX);
             viewport_->setViewPosition(newScrollX, viewport_->getViewPositionY());
         }
@@ -483,6 +567,7 @@ void PianoRollContent::setRelativeTimeMode(bool relative) {
         timeModeButton_->setToggleState(relative, juce::dontSendNotification);
         updateGridSize();  // Grid size changes between modes
         updateTimeRuler();
+        updateVelocityLane();
 
         // In ABS mode, scroll to show bar 1 at the left
         // In REL mode, reset scroll to show the start of the clip
@@ -498,6 +583,15 @@ void PianoRollContent::setChordRowVisible(bool visible) {
     }
 }
 
+void PianoRollContent::setVelocityDrawerVisible(bool visible) {
+    if (velocityDrawerOpen_ != visible) {
+        velocityDrawerOpen_ = visible;
+        updateVelocityLane();
+        resized();
+        repaint();
+    }
+}
+
 void PianoRollContent::onActivated() {
     magda::ClipId selectedClip = magda::ClipManager::getInstance().getSelectedClip();
     if (selectedClip != magda::INVALID_CLIP_ID) {
@@ -507,6 +601,7 @@ void PianoRollContent::onActivated() {
             gridComponent_->setClip(selectedClip);
             updateGridSize();
             updateTimeRuler();
+            updateVelocityLane();
         }
     }
     repaint();
@@ -526,10 +621,12 @@ void PianoRollContent::clipsChanged() {
         if (!clip) {
             editingClipId_ = magda::INVALID_CLIP_ID;
             gridComponent_->setClip(magda::INVALID_CLIP_ID);
+            velocityLane_->setClip(magda::INVALID_CLIP_ID);
         }
     }
     gridComponent_->refreshNotes();
     updateTimeRuler();
+    updateVelocityLane();
     repaint();
 }
 
@@ -538,6 +635,7 @@ void PianoRollContent::clipPropertyChanged(magda::ClipId clipId) {
         gridComponent_->refreshNotes();
         updateGridSize();
         updateTimeRuler();
+        updateVelocityLane();
         repaint();
     }
 }
@@ -550,6 +648,7 @@ void PianoRollContent::clipSelectionChanged(magda::ClipId clipId) {
             gridComponent_->setClip(clipId);
             updateGridSize();
             updateTimeRuler();
+            updateVelocityLane();
 
             // Reset scroll to bar 1 when selecting a new clip
             viewport_->setViewPosition(0, viewport_->getViewPositionY());
@@ -593,12 +692,24 @@ void PianoRollContent::setClip(magda::ClipId clipId) {
         gridComponent_->setClip(clipId);
         updateGridSize();
         updateTimeRuler();
+        updateVelocityLane();
 
         // Reset scroll to bar 1 when setting a new clip
         viewport_->setViewPosition(0, viewport_->getViewPositionY());
 
         repaint();
     }
+}
+
+void PianoRollContent::drawSidebar(juce::Graphics& g, juce::Rectangle<int> area) {
+    // Draw sidebar background
+    g.setColour(DarkTheme::getColour(DarkTheme::BACKGROUND_ALT));
+    g.fillRect(area);
+
+    // Draw right separator line
+    g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
+    g.drawVerticalLine(area.getRight() - 1, static_cast<float>(area.getY()),
+                       static_cast<float>(area.getBottom()));
 }
 
 void PianoRollContent::drawChordRow(juce::Graphics& g, juce::Rectangle<int> area) {
@@ -658,6 +769,59 @@ void PianoRollContent::drawChordRow(juce::Graphics& g, juce::Rectangle<int> area
             g.drawText(mockChords[i], blockBounds, juce::Justification::centred, true);
         }
     }
+}
+
+void PianoRollContent::drawVelocityHeader(juce::Graphics& g, juce::Rectangle<int> area) {
+    // Draw header background
+    g.setColour(DarkTheme::getColour(DarkTheme::BACKGROUND_ALT));
+    g.fillRect(area);
+
+    // Draw top border
+    g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
+    g.drawHorizontalLine(area.getY(), static_cast<float>(area.getX()),
+                         static_cast<float>(area.getRight()));
+
+    // Draw "Velocity" label in keyboard area
+    auto labelArea = area.removeFromLeft(KEYBOARD_WIDTH);
+    g.setColour(DarkTheme::getColour(DarkTheme::TEXT_SECONDARY));
+    g.setFont(magda::FontManager::getInstance().getUIFont(11.0f));
+    g.drawText("Velocity", labelArea.reduced(4, 0), juce::Justification::centredLeft, true);
+}
+
+void PianoRollContent::updateVelocityLane() {
+    if (!velocityLane_)
+        return;
+
+    // Update clip reference
+    velocityLane_->setClip(editingClipId_);
+
+    // Update zoom and mode settings
+    velocityLane_->setPixelsPerBeat(horizontalZoom_);
+    velocityLane_->setRelativeMode(relativeTimeMode_);
+
+    // Get clip start beats for absolute mode
+    const auto* clip = editingClipId_ != magda::INVALID_CLIP_ID
+                           ? magda::ClipManager::getInstance().getClip(editingClipId_)
+                           : nullptr;
+
+    if (clip) {
+        double tempo = 120.0;
+        if (auto* controller = magda::TimelineController::getCurrent()) {
+            tempo = controller->getState().tempo.bpm;
+        }
+        double secondsPerBeat = 60.0 / tempo;
+        double clipStartBeats = clip->startTime / secondsPerBeat;
+        velocityLane_->setClipStartBeats(clipStartBeats);
+    } else {
+        velocityLane_->setClipStartBeats(0.0);
+    }
+
+    // Sync scroll offset
+    if (viewport_) {
+        velocityLane_->setScrollOffset(viewport_->getViewPositionX());
+    }
+
+    velocityLane_->refreshNotes();
 }
 
 }  // namespace magda::daw::ui

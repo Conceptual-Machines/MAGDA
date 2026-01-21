@@ -267,6 +267,121 @@ void SelectionManager::selectTimeRange(double startTime, double endTime,
 }
 
 // ============================================================================
+// Note Selection
+// ============================================================================
+
+void SelectionManager::selectNote(ClipId clipId, size_t noteIndex) {
+    bool typeChanged = selectionType_ != SelectionType::Note;
+
+    // Clear other selection types
+    selectedTrackId_ = INVALID_TRACK_ID;
+    selectedClipId_ = INVALID_CLIP_ID;
+    selectedClipIds_.clear();
+    timeRangeSelection_ = TimeRangeSelection{};
+
+    selectionType_ = SelectionType::Note;
+    noteSelection_.clipId = clipId;
+    noteSelection_.noteIndices.clear();
+    noteSelection_.noteIndices.push_back(noteIndex);
+
+    // Sync with managers (clear their selections)
+    TrackManager::getInstance().setSelectedTrack(INVALID_TRACK_ID);
+    ClipManager::getInstance().clearClipSelection();
+
+    if (typeChanged) {
+        notifySelectionTypeChanged(SelectionType::Note);
+    }
+    notifyNoteSelectionChanged(noteSelection_);
+}
+
+void SelectionManager::selectNotes(ClipId clipId, const std::vector<size_t>& noteIndices) {
+    if (noteIndices.empty()) {
+        clearSelection();
+        return;
+    }
+
+    if (noteIndices.size() == 1) {
+        selectNote(clipId, noteIndices[0]);
+        return;
+    }
+
+    bool typeChanged = selectionType_ != SelectionType::Note;
+
+    // Clear other selection types
+    selectedTrackId_ = INVALID_TRACK_ID;
+    selectedClipId_ = INVALID_CLIP_ID;
+    selectedClipIds_.clear();
+    timeRangeSelection_ = TimeRangeSelection{};
+
+    selectionType_ = SelectionType::Note;
+    noteSelection_.clipId = clipId;
+    noteSelection_.noteIndices = noteIndices;
+
+    // Sync with managers
+    TrackManager::getInstance().setSelectedTrack(INVALID_TRACK_ID);
+    ClipManager::getInstance().clearClipSelection();
+
+    if (typeChanged) {
+        notifySelectionTypeChanged(SelectionType::Note);
+    }
+    notifyNoteSelectionChanged(noteSelection_);
+}
+
+void SelectionManager::addNoteToSelection(ClipId clipId, size_t noteIndex) {
+    // If selecting a note from a different clip, start fresh
+    if (noteSelection_.clipId != clipId) {
+        selectNote(clipId, noteIndex);
+        return;
+    }
+
+    // Check if already selected
+    auto it =
+        std::find(noteSelection_.noteIndices.begin(), noteSelection_.noteIndices.end(), noteIndex);
+    if (it != noteSelection_.noteIndices.end()) {
+        return;  // Already selected
+    }
+
+    // Ensure we're in note selection mode
+    if (selectionType_ != SelectionType::Note) {
+        selectNote(clipId, noteIndex);
+        return;
+    }
+
+    noteSelection_.noteIndices.push_back(noteIndex);
+    notifyNoteSelectionChanged(noteSelection_);
+}
+
+void SelectionManager::removeNoteFromSelection(size_t noteIndex) {
+    auto it =
+        std::find(noteSelection_.noteIndices.begin(), noteSelection_.noteIndices.end(), noteIndex);
+    if (it != noteSelection_.noteIndices.end()) {
+        noteSelection_.noteIndices.erase(it);
+
+        if (noteSelection_.noteIndices.empty()) {
+            clearSelection();
+        } else {
+            notifyNoteSelectionChanged(noteSelection_);
+        }
+    }
+}
+
+void SelectionManager::toggleNoteSelection(ClipId clipId, size_t noteIndex) {
+    if (isNoteSelected(clipId, noteIndex)) {
+        removeNoteFromSelection(noteIndex);
+    } else {
+        addNoteToSelection(clipId, noteIndex);
+    }
+}
+
+bool SelectionManager::isNoteSelected(ClipId clipId, size_t noteIndex) const {
+    if (selectionType_ != SelectionType::Note || noteSelection_.clipId != clipId) {
+        return false;
+    }
+    return std::find(noteSelection_.noteIndices.begin(), noteSelection_.noteIndices.end(),
+                     noteIndex) != noteSelection_.noteIndices.end();
+}
+
+// ============================================================================
 // Clear
 // ============================================================================
 
@@ -281,6 +396,7 @@ void SelectionManager::clearSelection() {
     anchorClipId_ = INVALID_CLIP_ID;
     selectedClipIds_.clear();
     timeRangeSelection_ = TimeRangeSelection{};
+    noteSelection_ = NoteSelection{};
 
     // Sync with managers
     TrackManager::getInstance().setSelectedTrack(INVALID_TRACK_ID);
@@ -334,6 +450,12 @@ void SelectionManager::notifyMultiClipSelectionChanged(const std::unordered_set<
 void SelectionManager::notifyTimeRangeSelectionChanged(const TimeRangeSelection& selection) {
     for (auto* listener : listeners_) {
         listener->timeRangeSelectionChanged(selection);
+    }
+}
+
+void SelectionManager::notifyNoteSelectionChanged(const NoteSelection& selection) {
+    for (auto* listener : listeners_) {
+        listener->noteSelectionChanged(selection);
     }
 }
 

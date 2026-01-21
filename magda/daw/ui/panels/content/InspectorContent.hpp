@@ -56,6 +56,7 @@ class InspectorContent : public PanelContent,
 
     // SelectionManagerListener
     void selectionTypeChanged(magda::SelectionType newType) override;
+    void noteSelectionChanged(const magda::NoteSelection& selection) override;
 
   private:
     juce::Label titleLabel_;
@@ -68,6 +69,7 @@ class InspectorContent : public PanelContent,
     magda::SelectionType currentSelectionType_ = magda::SelectionType::None;
     magda::TrackId selectedTrackId_ = magda::INVALID_TRACK_ID;
     magda::ClipId selectedClipId_ = magda::INVALID_CLIP_ID;
+    magda::NoteSelection noteSelection_;
 
     // Track properties section
     juce::Label trackNameLabel_;
@@ -107,10 +109,23 @@ class InspectorContent : public PanelContent,
     juce::Label clipTypeLabel_;
     juce::Label clipTypeValue_;
 
+    // Note properties section
+    juce::Label noteCountLabel_;
+    juce::Label notePitchLabel_;
+    std::unique_ptr<magda::DraggableValueLabel> notePitchValue_;
+    juce::Label noteVelocityLabel_;
+    std::unique_ptr<magda::DraggableValueLabel> noteVelocityValue_;
+    juce::Label noteStartLabel_;
+    juce::Label noteStartValue_;
+    juce::Label noteLengthLabel_;
+    std::unique_ptr<magda::DraggableValueLabel> noteLengthValue_;
+
     void updateFromSelectedTrack();
     void updateFromSelectedClip();
+    void updateFromSelectedNotes();
     void showTrackControls(bool show);
     void showClipControls(bool show);
+    void showNoteControls(bool show);
     void updateSelectionDisplay();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(InspectorContent)

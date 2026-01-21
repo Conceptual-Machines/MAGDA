@@ -16,7 +16,28 @@ enum class SelectionType {
     Track,      // Track selected (for mixer/inspector)
     Clip,       // Single clip selected (backward compat)
     MultiClip,  // Multiple clips selected
-    TimeRange   // Time range selected (for operations)
+    TimeRange,  // Time range selected (for operations)
+    Note        // MIDI note(s) selected in piano roll
+};
+
+/**
+ * @brief MIDI note selection data
+ */
+struct NoteSelection {
+    ClipId clipId = INVALID_CLIP_ID;
+    std::vector<size_t> noteIndices;  // Indices into clip's midiNotes vector
+
+    bool isValid() const {
+        return clipId != INVALID_CLIP_ID && !noteIndices.empty();
+    }
+
+    bool isSingleNote() const {
+        return noteIndices.size() == 1;
+    }
+
+    size_t getCount() const {
+        return noteIndices.size();
+    }
 };
 
 /**
@@ -49,6 +70,7 @@ class SelectionManagerListener {
     virtual void multiClipSelectionChanged(
         [[maybe_unused]] const std::unordered_set<ClipId>& clipIds) {}
     virtual void timeRangeSelectionChanged([[maybe_unused]] const TimeRangeSelection& selection) {}
+    virtual void noteSelectionChanged([[maybe_unused]] const NoteSelection& selection) {}
 };
 
 /**
@@ -188,6 +210,54 @@ class SelectionManager {
     }
 
     // ========================================================================
+    // Note Selection
+    // ========================================================================
+
+    /**
+     * @brief Select a single MIDI note (clears other selection types)
+     */
+    void selectNote(ClipId clipId, size_t noteIndex);
+
+    /**
+     * @brief Select multiple MIDI notes in the same clip
+     */
+    void selectNotes(ClipId clipId, const std::vector<size_t>& noteIndices);
+
+    /**
+     * @brief Add a note to the current selection
+     */
+    void addNoteToSelection(ClipId clipId, size_t noteIndex);
+
+    /**
+     * @brief Remove a note from the current selection
+     */
+    void removeNoteFromSelection(size_t noteIndex);
+
+    /**
+     * @brief Toggle a note's selection state
+     */
+    void toggleNoteSelection(ClipId clipId, size_t noteIndex);
+
+    /**
+     * @brief Get the current note selection
+     */
+    const NoteSelection& getNoteSelection() const {
+        return noteSelection_;
+    }
+
+    /**
+     * @brief Check if a specific note is selected
+     */
+    bool isNoteSelected(ClipId clipId, size_t noteIndex) const;
+
+    /**
+     * @brief Check if there's a valid note selection
+     */
+    bool hasNoteSelection() const {
+        return selectionType_ == SelectionType::Note && noteSelection_.isValid();
+    }
+
+    // ========================================================================
     // Clear
     // ========================================================================
 
@@ -213,6 +283,7 @@ class SelectionManager {
     ClipId anchorClipId_ = INVALID_CLIP_ID;       // Anchor for Shift+click range selection
     std::unordered_set<ClipId> selectedClipIds_;  // For multi-clip selection
     TimeRangeSelection timeRangeSelection_;
+    NoteSelection noteSelection_;
 
     std::vector<SelectionManagerListener*> listeners_;
 
@@ -221,6 +292,7 @@ class SelectionManager {
     void notifyClipSelectionChanged(ClipId clipId);
     void notifyMultiClipSelectionChanged(const std::unordered_set<ClipId>& clipIds);
     void notifyTimeRangeSelectionChanged(const TimeRangeSelection& selection);
+    void notifyNoteSelectionChanged(const NoteSelection& selection);
 };
 
 }  // namespace magda

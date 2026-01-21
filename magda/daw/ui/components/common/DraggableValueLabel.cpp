@@ -64,6 +64,25 @@ juce::String DraggableValueLabel::formatValue(double val) const {
             return juce::String(pct) + "%";
         }
 
+        case Format::Integer: {
+            return juce::String(static_cast<int>(std::round(val)));
+        }
+
+        case Format::MidiNote: {
+            // Convert MIDI note number to note name (e.g., 60 -> C4)
+            int noteNumber = static_cast<int>(std::round(val));
+            noteNumber = juce::jlimit(0, 127, noteNumber);
+            static const char* noteNames[] = {"C",  "C#", "D",  "D#", "E",  "F",
+                                              "F#", "G",  "G#", "A",  "A#", "B"};
+            int octave = (noteNumber / 12) - 1;
+            int noteIndex = noteNumber % 12;
+            return juce::String(noteNames[noteIndex]) + juce::String(octave);
+        }
+
+        case Format::Beats: {
+            return juce::String(val, 2) + " beats";
+        }
+
         case Format::Raw:
         default:
             return juce::String(val, decimalPlaces_) + suffix_;
@@ -108,6 +127,61 @@ double DraggableValueLabel::parseValue(const juce::String& text) const {
                 trimmed = trimmed.dropLastCharacters(1).trim();
             }
             return trimmed.getDoubleValue() / 100.0;
+        }
+
+        case Format::Integer: {
+            return std::round(trimmed.getDoubleValue());
+        }
+
+        case Format::MidiNote: {
+            // Parse note name (e.g., "C4", "D#5") back to MIDI note number
+            if (trimmed.isEmpty()) {
+                return 60.0;  // Default to middle C
+            }
+
+            // Try to parse as a MIDI note name
+            static const char* noteNames[] = {"c",  "c#", "d",  "d#", "e",  "f",
+                                              "f#", "g",  "g#", "a",  "a#", "b"};
+            static const char* altNoteNames[] = {"c",  "db", "d",  "eb", "e",  "f",
+                                                 "gb", "g",  "ab", "a",  "bb", "b"};
+
+            int noteIndex = -1;
+            int charsParsed = 0;
+
+            // Check for sharp/flat note names first (2 chars)
+            for (int i = 0; i < 12; ++i) {
+                juce::String noteName(noteNames[i]);
+                juce::String altName(altNoteNames[i]);
+                if (trimmed.startsWith(noteName)) {
+                    noteIndex = i;
+                    charsParsed = noteName.length();
+                    break;
+                }
+                if (trimmed.startsWith(altName)) {
+                    noteIndex = i;
+                    charsParsed = altName.length();
+                    break;
+                }
+            }
+
+            if (noteIndex < 0) {
+                // Try parsing as a number
+                return trimmed.getDoubleValue();
+            }
+
+            // Parse octave
+            juce::String octaveStr = trimmed.substring(charsParsed);
+            int octave = octaveStr.getIntValue();
+
+            return static_cast<double>((octave + 1) * 12 + noteIndex);
+        }
+
+        case Format::Beats: {
+            // Remove " beats" suffix if present
+            if (trimmed.endsWith("beats")) {
+                trimmed = trimmed.dropLastCharacters(5).trim();
+            }
+            return trimmed.getDoubleValue();
         }
 
         case Format::Raw:

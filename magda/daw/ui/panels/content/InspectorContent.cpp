@@ -4,6 +4,7 @@
 #include "../../themes/DarkTheme.hpp"
 #include "../../themes/FontManager.hpp"
 #include "../../utils/TimelineUtils.hpp"
+#include "core/MidiNoteCommands.hpp"
 
 namespace magda::daw::ui {
 
@@ -313,6 +314,86 @@ InspectorContent::InspectorContent() {
     };
     addChildComponent(clipLoopLengthSlider_);
 
+    // ========================================================================
+    // Note properties section
+    // ========================================================================
+
+    // Note count (shown when multiple notes selected)
+    noteCountLabel_.setFont(FontManager::getInstance().getUIFont(12.0f));
+    noteCountLabel_.setColour(juce::Label::textColourId, DarkTheme::getTextColour());
+    addChildComponent(noteCountLabel_);
+
+    // Note pitch
+    notePitchLabel_.setText("Pitch", juce::dontSendNotification);
+    notePitchLabel_.setFont(FontManager::getInstance().getUIFont(11.0f));
+    notePitchLabel_.setColour(juce::Label::textColourId, DarkTheme::getSecondaryTextColour());
+    addChildComponent(notePitchLabel_);
+
+    notePitchValue_ =
+        std::make_unique<magda::DraggableValueLabel>(magda::DraggableValueLabel::Format::MidiNote);
+    notePitchValue_->setRange(0.0, 127.0, 60.0);  // MIDI note range
+    notePitchValue_->onValueChange = [this]() {
+        if (noteSelection_.isValid() && noteSelection_.isSingleNote()) {
+            const auto* clip = magda::ClipManager::getInstance().getClip(noteSelection_.clipId);
+            if (clip && noteSelection_.noteIndices[0] < clip->midiNotes.size()) {
+                const auto& note = clip->midiNotes[noteSelection_.noteIndices[0]];
+                int newPitch = static_cast<int>(notePitchValue_->getValue());
+                auto cmd = std::make_unique<magda::MoveMidiNoteCommand>(
+                    noteSelection_.clipId, noteSelection_.noteIndices[0], note.startBeat, newPitch);
+                magda::UndoManager::getInstance().executeCommand(std::move(cmd));
+            }
+        }
+    };
+    addChildComponent(*notePitchValue_);
+
+    // Note velocity
+    noteVelocityLabel_.setText("Velocity", juce::dontSendNotification);
+    noteVelocityLabel_.setFont(FontManager::getInstance().getUIFont(11.0f));
+    noteVelocityLabel_.setColour(juce::Label::textColourId, DarkTheme::getSecondaryTextColour());
+    addChildComponent(noteVelocityLabel_);
+
+    noteVelocityValue_ =
+        std::make_unique<magda::DraggableValueLabel>(magda::DraggableValueLabel::Format::Integer);
+    noteVelocityValue_->setRange(1.0, 127.0, 100.0);
+    noteVelocityValue_->onValueChange = [this]() {
+        if (noteSelection_.isValid() && noteSelection_.isSingleNote()) {
+            int newVelocity = static_cast<int>(noteVelocityValue_->getValue());
+            auto cmd = std::make_unique<magda::SetMidiNoteVelocityCommand>(
+                noteSelection_.clipId, noteSelection_.noteIndices[0], newVelocity);
+            magda::UndoManager::getInstance().executeCommand(std::move(cmd));
+        }
+    };
+    addChildComponent(*noteVelocityValue_);
+
+    // Note start
+    noteStartLabel_.setText("Start", juce::dontSendNotification);
+    noteStartLabel_.setFont(FontManager::getInstance().getUIFont(11.0f));
+    noteStartLabel_.setColour(juce::Label::textColourId, DarkTheme::getSecondaryTextColour());
+    addChildComponent(noteStartLabel_);
+
+    noteStartValue_.setFont(FontManager::getInstance().getUIFont(12.0f));
+    noteStartValue_.setColour(juce::Label::textColourId, DarkTheme::getTextColour());
+    addChildComponent(noteStartValue_);
+
+    // Note length
+    noteLengthLabel_.setText("Length", juce::dontSendNotification);
+    noteLengthLabel_.setFont(FontManager::getInstance().getUIFont(11.0f));
+    noteLengthLabel_.setColour(juce::Label::textColourId, DarkTheme::getSecondaryTextColour());
+    addChildComponent(noteLengthLabel_);
+
+    noteLengthValue_ =
+        std::make_unique<magda::DraggableValueLabel>(magda::DraggableValueLabel::Format::Beats);
+    noteLengthValue_->setRange(0.0625, 16.0, 1.0);  // 1/16 note to 16 beats
+    noteLengthValue_->onValueChange = [this]() {
+        if (noteSelection_.isValid() && noteSelection_.isSingleNote()) {
+            double newLength = noteLengthValue_->getValue();
+            auto cmd = std::make_unique<magda::ResizeMidiNoteCommand>(
+                noteSelection_.clipId, noteSelection_.noteIndices[0], newLength);
+            magda::UndoManager::getInstance().executeCommand(std::move(cmd));
+        }
+    };
+    addChildComponent(*noteLengthValue_);
+
     // Register as listeners
     magda::TrackManager::getInstance().addListener(this);
     magda::ClipManager::getInstance().addListener(this);
@@ -439,6 +520,32 @@ void InspectorContent::resized() {
         // Loop length
         clipLoopLengthLabel_.setBounds(bounds.removeFromTop(16));
         clipLoopLengthSlider_.setBounds(bounds.removeFromTop(24));
+    } else if (currentSelectionType_ == magda::SelectionType::Note) {
+        // Note properties layout
+        if (noteSelection_.getCount() > 1) {
+            // Multiple notes selected - show count
+            noteCountLabel_.setBounds(bounds.removeFromTop(24));
+            bounds.removeFromTop(12);
+        }
+
+        // Pitch
+        notePitchLabel_.setBounds(bounds.removeFromTop(16));
+        notePitchValue_->setBounds(bounds.removeFromTop(24));
+        bounds.removeFromTop(12);
+
+        // Velocity
+        noteVelocityLabel_.setBounds(bounds.removeFromTop(16));
+        noteVelocityValue_->setBounds(bounds.removeFromTop(24));
+        bounds.removeFromTop(12);
+
+        // Start (read-only for now)
+        noteStartLabel_.setBounds(bounds.removeFromTop(16));
+        noteStartValue_.setBounds(bounds.removeFromTop(20));
+        bounds.removeFromTop(12);
+
+        // Length
+        noteLengthLabel_.setBounds(bounds.removeFromTop(16));
+        noteLengthValue_->setBounds(bounds.removeFromTop(24));
     }
 }
 
@@ -522,20 +629,36 @@ void InspectorContent::selectionTypeChanged(magda::SelectionType newType) {
         case magda::SelectionType::Track:
             selectedTrackId_ = magda::SelectionManager::getInstance().getSelectedTrack();
             selectedClipId_ = magda::INVALID_CLIP_ID;
+            noteSelection_ = magda::NoteSelection{};
             break;
 
         case magda::SelectionType::Clip:
             selectedClipId_ = magda::SelectionManager::getInstance().getSelectedClip();
             selectedTrackId_ = magda::INVALID_TRACK_ID;
+            noteSelection_ = magda::NoteSelection{};
+            break;
+
+        case magda::SelectionType::Note:
+            noteSelection_ = magda::SelectionManager::getInstance().getNoteSelection();
+            selectedTrackId_ = magda::INVALID_TRACK_ID;
+            selectedClipId_ = magda::INVALID_CLIP_ID;
             break;
 
         default:
             selectedTrackId_ = magda::INVALID_TRACK_ID;
             selectedClipId_ = magda::INVALID_CLIP_ID;
+            noteSelection_ = magda::NoteSelection{};
             break;
     }
 
     updateSelectionDisplay();
+}
+
+void InspectorContent::noteSelectionChanged(const magda::NoteSelection& selection) {
+    if (currentSelectionType_ == magda::SelectionType::Note) {
+        noteSelection_ = selection;
+        updateFromSelectedNotes();
+    }
 }
 
 // ============================================================================
@@ -548,17 +671,20 @@ void InspectorContent::updateSelectionDisplay() {
         case magda::SelectionType::TimeRange:
             showTrackControls(false);
             showClipControls(false);
+            showNoteControls(false);
             noSelectionLabel_.setVisible(true);
             break;
 
         case magda::SelectionType::Track:
             showClipControls(false);
+            showNoteControls(false);
             noSelectionLabel_.setVisible(false);
             updateFromSelectedTrack();
             break;
 
         case magda::SelectionType::Clip:
             showTrackControls(false);
+            showNoteControls(false);
             noSelectionLabel_.setVisible(false);
             updateFromSelectedClip();
             break;
@@ -567,8 +693,16 @@ void InspectorContent::updateSelectionDisplay() {
             // For multi-clip selection, show "Multiple clips selected" or similar
             showTrackControls(false);
             showClipControls(false);
+            showNoteControls(false);
             noSelectionLabel_.setText("Multiple clips selected", juce::dontSendNotification);
             noSelectionLabel_.setVisible(true);
+            break;
+
+        case magda::SelectionType::Note:
+            showTrackControls(false);
+            showClipControls(false);
+            noSelectionLabel_.setVisible(false);
+            updateFromSelectedNotes();
             break;
     }
 
@@ -695,6 +829,79 @@ void InspectorContent::showClipControls(bool show) {
     clipLoopToggle_.setVisible(show);
     clipLoopLengthLabel_.setVisible(show);
     clipLoopLengthSlider_.setVisible(show);
+}
+
+void InspectorContent::showNoteControls(bool show) {
+    noteCountLabel_.setVisible(show && noteSelection_.getCount() > 1);
+    notePitchLabel_.setVisible(show);
+    notePitchValue_->setVisible(show);
+    noteVelocityLabel_.setVisible(show);
+    noteVelocityValue_->setVisible(show);
+    noteStartLabel_.setVisible(show);
+    noteStartValue_.setVisible(show);
+    noteLengthLabel_.setVisible(show);
+    noteLengthValue_->setVisible(show);
+}
+
+void InspectorContent::updateFromSelectedNotes() {
+    if (!noteSelection_.isValid()) {
+        showNoteControls(false);
+        noSelectionLabel_.setVisible(true);
+        return;
+    }
+
+    const auto* clip = magda::ClipManager::getInstance().getClip(noteSelection_.clipId);
+    if (!clip || clip->type != magda::ClipType::MIDI) {
+        showNoteControls(false);
+        noSelectionLabel_.setVisible(true);
+        return;
+    }
+
+    // Get tempo info
+    double bpm = 120.0;
+    if (timelineController_) {
+        const auto& state = timelineController_->getState();
+        bpm = state.tempo.bpm;
+    }
+
+    if (noteSelection_.isSingleNote()) {
+        // Single note - show editable properties
+        size_t noteIndex = noteSelection_.noteIndices[0];
+        if (noteIndex < clip->midiNotes.size()) {
+            const auto& note = clip->midiNotes[noteIndex];
+
+            notePitchValue_->setValue(note.noteNumber, juce::dontSendNotification);
+            noteVelocityValue_->setValue(note.velocity, juce::dontSendNotification);
+
+            // Format start as beats
+            juce::String startStr = juce::String(note.startBeat, 2) + " beats";
+            noteStartValue_.setText(startStr, juce::dontSendNotification);
+
+            noteLengthValue_->setValue(note.lengthBeats, juce::dontSendNotification);
+        }
+    } else {
+        // Multiple notes - show count and common properties
+        juce::String countStr = juce::String(noteSelection_.getCount()) + " notes selected";
+        noteCountLabel_.setText(countStr, juce::dontSendNotification);
+
+        // For multiple notes, show the first note's values (or could show average/common)
+        if (!noteSelection_.noteIndices.empty()) {
+            size_t firstIndex = noteSelection_.noteIndices[0];
+            if (firstIndex < clip->midiNotes.size()) {
+                const auto& note = clip->midiNotes[firstIndex];
+                notePitchValue_->setValue(note.noteNumber, juce::dontSendNotification);
+                noteVelocityValue_->setValue(note.velocity, juce::dontSendNotification);
+                noteStartValue_.setText("--", juce::dontSendNotification);
+                noteLengthValue_->setValue(note.lengthBeats, juce::dontSendNotification);
+            }
+        }
+    }
+
+    showNoteControls(true);
+    noSelectionLabel_.setVisible(false);
+
+    resized();
+    repaint();
 }
 
 }  // namespace magda::daw::ui

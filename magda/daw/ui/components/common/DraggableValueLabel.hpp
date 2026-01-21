@@ -19,7 +19,10 @@ class DraggableValueLabel : public juce::Component {
         Decibels,    // -60.0 dB to +6.0 dB, shows "-inf" at minimum
         Pan,         // -1.0 to 1.0, shows "L100" to "C" to "R100"
         Percentage,  // 0.0 to 1.0, shows "0%" to "100%"
-        Raw          // Shows raw value with specified precision
+        Raw,         // Shows raw value with specified precision
+        Integer,     // Shows integer value
+        MidiNote,    // Shows MIDI note name (C4, D#5, etc.)
+        Beats        // Shows beats with decimal (1.00, 2.25, etc.)
     };
 
     DraggableValueLabel(Format format = Format::Raw);
