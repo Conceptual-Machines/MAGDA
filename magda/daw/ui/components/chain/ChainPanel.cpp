@@ -272,10 +272,50 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
 };
 
 //==============================================================================
+// DeviceSlotsContainer - Custom container that paints arrows between devices
+//==============================================================================
+class ChainPanel::DeviceSlotsContainer : public juce::Component {
+  public:
+    DeviceSlotsContainer() = default;
+
+    void setDeviceSlots(const std::vector<std::unique_ptr<DeviceSlotComponent>>* slots) {
+        deviceSlots_ = slots;
+    }
+
+    void paint(juce::Graphics& g) override {
+        if (!deviceSlots_)
+            return;
+
+        // Draw arrows between devices
+        int arrowY = getHeight() / 2;
+
+        for (size_t i = 0; i < deviceSlots_->size(); ++i) {
+            auto& slot = (*deviceSlots_)[i];
+            int x = slot->getRight();  // Arrow starts after the slot
+
+            // Draw arrow after each device
+            g.setColour(DarkTheme::getSecondaryTextColour());
+            int arrowStart = x + 4;
+            int arrowEnd = x + 12;
+            g.drawLine(static_cast<float>(arrowStart), static_cast<float>(arrowY),
+                       static_cast<float>(arrowEnd), static_cast<float>(arrowY), 1.5f);
+            // Arrow head
+            g.drawLine(static_cast<float>(arrowEnd - 4), static_cast<float>(arrowY - 3),
+                       static_cast<float>(arrowEnd), static_cast<float>(arrowY), 1.5f);
+            g.drawLine(static_cast<float>(arrowEnd - 4), static_cast<float>(arrowY + 3),
+                       static_cast<float>(arrowEnd), static_cast<float>(arrowY), 1.5f);
+        }
+    }
+
+  private:
+    const std::vector<std::unique_ptr<DeviceSlotComponent>>* deviceSlots_ = nullptr;
+};
+
+//==============================================================================
 // ChainPanel
 //==============================================================================
 
-ChainPanel::ChainPanel() {
+ChainPanel::ChainPanel() : deviceSlotsContainer_(std::make_unique<DeviceSlotsContainer>()) {
     // No header - controls are on the chain row
 
     // Listen for debug settings changes
@@ -290,18 +330,21 @@ ChainPanel::ChainPanel() {
     });
 
     onLayoutChanged = [this]() {
+        // Recalculate container size when a slot's size changes (e.g., panel toggle)
+        resized();
+        repaint();
         if (auto* parent = getParentComponent()) {
             parent->resized();
             parent->repaint();
         }
     };
 
-    // Viewport for device slots (horizontal scrolling)
-    deviceViewport_.setViewedComponent(&deviceSlotsContainer_, false);
+    // Viewport for horizontal scrolling of device slots
+    deviceViewport_.setViewedComponent(deviceSlotsContainer_.get(), false);
     deviceViewport_.setScrollBarsShown(false, true);  // Horizontal only
     addAndMakeVisible(deviceViewport_);
 
-    // Add device button
+    // Add device button (inside the container, after all slots)
     addDeviceButton_.setButtonText("+");
     addDeviceButton_.setColour(juce::TextButton::buttonColourId,
                                DarkTheme::getColour(DarkTheme::SURFACE));
@@ -309,69 +352,54 @@ ChainPanel::ChainPanel() {
                                DarkTheme::getSecondaryTextColour());
     addDeviceButton_.onClick = [this]() { onAddDeviceClicked(); };
     addDeviceButton_.setLookAndFeel(&SmallButtonLookAndFeel::getInstance());
-    deviceSlotsContainer_.addAndMakeVisible(addDeviceButton_);
+    deviceSlotsContainer_->addAndMakeVisible(addDeviceButton_);
 
     setVisible(false);
 }
 
 ChainPanel::~ChainPanel() = default;
 
-void ChainPanel::paintContent(juce::Graphics& g, juce::Rectangle<int> contentArea) {
-    if (!hasChain_)
-        return;
-
-    // Draw arrows between devices (use actual slot bounds for positioning)
-    int arrowWidth = 16;
-    int arrowY = contentArea.getCentreY();
-
-    for (size_t i = 0; i < deviceSlots_.size(); ++i) {
-        auto& slot = deviceSlots_[i];
-        int x = slot->getRight();  // Arrow starts after the slot
-
-        // Draw arrow after each device
-        g.setColour(DarkTheme::getSecondaryTextColour());
-        int arrowStart = x + 4;
-        int arrowEnd = x + arrowWidth - 4;
-        g.drawLine(static_cast<float>(arrowStart), static_cast<float>(arrowY),
-                   static_cast<float>(arrowEnd), static_cast<float>(arrowY), 1.5f);
-        // Arrow head
-        g.drawLine(static_cast<float>(arrowEnd - 4), static_cast<float>(arrowY - 3),
-                   static_cast<float>(arrowEnd), static_cast<float>(arrowY), 1.5f);
-        g.drawLine(static_cast<float>(arrowEnd - 4), static_cast<float>(arrowY + 3),
-                   static_cast<float>(arrowEnd), static_cast<float>(arrowY), 1.5f);
-    }
+void ChainPanel::paintContent(juce::Graphics& g, juce::Rectangle<int> /*contentArea*/) {
+    // Content is painted inside the viewport's container
+    juce::ignoreUnused(g);
 }
 
 void ChainPanel::resizedContent(juce::Rectangle<int> contentArea) {
-    // Viewport takes the full content area
+    // Viewport fills the content area
     deviceViewport_.setBounds(contentArea);
 
-    int arrowWidth = 16;
-    int x = 0;
+    // Calculate total width needed for all device slots
+    int totalWidth = calculateTotalContentWidth();
+    int containerHeight = contentArea.getHeight();
 
-    // Calculate total width needed for all slots
-    for (auto& slot : deviceSlots_) {
-        int slotWidth = slot->getPreferredWidth();
-        x += slotWidth + arrowWidth;
+    // Account for horizontal scrollbar if needed
+    if (totalWidth > contentArea.getWidth()) {
+        containerHeight = contentArea.getHeight() - 8;  // Space for scrollbar
     }
-    // Add space for the add button
-    x += 24;
 
-    // Set container size
-    int containerHeight =
-        contentArea.getHeight() - (deviceViewport_.isHorizontalScrollBarShown() ? 8 : 0);
-    deviceSlotsContainer_.setSize(juce::jmax(x, contentArea.getWidth()), containerHeight);
+    // Set container size and update device slots reference for arrow painting
+    deviceSlotsContainer_->setSize(totalWidth, containerHeight);
+    deviceSlotsContainer_->setDeviceSlots(&deviceSlots_);
 
-    // Layout slots inside container
-    x = 0;
+    // Layout device slots inside the container
+    int x = 0;
     for (auto& slot : deviceSlots_) {
         int slotWidth = slot->getPreferredWidth();
         slot->setBounds(x, 0, slotWidth, containerHeight);
-        x += slotWidth + arrowWidth;
+        x += slotWidth + ARROW_WIDTH;
     }
 
     // Add device button after all slots
     addDeviceButton_.setBounds(x, (containerHeight - 20) / 2, 20, 20);
+}
+
+int ChainPanel::calculateTotalContentWidth() const {
+    int totalWidth = 0;
+    for (const auto& slot : deviceSlots_) {
+        totalWidth += slot->getPreferredWidth() + ARROW_WIDTH;
+    }
+    totalWidth += 30;  // Space for add device button
+    return totalWidth;
 }
 
 void ChainPanel::showChain(magda::TrackId trackId, magda::RackId rackId, magda::ChainId chainId) {
@@ -450,10 +478,10 @@ void ChainPanel::rebuildDeviceSlots() {
         if (existingSlot) {
             newSlots.push_back(std::move(existingSlot));
         } else {
-            // Create new slot for new device
+            // Create new slot for new device - add to container
             auto slot =
                 std::make_unique<DeviceSlotComponent>(*this, trackId_, rackId_, chainId_, device);
-            deviceSlotsContainer_.addAndMakeVisible(*slot);
+            deviceSlotsContainer_->addAndMakeVisible(*slot);
             newSlots.push_back(std::move(slot));
         }
     }

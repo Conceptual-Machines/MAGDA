@@ -42,20 +42,24 @@ class ChainPanel : public NodeComponent {
 
   private:
     class DeviceSlotComponent;
+    class DeviceSlotsContainer;
 
     void rebuildDeviceSlots();
     void onAddDeviceClicked();
+    int calculateTotalContentWidth() const;
 
     magda::TrackId trackId_;
     magda::RackId rackId_;
     magda::ChainId chainId_;
     bool hasChain_ = false;
 
-    // Devices viewport
+    // Devices with viewport for horizontal scrolling
     juce::Viewport deviceViewport_;
-    juce::Component deviceSlotsContainer_;
+    std::unique_ptr<DeviceSlotsContainer> deviceSlotsContainer_;
     juce::TextButton addDeviceButton_;
     std::vector<std::unique_ptr<DeviceSlotComponent>> deviceSlots_;
+
+    static constexpr int ARROW_WIDTH = 16;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChainPanel)
 };
