@@ -103,11 +103,11 @@ void RackComponent::resizedContent(juce::Rectangle<int> contentArea) {
         chainPanelArea = contentArea.removeFromRight(CHAIN_PANEL_WIDTH);
     }
 
-    // "Chains:" label row with [+] button
+    // "Chains:" label row with [+] button next to it
     auto chainsLabelArea = contentArea.removeFromTop(CHAINS_LABEL_HEIGHT).reduced(2, 1);
-    addChainButton_.setBounds(chainsLabelArea.removeFromRight(16));
-    chainsLabelArea.removeFromRight(4);
-    chainsLabel_.setBounds(chainsLabelArea);
+    chainsLabel_.setBounds(chainsLabelArea.removeFromLeft(45));
+    chainsLabelArea.removeFromLeft(2);
+    addChainButton_.setBounds(chainsLabelArea.removeFromLeft(16));
 
     // Chain rows (below separator)
     contentArea.removeFromTop(2);  // Small gap after separator
