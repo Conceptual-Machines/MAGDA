@@ -14,6 +14,8 @@ namespace magda::daw::ui {
 //==============================================================================
 class TrackChainContent::DeviceSlotComponent : public juce::Component {
   public:
+    static constexpr int GAIN_SLIDER_WIDTH = 24;
+
     DeviceSlotComponent(TrackChainContent& owner, magda::TrackId trackId,
                         const magda::DeviceInfo& device)
         : owner_(owner), trackId_(trackId), device_(device) {
@@ -35,6 +37,60 @@ class TrackChainContent::DeviceSlotComponent : public juce::Component {
         };
         addAndMakeVisible(bypassButton_);
 
+        // Gain toggle button
+        gainToggleButton_.setButtonText("G");
+        gainToggleButton_.setColour(juce::TextButton::buttonColourId,
+                                    DarkTheme::getColour(DarkTheme::SURFACE));
+        gainToggleButton_.setColour(juce::TextButton::buttonOnColourId,
+                                    DarkTheme::getColour(DarkTheme::ACCENT_BLUE));
+        gainToggleButton_.setColour(juce::TextButton::textColourOffId,
+                                    DarkTheme::getSecondaryTextColour());
+        gainToggleButton_.setColour(juce::TextButton::textColourOnId,
+                                    DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
+        gainToggleButton_.setClickingTogglesState(true);
+        gainToggleButton_.setToggleState(gainSliderVisible_, juce::dontSendNotification);
+        gainToggleButton_.onClick = [this]() {
+            gainSliderVisible_ = gainToggleButton_.getToggleState();
+            gainSlider_.setVisible(gainSliderVisible_);
+            gainLabel_.setVisible(gainSliderVisible_);
+            resized();
+            repaint();
+        };
+        addAndMakeVisible(gainToggleButton_);
+
+        // Gain slider (vertical)
+        gainSlider_.setSliderStyle(juce::Slider::LinearVertical);
+        gainSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+        gainSlider_.setRange(-60.0, 6.0, 0.1);  // dB range
+        gainSlider_.setValue(0.0);              // Unity gain
+        gainSlider_.setDoubleClickReturnValue(true, 0.0);
+        gainSlider_.setColour(juce::Slider::trackColourId,
+                              DarkTheme::getColour(DarkTheme::SURFACE));
+        gainSlider_.setColour(juce::Slider::backgroundColourId,
+                              DarkTheme::getColour(DarkTheme::BACKGROUND));
+        gainSlider_.setColour(juce::Slider::thumbColourId,
+                              DarkTheme::getColour(DarkTheme::ACCENT_BLUE));
+        gainSlider_.onValueChange = [this]() {
+            // Update the gain label
+            double db = gainSlider_.getValue();
+            if (db <= -60.0) {
+                gainLabel_.setText("-inf", juce::dontSendNotification);
+            } else {
+                gainLabel_.setText(juce::String(db, 1), juce::dontSendNotification);
+            }
+            // TODO: Update device gain value in TrackManager
+        };
+        gainSlider_.setVisible(false);
+        addChildComponent(gainSlider_);
+
+        // Gain value label
+        gainLabel_.setText("0.0", juce::dontSendNotification);
+        gainLabel_.setFont(FontManager::getInstance().getUIFont(8.0f));
+        gainLabel_.setColour(juce::Label::textColourId, DarkTheme::getSecondaryTextColour());
+        gainLabel_.setJustificationType(juce::Justification::centred);
+        gainLabel_.setVisible(false);
+        addChildComponent(gainLabel_);
+
         // Delete button
         deleteButton_.setButtonText(juce::String::fromUTF8("✕"));
         deleteButton_.setColour(juce::TextButton::buttonColourId,
@@ -49,6 +105,11 @@ class TrackChainContent::DeviceSlotComponent : public juce::Component {
 
     void paint(juce::Graphics& g) override {
         auto bounds = getLocalBounds();
+
+        // If gain slider visible, account for it
+        if (gainSliderVisible_) {
+            bounds.removeFromRight(GAIN_SLIDER_WIDTH);
+        }
 
         // Background
         auto bgColour = device_.bypassed ? DarkTheme::getColour(DarkTheme::SURFACE).withAlpha(0.5f)
@@ -83,14 +144,37 @@ class TrackChainContent::DeviceSlotComponent : public juce::Component {
         g.setColour(DarkTheme::getSecondaryTextColour());
         g.setFont(FontManager::getInstance().getUIFont(8.0f));
         g.drawText(device_.getFormatString(), formatBounds, juce::Justification::centredRight);
+
+        // Draw gain slider background if visible
+        if (gainSliderVisible_) {
+            auto sliderArea = getLocalBounds().removeFromRight(GAIN_SLIDER_WIDTH);
+            g.setColour(DarkTheme::getColour(DarkTheme::BACKGROUND));
+            g.fillRoundedRectangle(sliderArea.toFloat(), 4.0f);
+            g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
+            g.drawRoundedRectangle(sliderArea.toFloat(), 4.0f, 1.0f);
+        }
     }
 
     void resized() override {
         auto bounds = getLocalBounds().reduced(4);
+
+        // Gain slider on the right if visible
+        if (gainSliderVisible_) {
+            auto sliderArea = bounds.removeFromRight(GAIN_SLIDER_WIDTH - 4);
+            gainLabel_.setBounds(sliderArea.removeFromBottom(12));
+            gainSlider_.setBounds(sliderArea.reduced(2, 4));
+        }
+
         auto buttonRow = bounds.removeFromTop(18);
 
         bypassButton_.setBounds(buttonRow.removeFromLeft(20));
+        buttonRow.removeFromLeft(2);
+        gainToggleButton_.setBounds(buttonRow.removeFromLeft(20));
         deleteButton_.setBounds(buttonRow.removeFromRight(20));
+    }
+
+    bool isGainSliderVisible() const {
+        return gainSliderVisible_;
     }
 
   private:
@@ -98,7 +182,11 @@ class TrackChainContent::DeviceSlotComponent : public juce::Component {
     magda::TrackId trackId_;
     magda::DeviceInfo device_;
     juce::TextButton bypassButton_;
+    juce::TextButton gainToggleButton_;
     juce::TextButton deleteButton_;
+    juce::Slider gainSlider_;
+    juce::Label gainLabel_;
+    bool gainSliderVisible_ = false;
 };
 
 // dB conversion helpers
