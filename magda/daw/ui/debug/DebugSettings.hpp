@@ -48,8 +48,8 @@ class DebugSettings {
   private:
     DebugSettings() = default;
 
-    int bottomPanelHeight_ = 200;
-    int deviceSlotWidth_ = 200;
+    int bottomPanelHeight_ = 315;
+    int deviceSlotWidth_ = 235;
 
     std::vector<Listener> listeners_;
 };
