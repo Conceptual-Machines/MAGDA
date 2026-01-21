@@ -336,7 +336,8 @@ class TrackChainContent::DeviceSlotComponent : public NodeComponent {
                                   juce::dontSendNotification);  // On = not bypassed
         onButton_->setNormalColor(DarkTheme::getColour(DarkTheme::STATUS_ERROR));
         onButton_->setActiveColor(juce::Colours::white);
-        onButton_->setActiveBackgroundColor(DarkTheme::getColour(DarkTheme::ACCENT_GREEN));
+        onButton_->setActiveBackgroundColor(
+            DarkTheme::getColour(DarkTheme::ACCENT_GREEN).darker(0.3f));
         onButton_->setActive(!device.bypassed);
         onButton_->onClick = [this]() {
             bool active = onButton_->getToggleState();

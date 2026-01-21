@@ -101,7 +101,7 @@ ChainRowComponent::ChainRowComponent(RackComponent& owner, magda::TrackId trackI
     onButton_->setToggleState(!chain.muted, juce::dontSendNotification);  // On = not bypassed
     onButton_->setNormalColor(DarkTheme::getColour(DarkTheme::STATUS_ERROR));
     onButton_->setActiveColor(juce::Colours::white);
-    onButton_->setActiveBackgroundColor(DarkTheme::getColour(DarkTheme::ACCENT_GREEN));
+    onButton_->setActiveBackgroundColor(DarkTheme::getColour(DarkTheme::ACCENT_GREEN).darker(0.3f));
     onButton_->setActive(!chain.muted);
     onButton_->onClick = [this]() {
         onButton_->setActive(onButton_->getToggleState());

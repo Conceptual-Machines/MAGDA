@@ -17,7 +17,8 @@ NodeComponent::NodeComponent() {
     bypassButton_->setClickingTogglesState(true);
     bypassButton_->setNormalColor(DarkTheme::getColour(DarkTheme::STATUS_ERROR));
     bypassButton_->setActiveColor(juce::Colours::white);
-    bypassButton_->setActiveBackgroundColor(DarkTheme::getColour(DarkTheme::ACCENT_GREEN));
+    bypassButton_->setActiveBackgroundColor(
+        DarkTheme::getColour(DarkTheme::ACCENT_GREEN).darker(0.3f));
     bypassButton_->setActive(true);  // Default: not bypassed = active
     bypassButton_->onClick = [this]() {
         bool bypassed = !bypassButton_->getToggleState();  // Toggle OFF = bypassed
