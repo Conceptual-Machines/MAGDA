@@ -6,6 +6,7 @@
 #include <memory>
 #include <vector>
 
+#include "core/SelectionManager.hpp"
 #include "ui/components/common/SvgButton.hpp"
 
 namespace magda::daw::ui {
@@ -28,10 +29,20 @@ namespace magda::daw::ui {
  * │ [M] [P]                                            [G]  │ ← Footer
  * └─────────────────────────────────────────────────────────┘
  */
-class NodeComponent : public juce::Component {
+class NodeComponent : public juce::Component, public magda::SelectionManagerListener {
   public:
     NodeComponent();
     ~NodeComponent() override;
+
+    // Set the unique path for this node (required for centralized selection)
+    void setNodePath(const magda::ChainNodePath& path);
+    const magda::ChainNodePath& getNodePath() const {
+        return nodePath_;
+    }
+
+    // SelectionManagerListener
+    void selectionTypeChanged(magda::SelectionType newType) override;
+    void chainNodeSelectionChanged(const magda::ChainNodePath& path) override;
 
     void paint(juce::Graphics& g) override;
     void resized() override;
@@ -53,6 +64,12 @@ class NodeComponent : public juce::Component {
         return gainPanelVisible_;
     }
 
+    // Selection
+    void setSelected(bool selected);
+    bool isSelected() const {
+        return selected_;
+    }
+
     // Callbacks
     std::function<void(bool)> onBypassChanged;
     std::function<void()> onDeleteClicked;
@@ -60,6 +77,11 @@ class NodeComponent : public juce::Component {
     std::function<void(bool)> onParamPanelToggled;
     std::function<void(bool)> onGainPanelToggled;
     std::function<void()> onLayoutChanged;  // Called when size changes (e.g., panel toggle)
+    std::function<void()> onSelected;       // Called when node is clicked/selected
+
+    // Mouse handling for selection
+    void mouseDown(const juce::MouseEvent& e) override;
+    void mouseUp(const juce::MouseEvent& e) override;
 
     // Get total width of left side panels (mods + params)
     int getLeftPanelsWidth() const;
@@ -121,6 +143,13 @@ class NodeComponent : public juce::Component {
     bool modPanelVisible_ = false;
     bool paramPanelVisible_ = false;
     bool gainPanelVisible_ = false;
+
+    // Selection state
+    bool selected_ = false;
+    bool mouseDownForSelection_ = false;
+
+    // Unique path for centralized selection
+    magda::ChainNodePath nodePath_;
 
     // Layout constants
     static constexpr int HEADER_HEIGHT = 20;

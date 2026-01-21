@@ -89,6 +89,12 @@ RackComponent::RackComponent(magda::TrackId trackId, const magda::RackInfo& rack
     // Create chain panel (initially hidden)
     chainPanel_ = std::make_unique<ChainPanel>();
     chainPanel_->onClose = [this]() { hideChainPanel(); };
+    chainPanel_->onDeviceSelected = [this](magda::DeviceId deviceId) {
+        // Forward device selection to parent
+        if (onDeviceSelected) {
+            onDeviceSelected(deviceId);
+        }
+    };
     addChildComponent(*chainPanel_);
 
     // Build chain rows
@@ -260,6 +266,20 @@ void RackComponent::rebuildChainRows() {
             row->onSelected = [this](ChainRowComponent& selectedRow) {
                 onChainRowSelected(selectedRow);
             };
+            // Connect mod/macro toggle callbacks to ChainPanel
+            auto chainId = chain.id;
+            row->onModToggled = [this, chainId](bool visible) {
+                // Only affect the ChainPanel if this chain is currently selected
+                if (chainPanel_ && selectedChainId_ == chainId) {
+                    chainPanel_->setModPanelVisible(visible);
+                }
+            };
+            row->onMacroToggled = [this, chainId](bool visible) {
+                // Only affect the ChainPanel if this chain is currently selected
+                if (chainPanel_ && selectedChainId_ == chainId) {
+                    chainPanel_->setMacroPanelVisible(visible);
+                }
+            };
             chainRowsContainer_.addAndMakeVisible(*row);
             newRows.push_back(std::move(row));
         }
@@ -289,6 +309,12 @@ void RackComponent::childLayoutChanged() {
 void RackComponent::clearChainSelection() {
     for (auto& row : chainRows_) {
         row->setSelected(false);
+    }
+}
+
+void RackComponent::clearDeviceSelection() {
+    if (chainPanel_) {
+        chainPanel_->clearDeviceSelection();
     }
 }
 

@@ -41,20 +41,8 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
                                                                      device_.id);
         };
 
-        onModPanelToggled = [this](bool /*visible*/) {
-            // Notify ChainPanel to recalculate container size
-            owner_.onDeviceLayoutChanged();
-        };
-
-        onParamPanelToggled = [this](bool /*visible*/) {
-            // Notify ChainPanel to recalculate container size
-            owner_.onDeviceLayoutChanged();
-        };
-
-        onGainPanelToggled = [this](bool /*visible*/) {
-            // Notify ChainPanel to recalculate container size
-            owner_.onDeviceLayoutChanged();
-        };
+        // Mod panel toggle updates layout
+        onModPanelToggled = [this](bool /*visible*/) { owner_.onDeviceLayoutChanged(); };
 
         onLayoutChanged = [this]() {
             // Notify ChainPanel to recalculate container size
@@ -79,22 +67,7 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
         };
         addAndMakeVisible(*modButton_);
 
-        // Macro button (toggle param panel) - link icon
-        macroButton_ = std::make_unique<magda::SvgButton>("Macro", BinaryData::link_bright_svg,
-                                                          BinaryData::link_bright_svgSize);
-        macroButton_->setClickingTogglesState(true);
-        macroButton_->setToggleState(paramPanelVisible_, juce::dontSendNotification);
-        macroButton_->setNormalColor(DarkTheme::getSecondaryTextColour());
-        macroButton_->setActiveColor(juce::Colours::white);
-        macroButton_->setActiveBackgroundColor(DarkTheme::getColour(DarkTheme::ACCENT_PURPLE));
-        macroButton_->setActive(paramPanelVisible_);
-        macroButton_->onClick = [this]() {
-            macroButton_->setActive(macroButton_->getToggleState());
-            paramPanelVisible_ = macroButton_->getToggleState();
-            if (onParamPanelToggled)
-                onParamPanelToggled(paramPanelVisible_);
-        };
-        addAndMakeVisible(*macroButton_);
+        // Note: No macro button on devices - params are shown inline
 
         // Gain text slider in header
         gainSlider_.setRange(-60.0, 12.0, 0.1);
@@ -151,6 +124,7 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
             paramLabels_[i]->setColour(juce::Label::textColourId,
                                        DarkTheme::getSecondaryTextColour());
             paramLabels_[i]->setJustificationType(juce::Justification::centredLeft);
+            paramLabels_[i]->setInterceptsMouseClicks(false, false);  // Pass through for selection
             addAndMakeVisible(*paramLabels_[i]);
 
             paramSliders_[i] = std::make_unique<TextSlider>(TextSlider::Format::Decimal);
@@ -182,15 +156,11 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
 
   protected:
     void resizedHeaderExtra(juce::Rectangle<int>& headerArea) override {
-        // Header layout: [M] [P] [Name...] [gain slider] [UI] [on]
+        // Header layout: [M] [Name...] [gain slider] [UI] [on]
         // Note: delete (X) is handled by NodeComponent on the right
 
         // Mod button on the left (before name)
         modButton_->setBounds(headerArea.removeFromLeft(BUTTON_SIZE));
-        headerArea.removeFromLeft(4);
-
-        // Macro button next to mod
-        macroButton_->setBounds(headerArea.removeFromLeft(BUTTON_SIZE));
         headerArea.removeFromLeft(4);
 
         // Power button on the right (before delete which is handled by parent)
@@ -211,6 +181,17 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
     // No footer for devices
     int getFooterHeight() const override {
         return 0;
+    }
+
+    // Devices show mod panel but not param/gain panels (params are inline)
+    int getModPanelWidth() const override {
+        return DEFAULT_PANEL_WIDTH;  // 60px
+    }
+    int getParamPanelWidth() const override {
+        return 0;  // Params shown inline
+    }
+    int getGainPanelWidth() const override {
+        return 0;  // Gain in header
     }
 
     void paintContent(juce::Graphics& g, juce::Rectangle<int> contentArea) override {
@@ -265,7 +246,6 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
 
     // Header controls
     std::unique_ptr<magda::SvgButton> modButton_;
-    std::unique_ptr<magda::SvgButton> macroButton_;
     TextSlider gainSlider_;
     std::unique_ptr<magda::SvgButton> uiButton_;
     std::unique_ptr<magda::SvgButton> onButton_;
@@ -281,7 +261,7 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
 //==============================================================================
 class ChainPanel::DeviceSlotsContainer : public juce::Component {
   public:
-    DeviceSlotsContainer() = default;
+    explicit DeviceSlotsContainer(ChainPanel& owner) : owner_(owner) {}
 
     void setDeviceSlots(const std::vector<std::unique_ptr<DeviceSlotComponent>>* slots) {
         deviceSlots_ = slots;
@@ -312,7 +292,13 @@ class ChainPanel::DeviceSlotsContainer : public juce::Component {
         }
     }
 
+    void mouseDown(const juce::MouseEvent& /*e*/) override {
+        // Click on empty area - clear device selection
+        owner_.clearDeviceSelection();
+    }
+
   private:
+    ChainPanel& owner_;
     const std::vector<std::unique_ptr<DeviceSlotComponent>>* deviceSlots_ = nullptr;
 };
 
@@ -320,7 +306,7 @@ class ChainPanel::DeviceSlotsContainer : public juce::Component {
 // ChainPanel
 //==============================================================================
 
-ChainPanel::ChainPanel() : deviceSlotsContainer_(std::make_unique<DeviceSlotsContainer>()) {
+ChainPanel::ChainPanel() : deviceSlotsContainer_(std::make_unique<DeviceSlotsContainer>(*this)) {
     // No header - controls are on the chain row
 
     // Listen for debug settings changes
@@ -364,13 +350,60 @@ ChainPanel::ChainPanel() : deviceSlotsContainer_(std::make_unique<DeviceSlotsCon
 
 ChainPanel::~ChainPanel() = default;
 
-void ChainPanel::paintContent(juce::Graphics& g, juce::Rectangle<int> /*contentArea*/) {
-    // Content is painted inside the viewport's container
-    juce::ignoreUnused(g);
+void ChainPanel::paintContent(juce::Graphics& g, juce::Rectangle<int> contentArea) {
+    // Paint mod/macro panel at bottom if visible
+    if (chainModPanelVisible_ || chainMacroPanelVisible_) {
+        auto panelArea = contentArea;
+        panelArea.removeFromTop(contentArea.getHeight() - MOD_MACRO_PANEL_HEIGHT);
+
+        // Background
+        g.setColour(DarkTheme::getColour(DarkTheme::BACKGROUND).brighter(0.02f));
+        g.fillRect(panelArea);
+
+        // Border on top
+        g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
+        g.drawHorizontalLine(panelArea.getY(), static_cast<float>(panelArea.getX()),
+                             static_cast<float>(panelArea.getRight()));
+
+        panelArea = panelArea.reduced(8, 4);
+
+        // Draw content based on which panel is visible
+        if (chainModPanelVisible_) {
+            g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
+            g.setFont(FontManager::getInstance().getUIFontBold(10.0f));
+            g.drawText("MODULATORS", panelArea.removeFromTop(16), juce::Justification::centredLeft);
+
+            g.setColour(DarkTheme::getSecondaryTextColour());
+            g.setFont(FontManager::getInstance().getUIFont(9.0f));
+            g.drawText("LFO, ADSR, Envelope Follower slots for this chain",
+                       panelArea.removeFromTop(14), juce::Justification::centredLeft);
+        }
+
+        if (chainMacroPanelVisible_) {
+            auto macroArea = panelArea;
+            if (chainModPanelVisible_) {
+                macroArea.removeFromTop(4);  // Gap after mod panel content
+            }
+
+            g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_PURPLE));
+            g.setFont(FontManager::getInstance().getUIFontBold(10.0f));
+            g.drawText("MACROS", macroArea.removeFromTop(16), juce::Justification::centredLeft);
+
+            g.setColour(DarkTheme::getSecondaryTextColour());
+            g.setFont(FontManager::getInstance().getUIFont(9.0f));
+            g.drawText("8 macro knobs for quick parameter access", macroArea.removeFromTop(14),
+                       juce::Justification::centredLeft);
+        }
+    }
 }
 
 void ChainPanel::resizedContent(juce::Rectangle<int> contentArea) {
-    // Viewport fills the content area
+    // Reserve space at bottom for mod/macro panel if visible
+    if (chainModPanelVisible_ || chainMacroPanelVisible_) {
+        contentArea.removeFromBottom(MOD_MACRO_PANEL_HEIGHT);
+    }
+
+    // Viewport fills the remaining content area
     deviceViewport_.setBounds(contentArea);
 
     // Calculate total width needed for all device slots
@@ -500,11 +533,23 @@ void ChainPanel::rebuildDeviceSlots() {
         }
 
         if (existingSlot) {
+            // Set node path for centralized selection
+            existingSlot->setNodePath(
+                magda::ChainNodePath::chainDevice(trackId_, rackId_, chainId_, device.id));
+            // Legacy callback (will be removed once selection is fully centralized)
+            auto deviceId = device.id;
+            existingSlot->onSelected = [this, deviceId]() { onDeviceSlotSelected(deviceId); };
             newSlots.push_back(std::move(existingSlot));
         } else {
             // Create new slot for new device - add to container
             auto slot =
                 std::make_unique<DeviceSlotComponent>(*this, trackId_, rackId_, chainId_, device);
+            // Set node path for centralized selection
+            slot->setNodePath(
+                magda::ChainNodePath::chainDevice(trackId_, rackId_, chainId_, device.id));
+            // Legacy callback (will be removed once selection is fully centralized)
+            auto deviceId = device.id;
+            slot->onSelected = [this, deviceId]() { onDeviceSlotSelected(deviceId); };
             deviceSlotsContainer_->addAndMakeVisible(*slot);
             newSlots.push_back(std::move(slot));
         }
@@ -563,6 +608,49 @@ void ChainPanel::onAddDeviceClicked() {
             repaint();
         }
     });
+}
+
+void ChainPanel::setModPanelVisible(bool visible) {
+    if (chainModPanelVisible_ != visible) {
+        chainModPanelVisible_ = visible;
+        resized();
+        repaint();
+        if (onLayoutChanged) {
+            onLayoutChanged();
+        }
+    }
+}
+
+void ChainPanel::setMacroPanelVisible(bool visible) {
+    if (chainMacroPanelVisible_ != visible) {
+        chainMacroPanelVisible_ = visible;
+        resized();
+        repaint();
+        if (onLayoutChanged) {
+            onLayoutChanged();
+        }
+    }
+}
+
+void ChainPanel::clearDeviceSelection() {
+    selectedDeviceId_ = magda::INVALID_DEVICE_ID;
+    for (auto& slot : deviceSlots_) {
+        slot->setSelected(false);
+    }
+    if (onDeviceSelected) {
+        onDeviceSelected(magda::INVALID_DEVICE_ID);
+    }
+}
+
+void ChainPanel::onDeviceSlotSelected(magda::DeviceId deviceId) {
+    // Exclusive selection - deselect all others
+    selectedDeviceId_ = deviceId;
+    for (auto& slot : deviceSlots_) {
+        slot->setSelected(slot->getDeviceId() == deviceId);
+    }
+    if (onDeviceSelected) {
+        onDeviceSelected(deviceId);
+    }
 }
 
 }  // namespace magda::daw::ui

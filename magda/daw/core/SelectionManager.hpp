@@ -4,6 +4,8 @@
 #include <vector>
 
 #include "ClipTypes.hpp"
+#include "DeviceInfo.hpp"
+#include "RackInfo.hpp"
 #include "TrackTypes.hpp"
 
 namespace magda {
@@ -17,7 +19,79 @@ enum class SelectionType {
     Clip,       // Single clip selected (backward compat)
     MultiClip,  // Multiple clips selected
     TimeRange,  // Time range selected (for operations)
-    Note        // MIDI note(s) selected in piano roll
+    Note,       // MIDI note(s) selected in piano roll
+    Device,     // Device selected in track chain
+    ChainNode   // Any node in the chain view (rack, chain, device)
+};
+
+/**
+ * @brief Type of chain node
+ */
+enum class ChainNodeType {
+    None,            // No node selected
+    TopLevelDevice,  // Device directly on track
+    Rack,            // Rack container
+    Chain,           // Chain within a rack
+    ChainDevice      // Device within a chain
+};
+
+/**
+ * @brief Unique identifier for any node in the chain hierarchy
+ *
+ * Allows centralized selection management where only one node
+ * can be selected at a time across all chain components.
+ */
+struct ChainNodePath {
+    TrackId trackId = INVALID_TRACK_ID;
+    RackId rackId = INVALID_RACK_ID;        // Set for rack, chain, and chain device
+    ChainId chainId = INVALID_CHAIN_ID;     // Set for chain and chain device
+    DeviceId deviceId = INVALID_DEVICE_ID;  // Set for top-level and chain devices
+
+    ChainNodeType getType() const {
+        if (trackId == INVALID_TRACK_ID)
+            return ChainNodeType::None;
+        if (deviceId != INVALID_DEVICE_ID) {
+            if (rackId != INVALID_RACK_ID && chainId != INVALID_CHAIN_ID) {
+                return ChainNodeType::ChainDevice;
+            }
+            return ChainNodeType::TopLevelDevice;
+        }
+        if (chainId != INVALID_CHAIN_ID)
+            return ChainNodeType::Chain;
+        if (rackId != INVALID_RACK_ID)
+            return ChainNodeType::Rack;
+        return ChainNodeType::None;
+    }
+
+    bool isValid() const {
+        return getType() != ChainNodeType::None;
+    }
+
+    bool operator==(const ChainNodePath& other) const {
+        return trackId == other.trackId && rackId == other.rackId && chainId == other.chainId &&
+               deviceId == other.deviceId;
+    }
+
+    bool operator!=(const ChainNodePath& other) const {
+        return !(*this == other);
+    }
+
+    // Factory methods for creating paths
+    static ChainNodePath topLevelDevice(TrackId track, DeviceId device) {
+        return {track, INVALID_RACK_ID, INVALID_CHAIN_ID, device};
+    }
+
+    static ChainNodePath rack(TrackId track, RackId r) {
+        return {track, r, INVALID_CHAIN_ID, INVALID_DEVICE_ID};
+    }
+
+    static ChainNodePath chain(TrackId track, RackId r, ChainId c) {
+        return {track, r, c, INVALID_DEVICE_ID};
+    }
+
+    static ChainNodePath chainDevice(TrackId track, RackId r, ChainId c, DeviceId device) {
+        return {track, r, c, device};
+    }
 };
 
 /**
@@ -37,6 +111,28 @@ struct NoteSelection {
 
     size_t getCount() const {
         return noteIndices.size();
+    }
+};
+
+/**
+ * @brief Device selection data
+ */
+struct DeviceSelection {
+    TrackId trackId = INVALID_TRACK_ID;
+    RackId rackId = INVALID_RACK_ID;     // INVALID_RACK_ID for top-level devices
+    ChainId chainId = INVALID_CHAIN_ID;  // INVALID_CHAIN_ID for top-level devices
+    DeviceId deviceId = INVALID_DEVICE_ID;
+
+    bool isValid() const {
+        return trackId != INVALID_TRACK_ID && deviceId != INVALID_DEVICE_ID;
+    }
+
+    bool isTopLevelDevice() const {
+        return rackId == INVALID_RACK_ID && chainId == INVALID_CHAIN_ID;
+    }
+
+    bool isChainDevice() const {
+        return rackId != INVALID_RACK_ID && chainId != INVALID_CHAIN_ID;
     }
 };
 
@@ -71,6 +167,8 @@ class SelectionManagerListener {
         [[maybe_unused]] const std::unordered_set<ClipId>& clipIds) {}
     virtual void timeRangeSelectionChanged([[maybe_unused]] const TimeRangeSelection& selection) {}
     virtual void noteSelectionChanged([[maybe_unused]] const NoteSelection& selection) {}
+    virtual void deviceSelectionChanged([[maybe_unused]] const DeviceSelection& selection) {}
+    virtual void chainNodeSelectionChanged([[maybe_unused]] const ChainNodePath& path) {}
 };
 
 /**
@@ -258,6 +356,69 @@ class SelectionManager {
     }
 
     // ========================================================================
+    // Device Selection
+    // ========================================================================
+
+    /**
+     * @brief Select a device (top-level or in a chain)
+     * Does not clear track selection - device selection is secondary
+     */
+    void selectDevice(TrackId trackId, DeviceId deviceId);
+
+    /**
+     * @brief Select a device within a chain
+     */
+    void selectDevice(TrackId trackId, RackId rackId, ChainId chainId, DeviceId deviceId);
+
+    /**
+     * @brief Clear device selection without changing other selections
+     */
+    void clearDeviceSelection();
+
+    /**
+     * @brief Get the current device selection
+     */
+    const DeviceSelection& getDeviceSelection() const {
+        return deviceSelection_;
+    }
+
+    /**
+     * @brief Check if there's a valid device selection
+     */
+    bool hasDeviceSelection() const {
+        return selectionType_ == SelectionType::Device && deviceSelection_.isValid();
+    }
+
+    // ========================================================================
+    // Chain Node Selection (Centralized for exclusive selection)
+    // ========================================================================
+
+    /**
+     * @brief Select a chain node (clears any previous chain node selection)
+     * This is the primary API for exclusive selection in the chain view.
+     */
+    void selectChainNode(const ChainNodePath& path);
+
+    /**
+     * @brief Clear chain node selection
+     */
+    void clearChainNodeSelection();
+
+    /**
+     * @brief Get the currently selected chain node path
+     */
+    const ChainNodePath& getSelectedChainNode() const {
+        return selectedChainNode_;
+    }
+
+    /**
+     * @brief Check if there's a valid chain node selection
+     */
+    bool hasChainNodeSelection() const {
+        return selectionType_ == SelectionType::ChainNode && selectedChainNode_.isValid();
+    }
+
+    // ========================================================================
     // Clear
     // ========================================================================
 
@@ -284,6 +445,8 @@ class SelectionManager {
     std::unordered_set<ClipId> selectedClipIds_;  // For multi-clip selection
     TimeRangeSelection timeRangeSelection_;
     NoteSelection noteSelection_;
+    DeviceSelection deviceSelection_;
+    ChainNodePath selectedChainNode_;  // For exclusive chain node selection
 
     std::vector<SelectionManagerListener*> listeners_;
 
@@ -293,6 +456,8 @@ class SelectionManager {
     void notifyMultiClipSelectionChanged(const std::unordered_set<ClipId>& clipIds);
     void notifyTimeRangeSelectionChanged(const TimeRangeSelection& selection);
     void notifyNoteSelectionChanged(const NoteSelection& selection);
+    void notifyDeviceSelectionChanged(const DeviceSelection& selection);
+    void notifyChainNodeSelectionChanged(const ChainNodePath& path);
 };
 
 }  // namespace magda

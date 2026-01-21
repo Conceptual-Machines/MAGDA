@@ -10,6 +10,7 @@
 #include "../../themes/MixerMetrics.hpp"
 #include "../../themes/SmallButtonLookAndFeel.hpp"
 #include "core/DeviceInfo.hpp"
+#include "core/SelectionManager.hpp"
 #include "ui/components/chain/NodeComponent.hpp"
 #include "ui/components/chain/RackComponent.hpp"
 #include "ui/components/common/SvgButton.hpp"
@@ -294,22 +295,7 @@ class TrackChainContent::DeviceSlotComponent : public NodeComponent {
         };
         addAndMakeVisible(*modButton_);
 
-        // Macro button (toggle param panel) - link icon
-        macroButton_ = std::make_unique<magda::SvgButton>("Macro", BinaryData::link_bright_svg,
-                                                          BinaryData::link_bright_svgSize);
-        macroButton_->setClickingTogglesState(true);
-        macroButton_->setToggleState(paramPanelVisible_, juce::dontSendNotification);
-        macroButton_->setNormalColor(DarkTheme::getSecondaryTextColour());
-        macroButton_->setActiveColor(juce::Colours::white);
-        macroButton_->setActiveBackgroundColor(DarkTheme::getColour(DarkTheme::ACCENT_PURPLE));
-        macroButton_->setActive(paramPanelVisible_);
-        macroButton_->onClick = [this]() {
-            macroButton_->setActive(macroButton_->getToggleState());
-            paramPanelVisible_ = macroButton_->getToggleState();
-            if (onParamPanelToggled)
-                onParamPanelToggled(paramPanelVisible_);
-        };
-        addAndMakeVisible(*macroButton_);
+        // Note: No macro button on devices - params are shown inline
 
         // Gain text slider in header
         gainSlider_.setRange(-60.0, 12.0, 0.1);
@@ -365,6 +351,7 @@ class TrackChainContent::DeviceSlotComponent : public NodeComponent {
             paramLabels_[i]->setColour(juce::Label::textColourId,
                                        DarkTheme::getSecondaryTextColour());
             paramLabels_[i]->setJustificationType(juce::Justification::centredLeft);
+            paramLabels_[i]->setInterceptsMouseClicks(false, false);  // Pass through for selection
             addAndMakeVisible(*paramLabels_[i]);
 
             paramSliders_[i] = std::make_unique<TextSlider>(TextSlider::Format::Decimal);
@@ -382,6 +369,10 @@ class TrackChainContent::DeviceSlotComponent : public NodeComponent {
 
     bool isModPanelVisible() const {
         return modPanelVisible_;
+    }
+
+    magda::DeviceId getDeviceId() const {
+        return device_.id;
     }
 
   protected:
@@ -441,10 +432,6 @@ class TrackChainContent::DeviceSlotComponent : public NodeComponent {
         modButton_->setBounds(headerArea.removeFromLeft(BUTTON_SIZE));
         headerArea.removeFromLeft(4);
 
-        // Macro button next to mod
-        macroButton_->setBounds(headerArea.removeFromLeft(BUTTON_SIZE));
-        headerArea.removeFromLeft(4);
-
         // Power button on the right (before delete which is handled by parent)
         onButton_->setBounds(headerArea.removeFromRight(BUTTON_SIZE));
         headerArea.removeFromRight(4);
@@ -469,7 +456,6 @@ class TrackChainContent::DeviceSlotComponent : public NodeComponent {
     magda::TrackId trackId_;
     magda::DeviceInfo device_;
     std::unique_ptr<magda::SvgButton> modButton_;
-    std::unique_ptr<magda::SvgButton> macroButton_;
     TextSlider gainSlider_;
     std::unique_ptr<magda::SvgButton> uiButton_;
     std::unique_ptr<magda::SvgButton> onButton_;
@@ -483,12 +469,17 @@ class TrackChainContent::DeviceSlotComponent : public NodeComponent {
 //==============================================================================
 class TrackChainContent::ChainContainer : public juce::Component {
   public:
-    ChainContainer() = default;
+    explicit ChainContainer(TrackChainContent& owner) : owner_(owner) {}
 
     void setElements(const std::vector<std::unique_ptr<DeviceSlotComponent>>* devices,
                      const std::vector<std::unique_ptr<RackComponent>>* racks) {
         deviceSlots_ = devices;
         rackComponents_ = racks;
+    }
+
+    void mouseDown(const juce::MouseEvent& /*e*/) override {
+        // Clicking empty area deselects all devices
+        owner_.clearDeviceSelection();
     }
 
     void paint(juce::Graphics& g) override {
@@ -530,6 +521,7 @@ class TrackChainContent::ChainContainer : public juce::Component {
                    static_cast<float>(arrowEnd), static_cast<float>(y), 1.5f);
     }
 
+    TrackChainContent& owner_;
     const std::vector<std::unique_ptr<DeviceSlotComponent>>* deviceSlots_ = nullptr;
     const std::vector<std::unique_ptr<RackComponent>>* rackComponents_ = nullptr;
 };
@@ -551,7 +543,7 @@ float dbToGain(float db) {
 }
 }  // namespace
 
-TrackChainContent::TrackChainContent() : chainContainer_(std::make_unique<ChainContainer>()) {
+TrackChainContent::TrackChainContent() : chainContainer_(std::make_unique<ChainContainer>(*this)) {
     setName("Track Chain");
 
     // Listen for debug settings changes
@@ -975,6 +967,8 @@ void TrackChainContent::rebuildDeviceSlots() {
     // Create a slot component for each device (add to container for viewport scrolling)
     for (const auto& device : *devices) {
         auto slot = std::make_unique<DeviceSlotComponent>(*this, selectedTrackId_, device);
+        // Set node path for centralized selection (no legacy callback needed)
+        slot->setNodePath(magda::ChainNodePath::topLevelDevice(selectedTrackId_, device.id));
         chainContainer_->addAndMakeVisible(*slot);
         deviceSlots_.push_back(std::move(slot));
     }
@@ -1014,14 +1008,54 @@ void TrackChainContent::rebuildRackComponents() {
         }
 
         if (existingRack) {
+            // Set node path for centralized selection
+            existingRack->setNodePath(magda::ChainNodePath::rack(selectedTrackId_, rack.id));
+            // Re-wire callbacks for preserved rack (legacy - will be removed)
+            existingRack->onSelected = [this]() { selectedDeviceId_ = magda::INVALID_DEVICE_ID; };
+            existingRack->onChainSelected = [this](magda::TrackId trackId, magda::RackId rId,
+                                                   magda::ChainId chainId) {
+                onChainSelected(trackId, rId, chainId);
+            };
+            existingRack->onDeviceSelected = [this](magda::DeviceId deviceId) {
+                if (deviceId != magda::INVALID_DEVICE_ID) {
+                    selectedDeviceId_ = magda::INVALID_DEVICE_ID;
+                    for (auto& slot : deviceSlots_) {
+                        slot->setSelected(false);
+                    }
+                    magda::SelectionManager::getInstance().selectDevice(
+                        selectedTrackId_, selectedRackId_, selectedChainId_, deviceId);
+                } else {
+                    magda::SelectionManager::getInstance().clearDeviceSelection();
+                }
+            };
             newRackComponents.push_back(std::move(existingRack));
         } else {
             // Create new component for new rack (add to container for viewport scrolling)
             auto rackComp = std::make_unique<RackComponent>(selectedTrackId_, rack);
+            // Set node path for centralized selection
+            rackComp->setNodePath(magda::ChainNodePath::rack(selectedTrackId_, rack.id));
+            // Wire up selection callback (legacy - will be simplified)
+            rackComp->onSelected = [this]() { selectedDeviceId_ = magda::INVALID_DEVICE_ID; };
             // Wire up chain selection callback
-            rackComp->onChainSelected = [this](magda::TrackId trackId, magda::RackId rackId,
+            rackComp->onChainSelected = [this](magda::TrackId trackId, magda::RackId rId,
                                                magda::ChainId chainId) {
-                onChainSelected(trackId, rackId, chainId);
+                onChainSelected(trackId, rId, chainId);
+            };
+            // Wire up device selection callback - when chain device selected, clear top-level
+            rackComp->onDeviceSelected = [this](magda::DeviceId deviceId) {
+                // Clear top-level device selection when chain device is selected
+                if (deviceId != magda::INVALID_DEVICE_ID) {
+                    selectedDeviceId_ = magda::INVALID_DEVICE_ID;
+                    for (auto& slot : deviceSlots_) {
+                        slot->setSelected(false);
+                    }
+                    // Notify SelectionManager for chain device selection
+                    magda::SelectionManager::getInstance().selectDevice(
+                        selectedTrackId_, selectedRackId_, selectedChainId_, deviceId);
+                } else {
+                    // Device deselected in chain, clear global device selection
+                    magda::SelectionManager::getInstance().clearDeviceSelection();
+                }
             };
             chainContainer_->addAndMakeVisible(*rackComp);
             newRackComponents.push_back(std::move(rackComp));
@@ -1085,6 +1119,42 @@ void TrackChainContent::addDeviceToSelectedChain(const magda::DeviceInfo& device
     }
     magda::TrackManager::getInstance().addDeviceToChain(selectedTrackId_, selectedRackId_,
                                                         selectedChainId_, device);
+}
+
+void TrackChainContent::clearDeviceSelection() {
+    DBG("TrackChainContent::clearDeviceSelection");
+    selectedDeviceId_ = magda::INVALID_DEVICE_ID;
+    for (auto& slot : deviceSlots_) {
+        slot->setSelected(false);
+    }
+    // Also clear device selection in any rack components (but keep chain panel open)
+    for (auto& rack : rackComponents_) {
+        rack->clearDeviceSelection();
+        rack->setSelected(false);
+    }
+    // Notify SelectionManager - this will update inspector
+    magda::SelectionManager::getInstance().clearDeviceSelection();
+}
+
+void TrackChainContent::onDeviceSlotSelected(magda::DeviceId deviceId) {
+    DBG("TrackChainContent::onDeviceSlotSelected deviceId=" + juce::String(deviceId) +
+        " slots=" + juce::String(static_cast<int>(deviceSlots_.size())));
+    // Deselect all first
+    selectedDeviceId_ = deviceId;
+    for (auto& slot : deviceSlots_) {
+        bool shouldSelect = slot->getDeviceId() == deviceId;
+        DBG("  slot " + juce::String(slot->getDeviceId()) + " -> " +
+            (shouldSelect ? "SELECT" : "deselect"));
+        slot->setSelected(shouldSelect);
+    }
+    // Also clear device selection in racks (but keep chain panel open)
+    for (auto& rack : rackComponents_) {
+        rack->clearDeviceSelection();
+        rack->clearChainSelection();  // Clear chain row selection border
+        rack->setSelected(false);     // Deselect the rack itself too
+    }
+    // Notify SelectionManager - this will update inspector
+    magda::SelectionManager::getInstance().selectDevice(selectedTrackId_, deviceId);
 }
 
 }  // namespace magda::daw::ui

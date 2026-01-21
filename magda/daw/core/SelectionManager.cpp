@@ -381,6 +381,66 @@ bool SelectionManager::isNoteSelected(ClipId clipId, size_t noteIndex) const {
 }
 
 // ============================================================================
+// Device Selection
+// ============================================================================
+
+void SelectionManager::selectDevice(TrackId trackId, DeviceId deviceId) {
+    // Top-level device (not in a rack/chain)
+    selectDevice(trackId, INVALID_RACK_ID, INVALID_CHAIN_ID, deviceId);
+}
+
+void SelectionManager::selectDevice(TrackId trackId, RackId rackId, ChainId chainId,
+                                    DeviceId deviceId) {
+    bool typeChanged = selectionType_ != SelectionType::Device;
+    bool deviceChanged = deviceSelection_.trackId != trackId || deviceSelection_.rackId != rackId ||
+                         deviceSelection_.chainId != chainId ||
+                         deviceSelection_.deviceId != deviceId;
+
+    // Device selection is secondary to track selection - don't clear track
+    // Clear other selection types
+    selectedClipId_ = INVALID_CLIP_ID;
+    selectedClipIds_.clear();
+    timeRangeSelection_ = TimeRangeSelection{};
+    noteSelection_ = NoteSelection{};
+
+    selectionType_ = SelectionType::Device;
+    deviceSelection_.trackId = trackId;
+    deviceSelection_.rackId = rackId;
+    deviceSelection_.chainId = chainId;
+    deviceSelection_.deviceId = deviceId;
+
+    // Sync with managers (clear clip selection)
+    ClipManager::getInstance().clearClipSelection();
+
+    if (typeChanged) {
+        notifySelectionTypeChanged(SelectionType::Device);
+    }
+    if (deviceChanged) {
+        notifyDeviceSelectionChanged(deviceSelection_);
+    }
+}
+
+void SelectionManager::clearDeviceSelection() {
+    if (selectionType_ != SelectionType::Device) {
+        return;
+    }
+
+    // Clear device selection but go back to track selection
+    deviceSelection_ = DeviceSelection{};
+
+    // If we have a track selected, go back to track mode
+    if (selectedTrackId_ != INVALID_TRACK_ID) {
+        selectionType_ = SelectionType::Track;
+        notifySelectionTypeChanged(SelectionType::Track);
+    } else {
+        selectionType_ = SelectionType::None;
+        notifySelectionTypeChanged(SelectionType::None);
+    }
+
+    notifyDeviceSelectionChanged(deviceSelection_);
+}
+
+// ============================================================================
 // Clear
 // ============================================================================
 
@@ -396,6 +456,7 @@ void SelectionManager::clearSelection() {
     selectedClipIds_.clear();
     timeRangeSelection_ = TimeRangeSelection{};
     noteSelection_ = NoteSelection{};
+    deviceSelection_ = DeviceSelection{};
 
     // Sync with managers
     TrackManager::getInstance().setSelectedTrack(INVALID_TRACK_ID);
@@ -455,6 +516,77 @@ void SelectionManager::notifyTimeRangeSelectionChanged(const TimeRangeSelection&
 void SelectionManager::notifyNoteSelectionChanged(const NoteSelection& selection) {
     for (auto* listener : listeners_) {
         listener->noteSelectionChanged(selection);
+    }
+}
+
+void SelectionManager::notifyDeviceSelectionChanged(const DeviceSelection& selection) {
+    for (auto* listener : listeners_) {
+        listener->deviceSelectionChanged(selection);
+    }
+}
+
+// ============================================================================
+// Chain Node Selection
+// ============================================================================
+
+void SelectionManager::selectChainNode(const ChainNodePath& path) {
+    DBG("SelectionManager::selectChainNode - trackId=" + juce::String(path.trackId) +
+        " rackId=" + juce::String(path.rackId) + " chainId=" + juce::String(path.chainId) +
+        " deviceId=" + juce::String(path.deviceId) +
+        " valid=" + juce::String(path.isValid() ? 1 : 0));
+
+    bool typeChanged = selectionType_ != SelectionType::ChainNode;
+    bool pathChanged = selectedChainNode_ != path;
+
+    if (!pathChanged && !typeChanged) {
+        DBG("  -> Already selected, skipping");
+        return;  // Already selected
+    }
+
+    // Clear other selection types (but keep track selection for context)
+    selectedClipId_ = INVALID_CLIP_ID;
+    selectedClipIds_.clear();
+    timeRangeSelection_ = TimeRangeSelection{};
+    noteSelection_ = NoteSelection{};
+    deviceSelection_ = DeviceSelection{};
+
+    selectionType_ = SelectionType::ChainNode;
+    selectedChainNode_ = path;
+
+    // Sync with managers
+    ClipManager::getInstance().clearClipSelection();
+
+    if (typeChanged) {
+        notifySelectionTypeChanged(SelectionType::ChainNode);
+    }
+    // Always notify path change so all components can update their visual state
+    notifyChainNodeSelectionChanged(selectedChainNode_);
+}
+
+void SelectionManager::clearChainNodeSelection() {
+    if (selectionType_ != SelectionType::ChainNode) {
+        return;
+    }
+
+    selectedChainNode_ = ChainNodePath{};
+
+    // Return to track selection if we have a track
+    if (selectedTrackId_ != INVALID_TRACK_ID) {
+        selectionType_ = SelectionType::Track;
+        notifySelectionTypeChanged(SelectionType::Track);
+    } else {
+        selectionType_ = SelectionType::None;
+        notifySelectionTypeChanged(SelectionType::None);
+    }
+
+    notifyChainNodeSelectionChanged(selectedChainNode_);
+}
+
+void SelectionManager::notifyChainNodeSelectionChanged(const ChainNodePath& path) {
+    DBG("SelectionManager::notifyChainNodeSelectionChanged - " + juce::String(listeners_.size()) +
+        " listeners");
+    for (auto* listener : listeners_) {
+        listener->chainNodeSelectionChanged(path);
     }
 }
 

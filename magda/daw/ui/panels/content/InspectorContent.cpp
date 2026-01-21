@@ -394,6 +394,23 @@ InspectorContent::InspectorContent() {
     };
     addChildComponent(*noteLengthValue_);
 
+    // ========================================================================
+    // Chain node properties section
+    // ========================================================================
+
+    chainNodeTypeLabel_.setFont(FontManager::getInstance().getUIFont(11.0f));
+    chainNodeTypeLabel_.setColour(juce::Label::textColourId, DarkTheme::getSecondaryTextColour());
+    addChildComponent(chainNodeTypeLabel_);
+
+    chainNodeNameLabel_.setText("Name", juce::dontSendNotification);
+    chainNodeNameLabel_.setFont(FontManager::getInstance().getUIFont(11.0f));
+    chainNodeNameLabel_.setColour(juce::Label::textColourId, DarkTheme::getSecondaryTextColour());
+    addChildComponent(chainNodeNameLabel_);
+
+    chainNodeNameValue_.setFont(FontManager::getInstance().getUIFont(12.0f));
+    chainNodeNameValue_.setColour(juce::Label::textColourId, DarkTheme::getTextColour());
+    addChildComponent(chainNodeNameValue_);
+
     // Register as listeners
     magda::TrackManager::getInstance().addListener(this);
     magda::ClipManager::getInstance().addListener(this);
@@ -546,6 +563,13 @@ void InspectorContent::resized() {
         // Length
         noteLengthLabel_.setBounds(bounds.removeFromTop(16));
         noteLengthValue_->setBounds(bounds.removeFromTop(24));
+    } else if (currentSelectionType_ == magda::SelectionType::ChainNode) {
+        // Chain node properties layout
+        chainNodeTypeLabel_.setBounds(bounds.removeFromTop(20));
+        bounds.removeFromTop(12);
+
+        chainNodeNameLabel_.setBounds(bounds.removeFromTop(16));
+        chainNodeNameValue_.setBounds(bounds.removeFromTop(24));
     }
 }
 
@@ -644,6 +668,16 @@ void InspectorContent::selectionTypeChanged(magda::SelectionType newType) {
             selectedClipId_ = magda::INVALID_CLIP_ID;
             break;
 
+        case magda::SelectionType::Device:
+        case magda::SelectionType::ChainNode: {
+            // Get track ID from the chain node selection
+            const auto& nodePath = magda::SelectionManager::getInstance().getSelectedChainNode();
+            selectedTrackId_ = nodePath.trackId;
+            selectedClipId_ = magda::INVALID_CLIP_ID;
+            noteSelection_ = magda::NoteSelection{};
+            break;
+        }
+
         default:
             selectedTrackId_ = magda::INVALID_TRACK_ID;
             selectedClipId_ = magda::INVALID_CLIP_ID;
@@ -652,6 +686,20 @@ void InspectorContent::selectionTypeChanged(magda::SelectionType newType) {
     }
 
     updateSelectionDisplay();
+}
+
+void InspectorContent::chainNodeSelectionChanged(const magda::ChainNodePath& path) {
+    DBG("InspectorContent::chainNodeSelectionChanged - trackId=" + juce::String(path.trackId) +
+        " rackId=" + juce::String(path.rackId) + " chainId=" + juce::String(path.chainId) +
+        " deviceId=" + juce::String(path.deviceId) +
+        " valid=" + juce::String(path.isValid() ? 1 : 0));
+    // Store the selected chain node and update display
+    selectedChainNode_ = path;
+    if (path.isValid()) {
+        selectedTrackId_ = path.trackId;
+        currentSelectionType_ = magda::SelectionType::ChainNode;
+        updateSelectionDisplay();
+    }
 }
 
 void InspectorContent::noteSelectionChanged(const magda::NoteSelection& selection) {
@@ -666,18 +714,23 @@ void InspectorContent::noteSelectionChanged(const magda::NoteSelection& selectio
 // ============================================================================
 
 void InspectorContent::updateSelectionDisplay() {
+    DBG("InspectorContent::updateSelectionDisplay - type=" +
+        juce::String(static_cast<int>(currentSelectionType_)) +
+        " trackId=" + juce::String(selectedTrackId_));
     switch (currentSelectionType_) {
         case magda::SelectionType::None:
         case magda::SelectionType::TimeRange:
             showTrackControls(false);
             showClipControls(false);
             showNoteControls(false);
+            showChainNodeControls(false);
             noSelectionLabel_.setVisible(true);
             break;
 
         case magda::SelectionType::Track:
             showClipControls(false);
             showNoteControls(false);
+            showChainNodeControls(false);
             noSelectionLabel_.setVisible(false);
             updateFromSelectedTrack();
             break;
@@ -685,6 +738,7 @@ void InspectorContent::updateSelectionDisplay() {
         case magda::SelectionType::Clip:
             showTrackControls(false);
             showNoteControls(false);
+            showChainNodeControls(false);
             noSelectionLabel_.setVisible(false);
             updateFromSelectedClip();
             break;
@@ -694,6 +748,7 @@ void InspectorContent::updateSelectionDisplay() {
             showTrackControls(false);
             showClipControls(false);
             showNoteControls(false);
+            showChainNodeControls(false);
             noSelectionLabel_.setText("Multiple clips selected", juce::dontSendNotification);
             noSelectionLabel_.setVisible(true);
             break;
@@ -701,8 +756,27 @@ void InspectorContent::updateSelectionDisplay() {
         case magda::SelectionType::Note:
             showTrackControls(false);
             showClipControls(false);
+            showChainNodeControls(false);
             noSelectionLabel_.setVisible(false);
             updateFromSelectedNotes();
+            break;
+
+        case magda::SelectionType::Device:
+            // Show track controls when device is selected (device is within track context)
+            showClipControls(false);
+            showNoteControls(false);
+            showChainNodeControls(false);
+            noSelectionLabel_.setVisible(false);
+            updateFromSelectedTrack();
+            break;
+
+        case magda::SelectionType::ChainNode:
+            // Show chain node properties (device, rack, or chain)
+            showTrackControls(false);
+            showClipControls(false);
+            showNoteControls(false);
+            noSelectionLabel_.setVisible(false);
+            updateFromSelectedChainNode();
             break;
     }
 
@@ -711,14 +785,19 @@ void InspectorContent::updateSelectionDisplay() {
 }
 
 void InspectorContent::updateFromSelectedTrack() {
+    DBG("InspectorContent::updateFromSelectedTrack - selectedTrackId_=" +
+        juce::String(selectedTrackId_));
     if (selectedTrackId_ == magda::INVALID_TRACK_ID) {
+        DBG("  -> INVALID_TRACK_ID, hiding controls");
         showTrackControls(false);
         noSelectionLabel_.setVisible(true);
         return;
     }
 
     const auto* track = magda::TrackManager::getInstance().getTrack(selectedTrackId_);
+    DBG("  -> track ptr = " + juce::String(track ? "valid" : "null"));
     if (track) {
+        DBG("  -> track name = " + track->name);
         trackNameValue_.setText(track->name, juce::dontSendNotification);
         muteButton_.setToggleState(track->muted, juce::dontSendNotification);
         soloButton_.setToggleState(track->soloed, juce::dontSendNotification);
@@ -792,6 +871,7 @@ void InspectorContent::updateFromSelectedClip() {
 }
 
 void InspectorContent::showTrackControls(bool show) {
+    DBG("InspectorContent::showTrackControls - show=" + juce::String(show ? "true" : "false"));
     trackNameLabel_.setVisible(show);
     trackNameValue_.setVisible(show);
     muteButton_.setVisible(show);
@@ -841,6 +921,118 @@ void InspectorContent::showNoteControls(bool show) {
     noteStartValue_.setVisible(show);
     noteLengthLabel_.setVisible(show);
     noteLengthValue_->setVisible(show);
+}
+
+void InspectorContent::showChainNodeControls(bool show) {
+    chainNodeTypeLabel_.setVisible(show);
+    chainNodeNameLabel_.setVisible(show);
+    chainNodeNameValue_.setVisible(show);
+}
+
+void InspectorContent::updateFromSelectedChainNode() {
+    DBG("InspectorContent::updateFromSelectedChainNode - type=" +
+        juce::String(static_cast<int>(selectedChainNode_.getType())));
+
+    if (!selectedChainNode_.isValid()) {
+        showChainNodeControls(false);
+        noSelectionLabel_.setVisible(true);
+        return;
+    }
+
+    // Get the name based on node type
+    juce::String typeName;
+    juce::String nodeName;
+
+    const auto* track = magda::TrackManager::getInstance().getTrack(selectedChainNode_.trackId);
+    if (!track) {
+        showChainNodeControls(false);
+        noSelectionLabel_.setVisible(true);
+        return;
+    }
+
+    switch (selectedChainNode_.getType()) {
+        case magda::ChainNodeType::TopLevelDevice: {
+            typeName = "Device";
+            DBG("  -> Looking for device id=" + juce::String(selectedChainNode_.deviceId) +
+                " in track with " + juce::String(track->devices.size()) + " devices");
+            // Find device name from track's devices
+            for (const auto& device : track->devices) {
+                DBG("    -> checking device id=" + juce::String(device.id) +
+                    " name=" + device.name);
+                if (device.id == selectedChainNode_.deviceId) {
+                    nodeName = device.name;
+                    DBG("    -> FOUND!");
+                    break;
+                }
+            }
+            if (nodeName.isEmpty()) {
+                DBG("  -> Device NOT FOUND in track->devices");
+            }
+            break;
+        }
+        case magda::ChainNodeType::Rack: {
+            typeName = "Rack";
+            // Find rack name from track's racks
+            for (const auto& rack : track->racks) {
+                if (rack.id == selectedChainNode_.rackId) {
+                    nodeName = rack.name;
+                    break;
+                }
+            }
+            break;
+        }
+        case magda::ChainNodeType::Chain: {
+            typeName = "Chain";
+            // Find chain name from track's racks
+            for (const auto& rack : track->racks) {
+                if (rack.id == selectedChainNode_.rackId) {
+                    for (const auto& chain : rack.chains) {
+                        if (chain.id == selectedChainNode_.chainId) {
+                            nodeName = chain.name;
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+            break;
+        }
+        case magda::ChainNodeType::ChainDevice: {
+            typeName = "Chain Device";
+            // Find device name from chain
+            for (const auto& rack : track->racks) {
+                if (rack.id == selectedChainNode_.rackId) {
+                    for (const auto& chain : rack.chains) {
+                        if (chain.id == selectedChainNode_.chainId) {
+                            for (const auto& device : chain.devices) {
+                                if (device.id == selectedChainNode_.deviceId) {
+                                    nodeName = device.name;
+                                    break;
+                                }
+                            }
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+            break;
+        }
+        default:
+            typeName = "Unknown";
+            break;
+    }
+
+    DBG("  -> typeName=" + typeName + " nodeName=" + nodeName);
+
+    chainNodeTypeLabel_.setText(typeName, juce::dontSendNotification);
+    chainNodeNameValue_.setText(nodeName, juce::dontSendNotification);
+
+    showChainNodeControls(true);
+    noSelectionLabel_.setVisible(false);
+
+    resized();
+    repaint();
 }
 
 void InspectorContent::updateFromSelectedNotes() {

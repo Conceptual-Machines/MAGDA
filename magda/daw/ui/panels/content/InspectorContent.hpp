@@ -57,6 +57,7 @@ class InspectorContent : public PanelContent,
     // SelectionManagerListener
     void selectionTypeChanged(magda::SelectionType newType) override;
     void noteSelectionChanged(const magda::NoteSelection& selection) override;
+    void chainNodeSelectionChanged(const magda::ChainNodePath& path) override;
 
   private:
     juce::Label titleLabel_;
@@ -70,6 +71,7 @@ class InspectorContent : public PanelContent,
     magda::TrackId selectedTrackId_ = magda::INVALID_TRACK_ID;
     magda::ClipId selectedClipId_ = magda::INVALID_CLIP_ID;
     magda::NoteSelection noteSelection_;
+    magda::ChainNodePath selectedChainNode_;
 
     // Track properties section
     juce::Label trackNameLabel_;
@@ -120,12 +122,19 @@ class InspectorContent : public PanelContent,
     juce::Label noteLengthLabel_;
     std::unique_ptr<magda::DraggableValueLabel> noteLengthValue_;
 
+    // Chain node properties section
+    juce::Label chainNodeTypeLabel_;
+    juce::Label chainNodeNameLabel_;
+    juce::Label chainNodeNameValue_;
+
     void updateFromSelectedTrack();
     void updateFromSelectedClip();
     void updateFromSelectedNotes();
+    void updateFromSelectedChainNode();
     void showTrackControls(bool show);
     void showClipControls(bool show);
     void showNoteControls(bool show);
+    void showChainNodeControls(bool show);
     void updateSelectionDisplay();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(InspectorContent)

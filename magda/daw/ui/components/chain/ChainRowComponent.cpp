@@ -3,6 +3,7 @@
 #include <BinaryData.h>
 
 #include "RackComponent.hpp"
+#include "core/SelectionManager.hpp"
 #include "ui/themes/DarkTheme.hpp"
 #include "ui/themes/FontManager.hpp"
 #include "ui/themes/SmallButtonLookAndFeel.hpp"
@@ -12,6 +13,11 @@ namespace magda::daw::ui {
 ChainRowComponent::ChainRowComponent(RackComponent& owner, magda::TrackId trackId,
                                      magda::RackId rackId, const magda::ChainInfo& chain)
     : owner_(owner), trackId_(trackId), rackId_(rackId), chainId_(chain.id) {
+    // Set up node path for centralized selection
+    nodePath_ = magda::ChainNodePath::chain(trackId, rackId, chain.id);
+
+    // Register as SelectionManager listener
+    magda::SelectionManager::getInstance().addListener(this);
     // Name label - clicks pass through to parent for selection
     nameLabel_.setText(chain.name, juce::dontSendNotification);
     nameLabel_.setFont(FontManager::getInstance().getUIFont(9.0f));
@@ -49,7 +55,9 @@ ChainRowComponent::ChainRowComponent(RackComponent& owner, magda::TrackId trackI
     modButton_->setActiveBackgroundColor(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
     modButton_->onClick = [this]() {
         modButton_->setActive(modButton_->getToggleState());
-        // TODO: Toggle mod panel visibility for this chain
+        if (onModToggled) {
+            onModToggled(modButton_->getToggleState());
+        }
     };
     addAndMakeVisible(*modButton_);
 
@@ -62,7 +70,9 @@ ChainRowComponent::ChainRowComponent(RackComponent& owner, magda::TrackId trackI
     macroButton_->setActiveBackgroundColor(DarkTheme::getColour(DarkTheme::ACCENT_PURPLE));
     macroButton_->onClick = [this]() {
         macroButton_->setActive(macroButton_->getToggleState());
-        // TODO: Toggle macro panel visibility for this chain
+        if (onMacroToggled) {
+            onMacroToggled(macroButton_->getToggleState());
+        }
     };
     addAndMakeVisible(*macroButton_);
 
@@ -124,7 +134,9 @@ ChainRowComponent::ChainRowComponent(RackComponent& owner, magda::TrackId trackI
     addAndMakeVisible(deleteButton_);
 }
 
-ChainRowComponent::~ChainRowComponent() = default;
+ChainRowComponent::~ChainRowComponent() {
+    magda::SelectionManager::getInstance().removeListener(this);
+}
 
 void ChainRowComponent::paint(juce::Graphics& g) {
     auto bounds = getLocalBounds();
@@ -147,9 +159,23 @@ void ChainRowComponent::paint(juce::Graphics& g) {
 }
 
 void ChainRowComponent::mouseDown(const juce::MouseEvent& /*event*/) {
+    // Use centralized selection
+    magda::SelectionManager::getInstance().selectChainNode(nodePath_);
+
+    // Also call legacy callback for RackComponent to show chain panel
     if (onSelected) {
         onSelected(*this);
     }
+}
+
+void ChainRowComponent::selectionTypeChanged(magda::SelectionType /*newType*/) {
+    // Selection type changed - chainNodeSelectionChanged will handle visual update
+}
+
+void ChainRowComponent::chainNodeSelectionChanged(const magda::ChainNodePath& path) {
+    // Update our selection state based on whether we match the selected path
+    bool shouldBeSelected = nodePath_.isValid() && nodePath_ == path;
+    setSelected(shouldBeSelected);
 }
 
 void ChainRowComponent::setSelected(bool selected) {
@@ -230,6 +256,14 @@ void ChainRowComponent::onBypassClicked() {
 
 void ChainRowComponent::onDeleteClicked() {
     magda::TrackManager::getInstance().removeChainFromRack(trackId_, rackId_, chainId_);
+}
+
+bool ChainRowComponent::isModActive() const {
+    return modButton_ && modButton_->getToggleState();
+}
+
+bool ChainRowComponent::isMacroActive() const {
+    return macroButton_ && macroButton_->getToggleState();
 }
 
 }  // namespace magda::daw::ui

@@ -26,8 +26,26 @@ class ChainPanel : public NodeComponent {
     int getContentWidth() const;     // Returns full width needed to show all devices
     void setMaxWidth(int maxWidth);  // Set maximum width before scrolling kicks in
 
+    // Mod/macro panel visibility (controlled by chain row buttons)
+    void setModPanelVisible(bool visible);
+    void setMacroPanelVisible(bool visible);
+    bool isModPanelVisible() const {
+        return chainModPanelVisible_;
+    }
+    bool isMacroPanelVisible() const {
+        return chainMacroPanelVisible_;
+    }
+
+    // Device selection management
+    void clearDeviceSelection();
+    magda::DeviceId getSelectedDeviceId() const {
+        return selectedDeviceId_;
+    }
+
     // Callback when close button is clicked
     std::function<void()> onClose;
+    // Callback when a device is selected (DeviceId, or INVALID_DEVICE_ID for deselect)
+    std::function<void(magda::DeviceId)> onDeviceSelected;
 
   protected:
     void paintContent(juce::Graphics& g, juce::Rectangle<int> contentArea) override;
@@ -38,7 +56,7 @@ class ChainPanel : public NodeComponent {
         return 0;
     }
 
-    // Hide footer - MOD/MACRO buttons are on the chain row instead
+    // No footer - we handle mod/macro panels in content area
     int getFooterHeight() const override {
         return 0;
     }
@@ -63,7 +81,16 @@ class ChainPanel : public NodeComponent {
     juce::TextButton addDeviceButton_;
     std::vector<std::unique_ptr<DeviceSlotComponent>> deviceSlots_;
 
+    // Chain-level mod/macro panel state
+    bool chainModPanelVisible_ = false;
+    bool chainMacroPanelVisible_ = false;
+
+    // Device selection
+    magda::DeviceId selectedDeviceId_ = magda::INVALID_DEVICE_ID;
+    void onDeviceSlotSelected(magda::DeviceId deviceId);
+
     static constexpr int ARROW_WIDTH = 16;
+    static constexpr int MOD_MACRO_PANEL_HEIGHT = 80;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChainPanel)
 };

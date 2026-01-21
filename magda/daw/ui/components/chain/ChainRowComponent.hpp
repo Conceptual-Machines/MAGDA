@@ -5,6 +5,7 @@
 #include <functional>
 
 #include "core/RackInfo.hpp"
+#include "core/SelectionManager.hpp"
 #include "core/TrackManager.hpp"
 #include "ui/components/common/SvgButton.hpp"
 #include "ui/components/common/TextSlider.hpp"
@@ -18,9 +19,10 @@ class RackComponent;
  *
  * Layout: [Name] [Gain] [Pan] [M] [S] [On] [X]
  *
- * Clicking the row will open a chain panel on the right side showing devices
+ * Clicking the row will open a chain panel on the right side showing devices.
+ * Implements SelectionManagerListener for centralized exclusive selection.
  */
-class ChainRowComponent : public juce::Component {
+class ChainRowComponent : public juce::Component, public magda::SelectionManagerListener {
   public:
     ChainRowComponent(RackComponent& owner, magda::TrackId trackId, magda::RackId rackId,
                       const magda::ChainInfo& chain);
@@ -48,8 +50,19 @@ class ChainRowComponent : public juce::Component {
         return selected_;
     }
 
-    // Callback when chain row is clicked
+    // SelectionManagerListener
+    void selectionTypeChanged(magda::SelectionType newType) override;
+    void chainNodeSelectionChanged(const magda::ChainNodePath& path) override;
+
+    // Callback when chain row is clicked (legacy - for RackComponent to show chain panel)
     std::function<void(ChainRowComponent&)> onSelected;
+    // Callbacks for mod/macro panel toggles
+    std::function<void(bool)> onModToggled;
+    std::function<void(bool)> onMacroToggled;
+
+    // Get toggle states
+    bool isModActive() const;
+    bool isMacroActive() const;
 
   private:
     void onMuteClicked();
@@ -62,6 +75,7 @@ class ChainRowComponent : public juce::Component {
     magda::RackId rackId_;
     magda::ChainId chainId_;
     bool selected_ = false;
+    magda::ChainNodePath nodePath_;  // For centralized selection
 
     // Single row controls: Name | Gain | Pan | MOD | MACRO | M | S | On | X
     juce::Label nameLabel_;

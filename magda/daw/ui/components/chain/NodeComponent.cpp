@@ -2,6 +2,7 @@
 
 #include <BinaryData.h>
 
+#include "core/SelectionManager.hpp"
 #include "ui/themes/DarkTheme.hpp"
 #include "ui/themes/FontManager.hpp"
 #include "ui/themes/SmallButtonLookAndFeel.hpp"
@@ -9,6 +10,8 @@
 namespace magda::daw::ui {
 
 NodeComponent::NodeComponent() {
+    // Register as SelectionManager listener for centralized selection
+    magda::SelectionManager::getInstance().addListener(this);
     // === HEADER ===
 
     // Bypass button (power icon)
@@ -29,10 +32,11 @@ NodeComponent::NodeComponent() {
     };
     addAndMakeVisible(*bypassButton_);
 
-    // Name label
+    // Name label - clicks pass through for selection
     nameLabel_.setFont(FontManager::getInstance().getUIFontBold(10.0f));
     nameLabel_.setColour(juce::Label::textColourId, DarkTheme::getTextColour());
     nameLabel_.setJustificationType(juce::Justification::centredLeft);
+    nameLabel_.setInterceptsMouseClicks(false, false);
     addAndMakeVisible(nameLabel_);
 
     // Delete button (reddish-purple background)
@@ -167,7 +171,9 @@ NodeComponent::NodeComponent() {
     }
 }
 
-NodeComponent::~NodeComponent() = default;
+NodeComponent::~NodeComponent() {
+    magda::SelectionManager::getInstance().removeListener(this);
+}
 
 void NodeComponent::paint(juce::Graphics& g) {
     auto bounds = getLocalBounds();
@@ -236,6 +242,12 @@ void NodeComponent::paint(juce::Graphics& g) {
     if (!bypassButton_->getToggleState()) {  // Toggle OFF = bypassed
         g.setColour(juce::Colours::black.withAlpha(0.3f));
         g.fillRoundedRectangle(getLocalBounds().toFloat(), 4.0f);
+    }
+
+    // Selection border (draw on top of everything)
+    if (selected_) {
+        g.setColour(juce::Colour(0xff888888));  // Grey
+        g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(1.0f), 4.0f, 2.0f);
     }
 }
 
@@ -468,6 +480,60 @@ void NodeComponent::resizedParamPanel(juce::Rectangle<int> panelArea) {
 
 void NodeComponent::resizedGainPanel(juce::Rectangle<int> /*panelArea*/) {
     // Default: nothing - gain meter drawn in paintGainPanel
+}
+
+void NodeComponent::setSelected(bool selected) {
+    if (selected_ != selected) {
+        selected_ = selected;
+        repaint();
+    }
+}
+
+void NodeComponent::setNodePath(const magda::ChainNodePath& path) {
+    nodePath_ = path;
+}
+
+void NodeComponent::selectionTypeChanged(magda::SelectionType /*newType*/) {
+    // If selection type changed away from ChainNode, we might need to deselect
+    // But chainNodeSelectionChanged handles this more precisely
+}
+
+void NodeComponent::chainNodeSelectionChanged(const magda::ChainNodePath& path) {
+    // Update our selection state based on whether we match the selected path
+    bool shouldBeSelected = nodePath_.isValid() && nodePath_ == path;
+    setSelected(shouldBeSelected);
+}
+
+void NodeComponent::mouseDown(const juce::MouseEvent& e) {
+    // Only handle left clicks for selection
+    if (e.mods.isLeftButtonDown()) {
+        mouseDownForSelection_ = true;
+    }
+}
+
+void NodeComponent::mouseUp(const juce::MouseEvent& e) {
+    // Complete selection on mouse up (click-and-release)
+    if (mouseDownForSelection_ && !e.mods.isPopupMenu()) {
+        mouseDownForSelection_ = false;
+
+        // Check if mouse is still within bounds (not a drag-away)
+        if (getLocalBounds().contains(e.getPosition())) {
+            DBG("NodeComponent::mouseUp - name='" + getNodeName() +
+                "' pathValid=" + juce::String(nodePath_.isValid() ? 1 : 0) +
+                " trackId=" + juce::String(nodePath_.trackId));
+            // Use centralized selection if we have a valid path
+            if (nodePath_.isValid()) {
+                magda::SelectionManager::getInstance().selectChainNode(nodePath_);
+            } else {
+                DBG("  -> Path NOT valid, skipping centralized selection");
+            }
+
+            // Also call legacy callback for backward compatibility during transition
+            if (onSelected) {
+                onSelected();
+            }
+        }
+    }
 }
 
 }  // namespace magda::daw::ui

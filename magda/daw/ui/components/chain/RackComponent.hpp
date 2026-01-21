@@ -37,6 +37,7 @@ class RackComponent : public NodeComponent {
     void rebuildChainRows();
     void childLayoutChanged();
     void clearChainSelection();
+    void clearDeviceSelection();  // Clear device selection in chain panel
 
     // Chain panel management (shown within rack when chain is selected)
     void showChainPanel(magda::ChainId chainId);
@@ -45,6 +46,8 @@ class RackComponent : public NodeComponent {
 
     // Callback when a chain row is selected (still called, but panel shown internally)
     std::function<void(magda::TrackId, magda::RackId, magda::ChainId)> onChainSelected;
+    // Callback when a device in the chain panel is selected (or deselected with INVALID_DEVICE_ID)
+    std::function<void(magda::DeviceId)> onDeviceSelected;
 
   protected:
     void paintContent(juce::Graphics& g, juce::Rectangle<int> contentArea) override;

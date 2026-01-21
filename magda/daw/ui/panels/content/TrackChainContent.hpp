@@ -106,6 +106,11 @@ class TrackChainContent : public PanelContent, public magda::TrackManagerListene
     // Chain selection handling (internal)
     void onChainSelected(magda::TrackId trackId, magda::RackId rackId, magda::ChainId chainId);
 
+    // Device selection management
+    magda::DeviceId selectedDeviceId_ = magda::INVALID_DEVICE_ID;
+    void onDeviceSlotSelected(magda::DeviceId deviceId);
+    void clearDeviceSelection();
+
     static constexpr int HEADER_HEIGHT = 36;
     static constexpr int MODS_PANEL_WIDTH = 160;
 
