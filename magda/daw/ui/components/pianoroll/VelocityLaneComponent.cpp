@@ -8,6 +8,7 @@ namespace magda {
 
 VelocityLaneComponent::VelocityLaneComponent() {
     setName("VelocityLane");
+    setOpaque(true);  // Ensure proper repainting during drag
 }
 
 void VelocityLaneComponent::setClip(ClipId clipId) {
@@ -53,6 +54,16 @@ void VelocityLaneComponent::setClipStartBeats(double startBeats) {
 }
 
 void VelocityLaneComponent::refreshNotes() {
+    repaint();
+}
+
+void VelocityLaneComponent::setNotePreviewPosition(size_t noteIndex, double previewBeat,
+                                                   bool isDragging) {
+    if (isDragging) {
+        notePreviewPositions_[noteIndex] = previewBeat;
+    } else {
+        notePreviewPositions_.erase(noteIndex);
+    }
     repaint();
 }
 
@@ -141,8 +152,15 @@ void VelocityLaneComponent::paint(juce::Graphics& g) {
     for (size_t i = 0; i < clip->midiNotes.size(); ++i) {
         const auto& note = clip->midiNotes[i];
 
-        // Calculate x position
-        double noteStart = relativeMode_ ? note.startBeat : (clipStartBeats_ + note.startBeat);
+        // Calculate x position - use preview position if available
+        double noteStart = note.startBeat;
+        auto previewIt = notePreviewPositions_.find(i);
+        if (previewIt != notePreviewPositions_.end()) {
+            noteStart = previewIt->second;
+        }
+        if (!relativeMode_) {
+            noteStart += clipStartBeats_;
+        }
         int x = beatToPixel(noteStart);
         int barWidth = juce::jmax(minBarWidth, static_cast<int>(note.lengthBeats * pixelsPerBeat_));
 
@@ -201,8 +219,11 @@ void VelocityLaneComponent::mouseDown(const juce::MouseEvent& e) {
 
 void VelocityLaneComponent::mouseDrag(const juce::MouseEvent& e) {
     if (isDragging_ && draggingNoteIndex_ != SIZE_MAX) {
-        currentDragVelocity_ = yToVelocity(e.y);
-        repaint();
+        int newVelocity = yToVelocity(e.y);
+        if (newVelocity != currentDragVelocity_) {
+            currentDragVelocity_ = newVelocity;
+            repaint();
+        }
     }
 }
 

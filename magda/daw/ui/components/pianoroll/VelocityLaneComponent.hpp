@@ -3,6 +3,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <functional>
+#include <unordered_map>
 
 #include "core/ClipTypes.hpp"
 
@@ -37,6 +38,9 @@ class VelocityLaneComponent : public juce::Component {
     // Refresh from clip data
     void refreshNotes();
 
+    // Set preview position for a note during drag (for syncing with grid)
+    void setNotePreviewPosition(size_t noteIndex, double previewBeat, bool isDragging);
+
     // Callback for velocity changes
     std::function<void(ClipId, size_t noteIndex, int newVelocity)> onVelocityChanged;
 
@@ -59,6 +63,9 @@ class VelocityLaneComponent : public juce::Component {
     int dragStartVelocity_ = 0;
     int currentDragVelocity_ = 0;
     bool isDragging_ = false;
+
+    // Preview positions for notes being dragged in the grid
+    std::unordered_map<size_t, double> notePreviewPositions_;
 
     // Coordinate conversion
     int beatToPixel(double beat) const;

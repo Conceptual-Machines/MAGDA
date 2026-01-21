@@ -356,6 +356,12 @@ void PianoRollGridComponent::createNoteComponents() {
             }
         };
 
+        noteComp->onNoteDragging = [this](size_t index, double previewBeat, bool isDragging) {
+            if (onNoteDragging && clipId_ != INVALID_CLIP_ID) {
+                onNoteDragging(clipId_, index, previewBeat, isDragging);
+            }
+        };
+
         noteComp->snapBeatToGrid = [this](double beat) { return snapBeatToGrid(beat); };
 
         noteComp->updateFromNote(clip->midiNotes[i], noteColour);

@@ -60,6 +60,10 @@ class NoteComponent : public juce::Component {
     std::function<void(size_t)> onNoteDeleted;                // noteIndex
     std::function<double(double)> snapBeatToGrid;             // Optional grid snapping
 
+    // Drag preview callback - fires during drag with preview position
+    std::function<void(size_t, double, bool)>
+        onNoteDragging;  // noteIndex, previewStartBeat, isDragging
+
   private:
     size_t noteIndex_;
     PianoRollGridComponent* parentGrid_;

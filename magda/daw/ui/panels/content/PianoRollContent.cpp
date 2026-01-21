@@ -285,6 +285,14 @@ void PianoRollContent::setupGridCallbacks() {
     gridComponent_->onNoteSelected = [](magda::ClipId clipId, size_t noteIndex) {
         magda::SelectionManager::getInstance().selectNote(clipId, noteIndex);
     };
+
+    // Forward note drag preview to velocity lane for position sync
+    gridComponent_->onNoteDragging = [this](magda::ClipId /*clipId*/, size_t noteIndex,
+                                            double previewBeat, bool isDragging) {
+        if (velocityLane_) {
+            velocityLane_->setNotePreviewPosition(noteIndex, previewBeat, isDragging);
+        }
+    };
 }
 
 void PianoRollContent::paint(juce::Graphics& g) {

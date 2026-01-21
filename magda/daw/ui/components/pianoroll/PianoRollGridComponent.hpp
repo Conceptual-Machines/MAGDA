@@ -120,6 +120,10 @@ class PianoRollGridComponent : public juce::Component {
     std::function<void(ClipId, size_t)> onNoteDeleted;          // clipId, index
     std::function<void(ClipId, size_t)> onNoteSelected;         // clipId, index
 
+    // Callback for drag preview (for syncing velocity lane position)
+    std::function<void(ClipId, size_t, double, bool)>
+        onNoteDragging;  // clipId, index, previewBeat, isDragging
+
   private:
     ClipId clipId_ = INVALID_CLIP_ID;
 

@@ -134,6 +134,11 @@ void NoteComponent::mouseDrag(const juce::MouseEvent& e) {
             // Update visual position
             parentGrid_->updateNotePosition(this, previewStartBeat_, previewNoteNumber_,
                                             dragStartLength_);
+
+            // Notify listeners of drag preview
+            if (onNoteDragging) {
+                onNoteDragging(noteIndex_, previewStartBeat_, true);
+            }
             break;
         }
 
@@ -212,6 +217,11 @@ void NoteComponent::mouseUp(const juce::MouseEvent& /*e*/) {
             default:
                 break;
         }
+    }
+
+    // Notify that drag has ended
+    if (onNoteDragging) {
+        onNoteDragging(noteIndex_, previewStartBeat_, false);
     }
 
     dragMode_ = DragMode::None;
