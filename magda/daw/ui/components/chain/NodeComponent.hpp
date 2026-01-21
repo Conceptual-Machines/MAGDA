@@ -101,10 +101,19 @@ class NodeComponent : public juce::Component {
         return HEADER_HEIGHT;
     }
 
+    // Override to hide footer (return 0)
+    virtual int getFooterHeight() const {
+        return FOOTER_HEIGHT;
+    }
+
     // Control footer button visibility
     void setParamButtonVisible(bool visible);
     void setModButtonVisible(bool visible);
     void setGainButtonVisible(bool visible);
+
+    // Control header button visibility (for custom header layouts)
+    void setBypassButtonVisible(bool visible);
+    void setDeleteButtonVisible(bool visible);
 
     // Panel visibility state (accessible to subclasses)
     bool modPanelVisible_ = false;

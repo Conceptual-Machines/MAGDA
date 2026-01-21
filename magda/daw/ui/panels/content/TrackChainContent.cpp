@@ -230,6 +230,8 @@ class DeviceButtonLookAndFeel : public juce::LookAndFeel_V4 {
 
 //==============================================================================
 // DeviceSlotComponent - Interactive device display (inherits from NodeComponent)
+// Header layout: [M] [Name...] [gain slider] [UI] [bypass] [X]
+// No footer - all controls in header
 //==============================================================================
 class TrackChainContent::DeviceSlotComponent : public NodeComponent {
   public:
@@ -239,20 +241,20 @@ class TrackChainContent::DeviceSlotComponent : public NodeComponent {
 
     DeviceSlotComponent(TrackChainContent& owner, magda::TrackId trackId,
                         const magda::DeviceInfo& device)
-        : owner_(owner), trackId_(trackId), device_(device) {
+        : owner_(owner),
+          trackId_(trackId),
+          device_(device),
+          gainSlider_(TextSlider::Format::Decibels) {
         setNodeName(device.name);
         setBypassed(device.bypassed);
 
         // Restore panel visibility from device state
         modPanelVisible_ = device.modPanelOpen;
-        paramPanelVisible_ = device.paramPanelOpen;
-        gainPanelVisible_ = device.gainPanelOpen;
+
+        // Hide built-in bypass button - we'll add our own in the header
+        setBypassButtonVisible(false);
 
         // Set up NodeComponent callbacks
-        onBypassChanged = [this](bool bypassed) {
-            magda::TrackManager::getInstance().setDeviceBypassed(trackId_, device_.id, bypassed);
-        };
-
         onDeleteClicked = [this]() {
             magda::TrackManager::getInstance().removeDeviceFromTrack(trackId_, device_.id);
         };
@@ -265,24 +267,42 @@ class TrackChainContent::DeviceSlotComponent : public NodeComponent {
             owner_.repaint();
         };
 
-        onGainPanelToggled = [this](bool visible) {
-            if (auto* dev = magda::TrackManager::getInstance().getDevice(trackId_, device_.id)) {
-                dev->gainPanelOpen = visible;
-            }
-            owner_.resized();
-            owner_.repaint();
-        };
-
         onLayoutChanged = [this]() {
             owner_.resized();
             owner_.repaint();
         };
 
-        // Hide param button - params shown inline instead
-        setParamButtonVisible(false);
+        // Mod button (toggle mod panel)
+        modButton_.setButtonText("M");
+        modButton_.setColour(juce::TextButton::buttonColourId,
+                             DarkTheme::getColour(DarkTheme::SURFACE));
+        modButton_.setColour(juce::TextButton::buttonOnColourId,
+                             DarkTheme::getColour(DarkTheme::ACCENT_PURPLE));
+        modButton_.setColour(juce::TextButton::textColourOffId,
+                             DarkTheme::getSecondaryTextColour());
+        modButton_.setColour(juce::TextButton::textColourOnId, DarkTheme::getTextColour());
+        modButton_.setClickingTogglesState(true);
+        modButton_.setToggleState(modPanelVisible_, juce::dontSendNotification);
+        modButton_.onClick = [this]() {
+            modPanelVisible_ = modButton_.getToggleState();
+            if (onModPanelToggled)
+                onModPanelToggled(modPanelVisible_);
+        };
+        modButton_.setLookAndFeel(&SmallButtonLookAndFeel::getInstance());
+        addAndMakeVisible(modButton_);
 
-        // UI button (extra header button)
-        uiButton_.setButtonText("U");
+        // Gain text slider in header
+        gainSlider_.setRange(-60.0, 12.0, 0.1);
+        gainSlider_.setValue(device_.gainDb, juce::dontSendNotification);
+        gainSlider_.onValueChanged = [this](double value) {
+            if (auto* dev = magda::TrackManager::getInstance().getDevice(trackId_, device_.id)) {
+                dev->gainDb = static_cast<float>(value);
+            }
+        };
+        addAndMakeVisible(gainSlider_);
+
+        // UI button (open plugin window)
+        uiButton_.setButtonText("UI");
         uiButton_.setColour(juce::TextButton::buttonColourId,
                             DarkTheme::getColour(DarkTheme::SURFACE));
         uiButton_.setColour(juce::TextButton::textColourOffId, DarkTheme::getSecondaryTextColour());
@@ -290,14 +310,23 @@ class TrackChainContent::DeviceSlotComponent : public NodeComponent {
         uiButton_.setLookAndFeel(&SmallButtonLookAndFeel::getInstance());
         addAndMakeVisible(uiButton_);
 
-        // Gain meter with text slider
-        gainMeter_.setGainDb(device_.gainDb, juce::dontSendNotification);
-        gainMeter_.onGainChanged = [this](double db) {
-            if (auto* dev = magda::TrackManager::getInstance().getDevice(trackId_, device_.id)) {
-                dev->gainDb = static_cast<float>(db);
-            }
+        // Bypass/On button
+        onButton_.setButtonText("on");
+        onButton_.setColour(juce::TextButton::buttonColourId,
+                            DarkTheme::getColour(DarkTheme::ACCENT_GREEN));
+        onButton_.setColour(juce::TextButton::buttonOnColourId,
+                            DarkTheme::getColour(DarkTheme::SURFACE));
+        onButton_.setColour(juce::TextButton::textColourOffId, DarkTheme::getTextColour());
+        onButton_.setColour(juce::TextButton::textColourOnId, DarkTheme::getSecondaryTextColour());
+        onButton_.setClickingTogglesState(true);
+        onButton_.setToggleState(device.bypassed, juce::dontSendNotification);
+        onButton_.onClick = [this]() {
+            bool bypassed = onButton_.getToggleState();
+            setBypassed(bypassed);
+            magda::TrackManager::getInstance().setDeviceBypassed(trackId_, device_.id, bypassed);
         };
-        addAndMakeVisible(gainMeter_);
+        onButton_.setLookAndFeel(&SmallButtonLookAndFeel::getInstance());
+        addAndMakeVisible(onButton_);
 
         // Create inline param sliders with labels (mock params)
         // clang-format off
@@ -326,24 +355,25 @@ class TrackChainContent::DeviceSlotComponent : public NodeComponent {
     }
 
     ~DeviceSlotComponent() override {
+        modButton_.setLookAndFeel(nullptr);
         uiButton_.setLookAndFeel(nullptr);
+        onButton_.setLookAndFeel(nullptr);
     }
 
     int getExpandedWidth() const {
         return getTotalWidth(BASE_WIDTH);
     }
 
-    bool isGainSliderVisible() const {
-        return gainPanelVisible_;
-    }
     bool isModPanelVisible() const {
         return modPanelVisible_;
     }
-    bool isCollapsed() const {
-        return false;
-    }  // No longer support collapsed mode
 
   protected:
+    // No footer for devices
+    int getFooterHeight() const override {
+        return 0;
+    }
+
     void paintContent(juce::Graphics& g, juce::Rectangle<int> contentArea) override {
         // Manufacturer label at top
         auto labelArea = contentArea.removeFromTop(12);
@@ -378,32 +408,40 @@ class TrackChainContent::DeviceSlotComponent : public NodeComponent {
     }
 
     void resizedHeaderExtra(juce::Rectangle<int>& headerArea) override {
-        // Add UI button after bypass button
-        uiButton_.setBounds(headerArea.removeFromLeft(BUTTON_SIZE));
-        headerArea.removeFromLeft(4);
-    }
+        // Header layout: [M] [Name...] [gain slider] [UI] [on] [X]
+        // Note: delete (X) is handled by NodeComponent on the right
 
-    void resizedGainPanel(juce::Rectangle<int> panelArea) override {
-        gainMeter_.setBounds(panelArea.reduced(2, 4));
-        gainMeter_.setVisible(true);
+        // M button on the left (before name)
+        modButton_.setBounds(headerArea.removeFromLeft(BUTTON_SIZE));
+        headerArea.removeFromLeft(4);
+
+        // On button on the right (before delete which is handled by parent)
+        onButton_.setBounds(headerArea.removeFromRight(BUTTON_SIZE + 6));
+        headerArea.removeFromRight(4);
+
+        // UI button
+        uiButton_.setBounds(headerArea.removeFromRight(BUTTON_SIZE + 4));
+        headerArea.removeFromRight(4);
+
+        // Gain slider takes some space on the right
+        gainSlider_.setBounds(headerArea.removeFromRight(50));
+        headerArea.removeFromRight(4);
+
+        // Remaining space is for the name label (handled by NodeComponent)
     }
 
     int getModPanelWidth() const override {
         return 60;
-    }
-    int getParamPanelWidth() const override {
-        return 80;
-    }
-    int getGainPanelWidth() const override {
-        return 28;
     }
 
   private:
     TrackChainContent& owner_;
     magda::TrackId trackId_;
     magda::DeviceInfo device_;
+    juce::TextButton modButton_;
+    TextSlider gainSlider_;
     juce::TextButton uiButton_;
-    GainMeterComponent gainMeter_;
+    juce::TextButton onButton_;
 
     std::unique_ptr<juce::Label> paramLabels_[NUM_PARAMS];
     std::unique_ptr<TextSlider> paramSliders_[NUM_PARAMS];

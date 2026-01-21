@@ -216,14 +216,17 @@ void NodeComponent::paint(juce::Graphics& g) {
                              static_cast<float>(bounds.getRight()));
     }
 
-    // Footer separator
-    g.drawHorizontalLine(getHeight() - FOOTER_HEIGHT, static_cast<float>(bounds.getX()),
-                         static_cast<float>(bounds.getRight()));
+    // Footer separator (only if footer visible)
+    int footerHeight = getFooterHeight();
+    if (footerHeight > 0) {
+        g.drawHorizontalLine(getHeight() - footerHeight, static_cast<float>(bounds.getX()),
+                             static_cast<float>(bounds.getRight()));
+    }
 
     // Calculate content area (between header and footer)
     auto contentArea = bounds;
     contentArea.removeFromTop(headerHeight);
-    contentArea.removeFromBottom(FOOTER_HEIGHT);
+    contentArea.removeFromBottom(footerHeight);
 
     // Let subclass paint main content
     paintContent(g, contentArea);
@@ -272,18 +275,23 @@ void NodeComponent::resized() {
     int headerHeight = getHeaderHeight();
     if (headerHeight > 0) {
         auto headerArea = bounds.removeFromTop(headerHeight).reduced(3, 2);
-        bypassButton_.setBounds(headerArea.removeFromLeft(BUTTON_SIZE));
-        headerArea.removeFromLeft(4);
-        deleteButton_.setBounds(headerArea.removeFromRight(BUTTON_SIZE));
-        headerArea.removeFromRight(4);
+
+        // Bypass button on left (if visible)
+        if (bypassButton_.isVisible()) {
+            bypassButton_.setBounds(headerArea.removeFromLeft(BUTTON_SIZE));
+            headerArea.removeFromLeft(4);
+        }
+
+        // Delete button on right (if visible)
+        if (deleteButton_.isVisible()) {
+            deleteButton_.setBounds(headerArea.removeFromRight(BUTTON_SIZE));
+            headerArea.removeFromRight(4);
+        }
 
         // Let subclass add extra header buttons
         resizedHeaderExtra(headerArea);
 
         nameLabel_.setBounds(headerArea);
-
-        bypassButton_.setVisible(true);
-        deleteButton_.setVisible(true);
         nameLabel_.setVisible(true);
     } else {
         // Hide header controls
@@ -292,12 +300,26 @@ void NodeComponent::resized() {
         nameLabel_.setVisible(false);
     }
 
-    // === FOOTER: [M] [P] ... [G] ===
-    auto footerArea = bounds.removeFromBottom(FOOTER_HEIGHT).reduced(3, 2);
-    modToggleButton_.setBounds(footerArea.removeFromLeft(BUTTON_SIZE));
-    footerArea.removeFromLeft(2);
-    paramToggleButton_.setBounds(footerArea.removeFromLeft(BUTTON_SIZE));
-    gainToggleButton_.setBounds(footerArea.removeFromRight(BUTTON_SIZE));
+    // === FOOTER: [M] [P] ... [G] === (only if footer visible)
+    int footerHeight = getFooterHeight();
+    if (footerHeight > 0) {
+        auto footerArea = bounds.removeFromBottom(footerHeight).reduced(3, 2);
+        modToggleButton_.setBounds(footerArea.removeFromLeft(BUTTON_SIZE));
+        footerArea.removeFromLeft(2);
+        paramToggleButton_.setBounds(footerArea.removeFromLeft(BUTTON_SIZE));
+        gainToggleButton_.setBounds(footerArea.removeFromRight(BUTTON_SIZE));
+
+        modToggleButton_.setVisible(true);
+        paramToggleButton_.setVisible(
+            paramToggleButton_.isVisible());  // Respect setParamButtonVisible
+        gainToggleButton_.setVisible(
+            gainToggleButton_.isVisible());  // Respect setGainButtonVisible
+    } else {
+        // Hide footer controls
+        modToggleButton_.setVisible(false);
+        paramToggleButton_.setVisible(false);
+        gainToggleButton_.setVisible(false);
+    }
 
     // === CONTENT (remaining area) ===
     auto contentArea = bounds.reduced(2, 0);
@@ -330,6 +352,14 @@ void NodeComponent::setModButtonVisible(bool visible) {
 
 void NodeComponent::setGainButtonVisible(bool visible) {
     gainToggleButton_.setVisible(visible);
+}
+
+void NodeComponent::setBypassButtonVisible(bool visible) {
+    bypassButton_.setVisible(visible);
+}
+
+void NodeComponent::setDeleteButtonVisible(bool visible) {
+    deleteButton_.setVisible(visible);
 }
 
 void NodeComponent::paintContent(juce::Graphics& /*g*/, juce::Rectangle<int> /*contentArea*/) {
