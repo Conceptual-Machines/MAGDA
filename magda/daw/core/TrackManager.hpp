@@ -160,6 +160,23 @@ class TrackManager {
         return selectedTrackId_;
     }
 
+    // Chain selection (for plugin browser context menu)
+    void setSelectedChain(TrackId trackId, RackId rackId, ChainId chainId);
+    void clearSelectedChain();
+    bool hasSelectedChain() const {
+        return selectedChainTrackId_ != INVALID_TRACK_ID &&
+               selectedChainRackId_ != INVALID_RACK_ID && selectedChainId_ != INVALID_CHAIN_ID;
+    }
+    TrackId getSelectedChainTrackId() const {
+        return selectedChainTrackId_;
+    }
+    RackId getSelectedChainRackId() const {
+        return selectedChainRackId_;
+    }
+    ChainId getSelectedChainId() const {
+        return selectedChainId_;
+    }
+
     // Master channel
     const MasterChannelState& getMasterChannel() const {
         return masterChannel_;
@@ -190,6 +207,9 @@ class TrackManager {
     int nextChainId_ = 1;
     MasterChannelState masterChannel_;
     TrackId selectedTrackId_ = INVALID_TRACK_ID;
+    TrackId selectedChainTrackId_ = INVALID_TRACK_ID;
+    RackId selectedChainRackId_ = INVALID_RACK_ID;
+    ChainId selectedChainId_ = INVALID_CHAIN_ID;
 
     void notifyTracksChanged();
     void notifyTrackPropertyChanged(int trackId);

@@ -2,6 +2,7 @@
 
 #include "../../themes/MixerLookAndFeel.hpp"
 #include "PanelContent.hpp"
+#include "core/DeviceInfo.hpp"
 #include "core/TrackManager.hpp"
 #include "ui/components/common/TextSlider.hpp"
 
@@ -40,6 +41,23 @@ class TrackChainContent : public PanelContent, public magda::TrackManagerListene
     void trackSelectionChanged(magda::TrackId trackId) override;
     void trackDevicesChanged(magda::TrackId trackId) override;
 
+    // Selection state for plugin browser context menu
+    bool hasSelectedTrack() const;
+    bool hasSelectedChain() const;
+    magda::TrackId getSelectedTrackId() const {
+        return selectedTrackId_;
+    }
+    magda::RackId getSelectedRackId() const {
+        return selectedRackId_;
+    }
+    magda::ChainId getSelectedChainId() const {
+        return selectedChainId_;
+    }
+
+    // Add device commands
+    void addDeviceToSelectedTrack(const magda::DeviceInfo& device);
+    void addDeviceToSelectedChain(const magda::DeviceInfo& device);
+
   private:
     juce::Label noSelectionLabel_;
 
@@ -47,7 +65,6 @@ class TrackChainContent : public PanelContent, public magda::TrackManagerListene
     juce::TextButton globalModsButton_;        // Toggle global modulators panel
     juce::TextButton addRackButton_;           // Add rack button
     juce::TextButton addMultibandRackButton_;  // Add multi-band rack button
-    juce::TextButton addDeviceButton_;         // Add device to selected chain
 
     // Header bar controls - RIGHT side (track info)
     juce::Label trackNameLabel_;
@@ -76,10 +93,8 @@ class TrackChainContent : public PanelContent, public magda::TrackManagerListene
     // Rack components for parallel chain routing
     std::vector<std::unique_ptr<RackComponent>> rackComponents_;
 
-    // Chain selection handling
+    // Chain selection handling (internal)
     void onChainSelected(magda::TrackId trackId, magda::RackId rackId, magda::ChainId chainId);
-    void addDeviceToSelectedChain();
-    bool hasSelectedChain() const;
 
     static constexpr int HEADER_HEIGHT = 36;
     static constexpr int MODS_PANEL_WIDTH = 160;

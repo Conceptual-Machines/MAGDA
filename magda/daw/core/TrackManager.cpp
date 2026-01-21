@@ -724,6 +724,18 @@ void TrackManager::setSelectedTrack(TrackId trackId) {
     }
 }
 
+void TrackManager::setSelectedChain(TrackId trackId, RackId rackId, ChainId chainId) {
+    selectedChainTrackId_ = trackId;
+    selectedChainRackId_ = rackId;
+    selectedChainId_ = chainId;
+}
+
+void TrackManager::clearSelectedChain() {
+    selectedChainTrackId_ = INVALID_TRACK_ID;
+    selectedChainRackId_ = INVALID_RACK_ID;
+    selectedChainId_ = INVALID_CHAIN_ID;
+}
+
 // ============================================================================
 // Master Channel
 // ============================================================================

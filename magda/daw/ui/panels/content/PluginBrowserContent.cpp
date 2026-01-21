@@ -372,52 +372,80 @@ void PluginBrowserContent::showPluginContextMenu(const MockPluginInfo& plugin,
                                                  juce::Point<int> position) {
     juce::PopupMenu menu;
 
-    menu.addItem(1, "Add to Selected Track");
+    auto& trackManager = magda::TrackManager::getInstance();
+    bool hasTrack = trackManager.getSelectedTrack() != magda::INVALID_TRACK_ID;
+    bool hasChain = trackManager.hasSelectedChain();
+
+    // Only show add options when selection exists
+    if (hasTrack) {
+        menu.addItem(1, "Add to Selected Track");
+    }
+    if (hasChain) {
+        menu.addItem(2, "Add to Selected Chain");
+    }
+    if (hasTrack || hasChain) {
+        menu.addSeparator();
+    }
+
+    menu.addItem(3, "Configure Parameters...");
+    menu.addItem(4, "Set Gain Stage Parameter...");
     menu.addSeparator();
-    menu.addItem(2, "Configure Parameters...");
-    menu.addItem(3, "Set Gain Stage Parameter...");
+    menu.addItem(5, plugin.isFavorite ? "Remove from Favorites" : "Add to Favorites");
     menu.addSeparator();
-    menu.addItem(4, plugin.isFavorite ? "Remove from Favorites" : "Add to Favorites");
-    menu.addSeparator();
-    menu.addItem(5, "Show in Finder");
+    menu.addItem(6, "Show in Finder");
 
     menu.showMenuAsync(
         juce::PopupMenu::Options().withTargetScreenArea({position.x, position.y, 1, 1}),
         [this, plugin](int result) {
+            auto& tm = magda::TrackManager::getInstance();
+
+            // Helper to create device info from plugin
+            auto createDevice = [&plugin]() {
+                magda::DeviceInfo device;
+                device.name = plugin.name;
+                device.manufacturer = plugin.manufacturer;
+                device.pluginId = plugin.name + "_" + plugin.format;
+                if (plugin.format == "VST3") {
+                    device.format = magda::PluginFormat::VST3;
+                } else if (plugin.format == "AU") {
+                    device.format = magda::PluginFormat::AU;
+                } else if (plugin.format == "VST") {
+                    device.format = magda::PluginFormat::VST;
+                }
+                return device;
+            };
+
             switch (result) {
                 case 1: {
                     // Add to selected track
-                    auto selectedTrack = magda::TrackManager::getInstance().getSelectedTrack();
+                    auto selectedTrack = tm.getSelectedTrack();
                     if (selectedTrack != magda::INVALID_TRACK_ID) {
-                        magda::DeviceInfo device;
-                        device.name = plugin.name;
-                        device.manufacturer = plugin.manufacturer;
-                        device.pluginId = plugin.name + "_" + plugin.format;  // Mock plugin ID
-                        if (plugin.format == "VST3") {
-                            device.format = magda::PluginFormat::VST3;
-                        } else if (plugin.format == "AU") {
-                            device.format = magda::PluginFormat::AU;
-                        } else if (plugin.format == "VST") {
-                            device.format = magda::PluginFormat::VST;
-                        }
-                        magda::TrackManager::getInstance().addDeviceToTrack(selectedTrack, device);
+                        tm.addDeviceToTrack(selectedTrack, createDevice());
                         DBG("Added device: " + plugin.name + " to track " +
                             juce::String(selectedTrack));
-                    } else {
-                        DBG("No track selected - cannot add device");
                     }
                     break;
                 }
-                case 2:
+                case 2: {
+                    // Add to selected chain
+                    if (tm.hasSelectedChain()) {
+                        tm.addDeviceToChain(tm.getSelectedChainTrackId(),
+                                            tm.getSelectedChainRackId(), tm.getSelectedChainId(),
+                                            createDevice());
+                        DBG("Added device: " + plugin.name + " to selected chain");
+                    }
+                    break;
+                }
+                case 3:
                     showParameterConfigDialog(plugin);
                     break;
-                case 3:
+                case 4:
                     DBG("Set gain stage for: " + plugin.name);
                     break;
-                case 4:
+                case 5:
                     DBG("Toggle favorite: " + plugin.name);
                     break;
-                case 5:
+                case 6:
                     DBG("Show in finder: " + plugin.name);
                     break;
             }
