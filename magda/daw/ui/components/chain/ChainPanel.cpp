@@ -689,46 +689,69 @@ void ChainPanel::rebuildElementSlots() {
     elementSlots_ = std::move(newSlots);
 
     // Wire up drag-to-reorder callbacks for all element slots
+    // Use SafePointer because moveElementInChainByPath triggers rebuild which may destroy this
+    auto safeThis = juce::Component::SafePointer<ChainPanel>(this);
+
     for (auto& slot : elementSlots_) {
-        slot->onDragStart = [this](NodeComponent* node, const juce::MouseEvent&) {
-            draggedElement_ = node;
-            dragOriginalIndex_ = findElementIndex(node);
-            dragInsertIndex_ = dragOriginalIndex_;
+        slot->onDragStart = [safeThis](NodeComponent* node, const juce::MouseEvent&) {
+            if (safeThis == nullptr)
+                return;
+            safeThis->draggedElement_ = node;
+            safeThis->dragOriginalIndex_ = safeThis->findElementIndex(node);
+            safeThis->dragInsertIndex_ = safeThis->dragOriginalIndex_;
             // Capture ghost image and make original semi-transparent
-            dragGhostImage_ = node->createComponentSnapshot(node->getLocalBounds());
+            safeThis->dragGhostImage_ = node->createComponentSnapshot(node->getLocalBounds());
             node->setAlpha(0.4f);
         };
 
-        slot->onDragMove = [this](NodeComponent*, const juce::MouseEvent& e) {
-            auto pos = e.getEventRelativeTo(elementSlotsContainer_.get()).getPosition();
-            dragInsertIndex_ = calculateInsertIndex(pos.x);
-            dragMousePos_ = pos;
-            elementSlotsContainer_->repaint();
+        slot->onDragMove = [safeThis](NodeComponent*, const juce::MouseEvent& e) {
+            if (safeThis == nullptr)
+                return;
+            auto pos = e.getEventRelativeTo(safeThis->elementSlotsContainer_.get()).getPosition();
+            safeThis->dragInsertIndex_ = safeThis->calculateInsertIndex(pos.x);
+            safeThis->dragMousePos_ = pos;
+            safeThis->elementSlotsContainer_->repaint();
         };
 
-        slot->onDragEnd = [this](NodeComponent* node, const juce::MouseEvent&) {
+        slot->onDragEnd = [safeThis](NodeComponent* node, const juce::MouseEvent&) {
+            if (safeThis == nullptr)
+                return;
+
             // Restore alpha and clear ghost
             node->setAlpha(1.0f);
-            dragGhostImage_ = juce::Image();
+            safeThis->dragGhostImage_ = juce::Image();
 
-            int elementCount = static_cast<int>(elementSlots_.size());
-            if (dragOriginalIndex_ >= 0 && dragInsertIndex_ >= 0 &&
-                dragOriginalIndex_ != dragInsertIndex_) {
+            int elementCount = static_cast<int>(safeThis->elementSlots_.size());
+            if (safeThis->dragOriginalIndex_ >= 0 && safeThis->dragInsertIndex_ >= 0 &&
+                safeThis->dragOriginalIndex_ != safeThis->dragInsertIndex_) {
                 // Convert insert position to target index
-                int targetIndex = dragInsertIndex_;
-                if (dragInsertIndex_ > dragOriginalIndex_) {
-                    targetIndex = dragInsertIndex_ - 1;
+                int targetIndex = safeThis->dragInsertIndex_;
+                if (safeThis->dragInsertIndex_ > safeThis->dragOriginalIndex_) {
+                    targetIndex = safeThis->dragInsertIndex_ - 1;
                 }
                 targetIndex = juce::jlimit(0, elementCount - 1, targetIndex);
-                if (targetIndex != dragOriginalIndex_) {
+                if (targetIndex != safeThis->dragOriginalIndex_) {
+                    // Capture chainPath before the move (in case safeThis becomes invalid)
+                    auto chainPath = safeThis->chainPath_;
+                    int fromIndex = safeThis->dragOriginalIndex_;
+
+                    // Clear state before the move (which triggers rebuild)
+                    safeThis->draggedElement_ = nullptr;
+                    safeThis->dragOriginalIndex_ = -1;
+                    safeThis->dragInsertIndex_ = -1;
+
+                    // Perform the move - this may destroy safeThis
                     magda::TrackManager::getInstance().moveElementInChainByPath(
-                        chainPath_, dragOriginalIndex_, targetIndex);
+                        chainPath, fromIndex, targetIndex);
+                    return;  // Don't access safeThis after this point
                 }
             }
-            draggedElement_ = nullptr;
-            dragOriginalIndex_ = -1;
-            dragInsertIndex_ = -1;
-            elementSlotsContainer_->repaint();
+
+            // Only reached if no move happened
+            safeThis->draggedElement_ = nullptr;
+            safeThis->dragOriginalIndex_ = -1;
+            safeThis->dragInsertIndex_ = -1;
+            safeThis->elementSlotsContainer_->repaint();
         };
     }
 }
