@@ -77,6 +77,12 @@ void MacroPanelComponent::setAvailableDevices(
     }
 }
 
+void MacroPanelComponent::setSelectedMacroIndex(int macroIndex) {
+    for (size_t i = 0; i < knobs_.size(); ++i) {
+        knobs_[i]->setSelected(static_cast<int>(i) == macroIndex);
+    }
+}
+
 int MacroPanelComponent::getTotalItemCount() const {
     return static_cast<int>(knobs_.size());
 }

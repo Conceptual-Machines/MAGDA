@@ -9,6 +9,7 @@
 #include "ModKnobComponent.hpp"
 #include "PagedControlPanel.hpp"
 #include "core/ModInfo.hpp"
+#include "core/SelectionManager.hpp"
 
 namespace magda::daw::ui {
 
@@ -41,15 +42,24 @@ class ModsPanelComponent : public PagedControlPanel {
     // Set available devices for linking (devices in this rack/chain)
     void setAvailableDevices(const std::vector<std::pair<magda::DeviceId, juce::String>>& devices);
 
+    // Set parent path for drag-and-drop (propagates to all knobs)
+    void setParentPath(const magda::ChainNodePath& path);
+
     // Contextual selection - when set, knobs show amounts for this param
     void setSelectedParam(const magda::ModTarget& param);
     void clearSelectedParam();
+
+    // Set which mod is selected (orange highlight)
+    void setSelectedModIndex(int modIndex);
 
     // Callbacks
     std::function<void(int modIndex, float amount)> onModAmountChanged;
     std::function<void(int modIndex, magda::ModTarget target)> onModTargetChanged;
     std::function<void(int modIndex, juce::String name)> onModNameChanged;
     std::function<void(int modIndex)> onModClicked;  // Opens modulator editor
+    // Link amount callbacks (for contextual param linking)
+    std::function<void(int modIndex, magda::ModTarget target, float amount)> onModLinkAmountChanged;
+    std::function<void(int modIndex, magda::ModTarget target, float amount)> onModNewLinkCreated;
 
   protected:
     // PagedControlPanel overrides
@@ -62,6 +72,7 @@ class ModsPanelComponent : public PagedControlPanel {
   private:
     std::vector<std::unique_ptr<ModKnobComponent>> knobs_;
     std::vector<std::pair<magda::DeviceId, juce::String>> availableDevices_;
+    magda::ChainNodePath parentPath_;
 
     void ensureKnobCount(int count);
 

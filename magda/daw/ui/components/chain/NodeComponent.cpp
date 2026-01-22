@@ -758,6 +758,11 @@ void NodeComponent::setCollapsed(bool collapsed) {
 
 void NodeComponent::setNodePath(const magda::ChainNodePath& path) {
     nodePath_ = path;
+
+    // Update mods panel with parent path for drag-and-drop
+    if (modsPanel_) {
+        modsPanel_->setParentPath(path);
+    }
 }
 
 void NodeComponent::selectionTypeChanged(magda::SelectionType newType) {
@@ -920,6 +925,13 @@ void NodeComponent::initializeModsMacrosPanels() {
     };
     modsPanel_->onPanelClicked = [this]() {
         magda::SelectionManager::getInstance().selectModsPanel(nodePath_);
+    };
+    modsPanel_->onModLinkAmountChanged = [this](int modIndex, magda::ModTarget target,
+                                                float amount) {
+        onModLinkAmountChangedInternal(modIndex, target, amount);
+    };
+    modsPanel_->onModNewLinkCreated = [this](int modIndex, magda::ModTarget target, float amount) {
+        onModNewLinkCreatedInternal(modIndex, target, amount);
     };
     addChildComponent(*modsPanel_);
 

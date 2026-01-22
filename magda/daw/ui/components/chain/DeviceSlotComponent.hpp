@@ -87,10 +87,15 @@ class DeviceSlotComponent : public NodeComponent {
     void onModPageRemoveRequested(int itemsToRemove) override;
     void onMacroPageAddRequested(int itemsToAdd) override;
     void onMacroPageRemoveRequested(int itemsToRemove) override;
+    // Contextual link callbacks (when param is selected and mod amount slider is used)
+    void onModLinkAmountChangedInternal(int modIndex, magda::ModTarget target,
+                                        float amount) override;
+    void onModNewLinkCreatedInternal(int modIndex, magda::ModTarget target, float amount) override;
 
     // SelectionManagerListener overrides
     void selectionTypeChanged(magda::SelectionType newType) override;
     void modSelectionChanged(const magda::ModSelection& selection) override;
+    void macroSelectionChanged(const magda::MacroSelection& selection) override;
     void paramSelectionChanged(const magda::ParamSelection& selection) override;
 
   private:

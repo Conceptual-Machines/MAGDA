@@ -39,6 +39,9 @@ class MacroPanelComponent : public PagedControlPanel {
     // Set available devices for linking (devices in this rack/chain)
     void setAvailableDevices(const std::vector<std::pair<magda::DeviceId, juce::String>>& devices);
 
+    // Set which macro is selected (purple highlight)
+    void setSelectedMacroIndex(int macroIndex);
+
     // Callbacks
     std::function<void(int macroIndex, float value)> onMacroValueChanged;
     std::function<void(int macroIndex, magda::MacroTarget target)> onMacroTargetChanged;

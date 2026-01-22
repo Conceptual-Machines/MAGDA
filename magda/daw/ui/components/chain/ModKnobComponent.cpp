@@ -30,8 +30,8 @@ ModKnobComponent::ModKnobComponent(int modIndex) : modIndex_(modIndex) {
             onAmountChanged(currentMod_.amount);
         }
     };
-    amountSlider_.onAltClicked = [this]() {
-        // Alt+click on slider: if a param is selected, show amount popup
+    amountSlider_.onShiftClicked = [this]() {
+        // Shift+click on slider: if a param is selected, link or edit amount
         if (selectedParam_.isValid()) {
             const auto* existingLink = currentMod_.getLink(selectedParam_);
             bool isLinked = existingLink != nullptr ||
@@ -39,10 +39,15 @@ ModKnobComponent::ModKnobComponent(int modIndex) : modIndex_(modIndex) {
                              currentMod_.target.paramIndex == selectedParam_.paramIndex);
 
             if (isLinked) {
+                // Already linked - show slider to edit amount
                 float currentAmount = existingLink ? existingLink->amount : currentMod_.amount;
                 showAmountSlider(currentAmount, false);
             } else {
-                showAmountSlider(0.5f, true);
+                // Not linked - immediately create link at 50% and show slider for adjustment
+                if (onNewLinkCreated) {
+                    onNewLinkCreated(selectedParam_, 0.5f);
+                }
+                showAmountSlider(0.5f, false);  // false = editing existing
             }
         }
     };
@@ -139,37 +144,52 @@ void ModKnobComponent::resized() {
 }
 
 void ModKnobComponent::mouseDown(const juce::MouseEvent& e) {
-    // Left-click triggers onClicked callback to open modulator panel
     if (!e.mods.isPopupMenu()) {
-        // Check if click is not on slider (slider needs to handle its own drag)
-        if (!amountSlider_.getBounds().contains(e.getPosition())) {
-            // Alt+click: if a param is selected, directly show amount slider
-            if (e.mods.isAltDown() && selectedParam_.isValid()) {
-                // Check if linked to selected param
-                const auto* existingLink = currentMod_.getLink(selectedParam_);
-                bool isLinked = existingLink != nullptr ||
-                                (currentMod_.target.deviceId == selectedParam_.deviceId &&
-                                 currentMod_.target.paramIndex == selectedParam_.paramIndex);
+        // Track drag start position
+        dragStartPos_ = e.getPosition();
+        isDragging_ = false;
+    }
+}
 
-                if (isLinked) {
-                    float currentAmount = existingLink ? existingLink->amount : currentMod_.amount;
-                    showAmountSlider(currentAmount, false);
-                } else {
-                    // Create new link with default 50%
-                    showAmountSlider(0.5f, true);
-                }
-            } else if (onClicked) {
-                onClicked();
+void ModKnobComponent::mouseDrag(const juce::MouseEvent& e) {
+    if (e.mods.isPopupMenu())
+        return;
+
+    // Check if we've moved enough to start a drag
+    if (!isDragging_) {
+        auto distance = e.getPosition().getDistanceFrom(dragStartPos_);
+        if (distance > DRAG_THRESHOLD) {
+            isDragging_ = true;
+
+            // Find a DragAndDropContainer ancestor
+            if (auto* container = juce::DragAndDropContainer::findParentDragContainerFor(this)) {
+                // Create drag description: "mod_drag:trackId:topLevelDeviceId:modIndex"
+                // (For now, only supporting top-level devices)
+                juce::String desc = DRAG_PREFIX;
+                desc += juce::String(parentPath_.trackId) + ":";
+                desc += juce::String(parentPath_.topLevelDeviceId) + ":";
+                desc += juce::String(modIndex_);
+
+                // Create a snapshot of this component for drag image
+                auto snapshot = createComponentSnapshot(getLocalBounds());
+
+                container->startDragging(desc, this, juce::ScaledImage(snapshot), true);
             }
         }
     }
 }
 
 void ModKnobComponent::mouseUp(const juce::MouseEvent& e) {
-    // Right-click shows link menu
     if (e.mods.isPopupMenu()) {
+        // Right-click shows link menu
         showLinkMenu();
+    } else if (!isDragging_) {
+        // Left-click (no drag) - select this mod
+        if (onClicked) {
+            onClicked();
+        }
     }
+    isDragging_ = false;
 }
 
 void ModKnobComponent::showAmountSlider(float currentAmount, bool isNewLink) {

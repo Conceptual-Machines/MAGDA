@@ -5,6 +5,7 @@
 #include <functional>
 
 #include "core/ModInfo.hpp"
+#include "core/SelectionManager.hpp"
 #include "ui/components/common/TextSlider.hpp"
 
 namespace magda::daw::ui {
@@ -12,15 +13,13 @@ namespace magda::daw::ui {
 /**
  * @brief A single mod cell with type icon, name, amount slider, and link indicator
  *
- * Contextual paradigm:
- * - When a param is selected, the amount slider shows the link amount for that param
- * - When no param selected, shows the mod's global/default amount
+ * Supports drag-and-drop: drag from this knob onto a ParamSlotComponent to create a link.
  *
  * Layout (vertical, ~60px wide):
  * +-----------+
  * | LFO 1     |  <- type + name label
- * |   0.50    |  <- amount slider (context-dependent)
- * |     *     |  <- link dot (orange if linked to selected param)
+ * |   0.50    |  <- amount slider
+ * |     *     |  <- link dot (orange if linked)
  * +-----------+
  *
  * Clicking the cell opens the modulator editor side panel.
@@ -35,6 +34,17 @@ class ModKnobComponent : public juce::Component {
 
     // Set available devices for linking (name and deviceId pairs)
     void setAvailableTargets(const std::vector<std::pair<magda::DeviceId, juce::String>>& devices);
+
+    // Set parent path for drag-and-drop identification
+    void setParentPath(const magda::ChainNodePath& path) {
+        parentPath_ = path;
+    }
+    const magda::ChainNodePath& getParentPath() const {
+        return parentPath_;
+    }
+    int getModIndex() const {
+        return modIndex_;
+    }
 
     // Contextual selection - when set, shows the link amount for this param
     void setSelectedParam(const magda::ModTarget& param);
@@ -60,8 +70,12 @@ class ModKnobComponent : public juce::Component {
 
     void paint(juce::Graphics& g) override;
     void resized() override;
-    void mouseUp(const juce::MouseEvent& e) override;
     void mouseDown(const juce::MouseEvent& e) override;
+    void mouseDrag(const juce::MouseEvent& e) override;
+    void mouseUp(const juce::MouseEvent& e) override;
+
+    // Drag-and-drop description prefix
+    static constexpr const char* DRAG_PREFIX = "mod_drag:";
 
   private:
     void showLinkMenu();
@@ -75,7 +89,13 @@ class ModKnobComponent : public juce::Component {
     magda::ModInfo currentMod_;
     std::vector<std::pair<magda::DeviceId, juce::String>> availableTargets_;
     bool selected_ = false;
-    magda::ModTarget selectedParam_;  // For contextual display
+    magda::ModTarget selectedParam_;   // For contextual display
+    magda::ChainNodePath parentPath_;  // For drag-and-drop identification
+
+    // Drag state
+    juce::Point<int> dragStartPos_;
+    bool isDragging_ = false;
+    static constexpr int DRAG_THRESHOLD = 5;
 
     void updateAmountDisplay();  // Update slider based on context
 

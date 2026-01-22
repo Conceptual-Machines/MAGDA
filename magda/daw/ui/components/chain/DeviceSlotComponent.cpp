@@ -2,6 +2,8 @@
 
 #include <BinaryData.h>
 
+#include "MacroPanelComponent.hpp"
+#include "ModsPanelComponent.hpp"
 #include "ParamSlotComponent.hpp"
 #include "core/MacroInfo.hpp"
 #include "core/ModInfo.hpp"
@@ -174,20 +176,39 @@ DeviceSlotComponent::DeviceSlotComponent(const magda::DeviceInfo& device) : devi
             magda::TrackManager::getInstance().setDeviceModLinkAmount(nodePath_, modIndex, target,
                                                                       amount);
             updateParamModulation();
+
+            // Auto-expand mods panel and select the linked mod
+            if (!modPanelVisible_) {
+                modButton_->setToggleState(true, juce::dontSendNotification);
+                modButton_->setActive(true);
+                setModPanelVisible(true);
+            }
+            magda::SelectionManager::getInstance().selectMod(nodePath_, modIndex);
         };
         paramSlots_[i]->onModUnlinked = [this](int modIndex, magda::ModTarget target) {
             magda::TrackManager::getInstance().removeDeviceModLink(nodePath_, modIndex, target);
             updateParamModulation();
         };
-        paramSlots_[i]->onModAmountChanged = [this](int modIndex, magda::ModTarget target,
+        paramSlots_[i]->onModAmountChanged = [this](int modIndex, magda::ModTarget /*target*/,
                                                     float amount) {
-            magda::TrackManager::getInstance().setDeviceModLinkAmount(nodePath_, modIndex, target,
-                                                                      amount);
+            // Update global mod amount (shown on mod knob)
+            magda::TrackManager::getInstance().setDeviceModAmount(nodePath_, modIndex, amount);
             updateParamModulation();
+            updateModsPanel();  // Refresh mod knob to show new amount
         };
         paramSlots_[i]->onMacroLinked = [this](int macroIndex, magda::MacroTarget target) {
             onMacroTargetChangedInternal(macroIndex, target);
             updateParamModulation();
+
+            // Auto-expand macros panel and select the linked macro (only if linking, not unlinking)
+            if (target.isValid()) {
+                if (!paramPanelVisible_) {
+                    macroButton_->setToggleState(true, juce::dontSendNotification);
+                    macroButton_->setActive(true);
+                    setParamPanelVisible(true);
+                }
+                magda::SelectionManager::getInstance().selectMacro(nodePath_, macroIndex);
+            }
         };
 
         addAndMakeVisible(*paramSlots_[i]);
@@ -455,6 +476,19 @@ void DeviceSlotComponent::onMacroClickedInternal(int macroIndex) {
     magda::SelectionManager::getInstance().selectMacro(nodePath_, macroIndex);
 }
 
+void DeviceSlotComponent::onModLinkAmountChangedInternal(int modIndex, magda::ModTarget target,
+                                                         float amount) {
+    magda::TrackManager::getInstance().setDeviceModLinkAmount(nodePath_, modIndex, target, amount);
+    updateParamModulation();
+}
+
+void DeviceSlotComponent::onModNewLinkCreatedInternal(int modIndex, magda::ModTarget target,
+                                                      float amount) {
+    magda::TrackManager::getInstance().setDeviceModTarget(nodePath_, modIndex, target);
+    magda::TrackManager::getInstance().setDeviceModLinkAmount(nodePath_, modIndex, target, amount);
+    updateParamModulation();
+}
+
 void DeviceSlotComponent::onModPageAddRequested(int /*itemsToAdd*/) {
     magda::TrackManager::getInstance().addDeviceModPage(nodePath_);
 }
@@ -507,9 +541,29 @@ void DeviceSlotComponent::selectionTypeChanged(magda::SelectionType newType) {
     updateParamModulation();
 }
 
-void DeviceSlotComponent::modSelectionChanged(const magda::ModSelection& /*selection*/) {
+void DeviceSlotComponent::modSelectionChanged(const magda::ModSelection& selection) {
     // Update param slots to show contextual indicators
     updateParamModulation();
+
+    // Update mod knob selection highlight
+    if (modsPanel_) {
+        if (selection.isValid() && selection.parentPath == nodePath_) {
+            modsPanel_->setSelectedModIndex(selection.modIndex);
+        } else {
+            modsPanel_->setSelectedModIndex(-1);
+        }
+    }
+}
+
+void DeviceSlotComponent::macroSelectionChanged(const magda::MacroSelection& selection) {
+    // Update macro knob selection highlight
+    if (macroPanel_) {
+        if (selection.isValid() && selection.parentPath == nodePath_) {
+            macroPanel_->setSelectedMacroIndex(selection.macroIndex);
+        } else {
+            macroPanel_->setSelectedMacroIndex(-1);
+        }
+    }
 }
 
 void DeviceSlotComponent::paramSelectionChanged(const magda::ParamSelection& selection) {

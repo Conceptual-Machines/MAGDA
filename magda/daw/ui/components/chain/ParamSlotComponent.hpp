@@ -16,12 +16,9 @@ namespace magda::daw::ui {
  * Displays a parameter name and value, with visual indicators for any
  * mods/macros linked to this parameter.
  *
- * Contextual paradigm:
- * - When a mod is selected, shows ONLY that mod's link amount indicator
- * - Right-click links/unlinks the selected mod to this param
- * - When no mod selected, shows all linked mods (stacked indicators)
+ * Supports drag-and-drop: drop a ModKnobComponent here to create a link.
  */
-class ParamSlotComponent : public juce::Component {
+class ParamSlotComponent : public juce::Component, public juce::DragAndDropTarget {
   public:
     ParamSlotComponent(int paramIndex);
     ~ParamSlotComponent() override = default;
@@ -82,7 +79,14 @@ class ParamSlotComponent : public juce::Component {
     void paintOverChildren(juce::Graphics& g) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent& e) override;
+    void mouseDrag(const juce::MouseEvent& e) override;
     void mouseUp(const juce::MouseEvent& e) override;
+
+    // DragAndDropTarget
+    bool isInterestedInDragSource(const SourceDetails& details) override;
+    void itemDragEnter(const SourceDetails& details) override;
+    void itemDragExit(const SourceDetails& details) override;
+    void itemDropped(const SourceDetails& details) override;
 
   private:
     int paramIndex_;
@@ -96,13 +100,24 @@ class ParamSlotComponent : public juce::Component {
     juce::Label nameLabel_;
     TextSlider valueSlider_{TextSlider::Format::Decimal};
 
+    // Shift+drag state for mod amount editing
+    bool isModAmountDrag_ = false;
+    float modAmountDragStart_ = 0.0f;
+    int modAmountDragY_ = 0;
+    int modAmountDragModIndex_ = -1;
+
+    // Amount label shown during Shift+drag
+    juce::Label amountLabel_;
+
+    // Drag-and-drop state
+    bool isDragOver_ = false;
+
     // Find mods/macros targeting this param (returns mod index + link pointer)
     // If selectedModIndex_ >= 0, only returns that mod's link (if any)
     std::vector<std::pair<int, const magda::ModLink*>> getLinkedMods() const;
     std::vector<std::pair<int, const magda::MacroInfo*>> getLinkedMacros() const;
 
     void showLinkMenu();
-    void showAmountSlider(int modIndex, float currentAmount, bool isNewLink);
     void paintModulationIndicators(juce::Graphics& g);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ParamSlotComponent)

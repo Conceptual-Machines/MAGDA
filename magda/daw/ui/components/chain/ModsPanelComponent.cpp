@@ -52,7 +52,20 @@ void ModsPanelComponent::ensureKnobCount(int count) {
             }
         };
 
+        knob->onLinkAmountChanged = [this, i](magda::ModTarget target, float amount) {
+            if (onModLinkAmountChanged) {
+                onModLinkAmountChanged(i, target, amount);
+            }
+        };
+
+        knob->onNewLinkCreated = [this, i](magda::ModTarget target, float amount) {
+            if (onModNewLinkCreated) {
+                onModNewLinkCreated(i, target, amount);
+            }
+        };
+
         knob->setAvailableTargets(availableDevices_);
+        knob->setParentPath(parentPath_);
         addAndMakeVisible(*knob);
         knobs_.push_back(std::move(knob));
     }
@@ -77,6 +90,13 @@ void ModsPanelComponent::setAvailableDevices(
     }
 }
 
+void ModsPanelComponent::setParentPath(const magda::ChainNodePath& path) {
+    parentPath_ = path;
+    for (auto& knob : knobs_) {
+        knob->setParentPath(path);
+    }
+}
+
 void ModsPanelComponent::setSelectedParam(const magda::ModTarget& param) {
     for (auto& knob : knobs_) {
         knob->setSelectedParam(param);
@@ -86,6 +106,12 @@ void ModsPanelComponent::setSelectedParam(const magda::ModTarget& param) {
 void ModsPanelComponent::clearSelectedParam() {
     for (auto& knob : knobs_) {
         knob->clearSelectedParam();
+    }
+}
+
+void ModsPanelComponent::setSelectedModIndex(int modIndex) {
+    for (size_t i = 0; i < knobs_.size(); ++i) {
+        knobs_[i]->setSelected(static_cast<int>(i) == modIndex);
     }
 }
 
