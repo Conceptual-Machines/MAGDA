@@ -4,8 +4,6 @@
 
 #include "ChainPanel.hpp"
 #include "ChainRowComponent.hpp"
-#include "MacroEditorPanel.hpp"
-#include "ModsPanelComponent.hpp"
 #include "ui/themes/DarkTheme.hpp"
 #include "ui/themes/FontManager.hpp"
 #include "ui/themes/SmallButtonLookAndFeel.hpp"
@@ -60,14 +58,8 @@ void RackComponent::initializeCommon(const magda::RackInfo& rack) {
     modButton_->setActiveBackgroundColor(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
     modButton_->onClick = [this]() {
         modButton_->setActive(modButton_->getToggleState());
-        modPanelVisible_ = modButton_->getToggleState();
-        // Side panel shows alongside collapsed strip - no need to expand
-        resized();
-        repaint();
-        if (onModPanelToggled)
-            onModPanelToggled(modPanelVisible_);
-        if (onLayoutChanged)
-            onLayoutChanged();
+        // Use inherited method to properly handle editor visibility
+        setModPanelVisible(modButton_->getToggleState());
     };
     addAndMakeVisible(*modButton_);
 
@@ -80,14 +72,8 @@ void RackComponent::initializeCommon(const magda::RackInfo& rack) {
     macroButton_->setActiveBackgroundColor(DarkTheme::getColour(DarkTheme::ACCENT_PURPLE));
     macroButton_->onClick = [this]() {
         macroButton_->setActive(macroButton_->getToggleState());
-        paramPanelVisible_ = macroButton_->getToggleState();
-        // Side panel shows alongside collapsed strip - no need to expand
-        resized();
-        repaint();
-        if (onParamPanelToggled)
-            onParamPanelToggled(paramPanelVisible_);
-        if (onLayoutChanged)
-            onLayoutChanged();
+        // Use inherited method to properly handle editor visibility
+        setParamPanelVisible(macroButton_->getToggleState());
     };
     addAndMakeVisible(*macroButton_);
 
@@ -143,96 +129,8 @@ void RackComponent::initializeCommon(const magda::RackInfo& rack) {
     chainPanel_->onLayoutChanged = [this]() { childLayoutChanged(); };
     addChildComponent(*chainPanel_);
 
-    // Create macro panel (initially hidden, shown when macro button is toggled)
-    macroPanel_ = std::make_unique<MacroPanelComponent>();
-    macroPanel_->onMacroValueChanged = [this](int macroIndex, float value) {
-        magda::TrackManager::getInstance().setRackMacroValue(rackPath_, macroIndex, value);
-    };
-    macroPanel_->onMacroTargetChanged = [this](int macroIndex, magda::MacroTarget target) {
-        magda::TrackManager::getInstance().setRackMacroTarget(rackPath_, macroIndex, target);
-    };
-    macroPanel_->onMacroNameChanged = [this](int macroIndex, juce::String name) {
-        magda::TrackManager::getInstance().setRackMacroName(rackPath_, macroIndex, name);
-    };
-    macroPanel_->onMacroClicked = [this](int macroIndex) {
-        // Select this macro in the SelectionManager for inspector display
-        magda::SelectionManager::getInstance().selectMacro(rackPath_, macroIndex);
-        DBG("Macro clicked: " << macroIndex << " on path: " << rackPath_.toString());
-        // Toggle macro editor panel - if clicking same macro, hide editor; otherwise show for new
-        // macro
-        if (macroEditorVisible_ && selectedMacroIndex_ == macroIndex) {
-            hideMacroEditor();
-        } else {
-            showMacroEditor(macroIndex);
-        }
-    };
-    macroPanel_->onAddPageRequested = [this](int /*itemsToAdd*/) {
-        magda::TrackManager::getInstance().addRackMacroPage(rackPath_);
-    };
-    macroPanel_->onRemovePageRequested = [this](int /*itemsToRemove*/) {
-        magda::TrackManager::getInstance().removeRackMacroPage(rackPath_);
-    };
-    addChildComponent(*macroPanel_);
-
-    // Create mods panel (initially hidden, shown when mod button is toggled)
-    modsPanel_ = std::make_unique<ModsPanelComponent>();
-    modsPanel_->onModAmountChanged = [this](int modIndex, float amount) {
-        magda::TrackManager::getInstance().setRackModAmount(rackPath_, modIndex, amount);
-    };
-    modsPanel_->onModTargetChanged = [this](int modIndex, magda::ModTarget target) {
-        magda::TrackManager::getInstance().setRackModTarget(rackPath_, modIndex, target);
-    };
-    modsPanel_->onModNameChanged = [this](int modIndex, juce::String name) {
-        magda::TrackManager::getInstance().setRackModName(rackPath_, modIndex, name);
-    };
-    modsPanel_->onModClicked = [this](int modIndex) {
-        // Select this mod in the SelectionManager for inspector display
-        magda::SelectionManager::getInstance().selectMod(rackPath_, modIndex);
-        // Toggle modulator editor panel - if clicking same mod, hide editor; otherwise show for new
-        // mod
-        if (modulatorEditorVisible_ && selectedModIndex_ == modIndex) {
-            hideModulatorEditor();
-        } else {
-            showModulatorEditor(modIndex);
-        }
-    };
-    modsPanel_->onAddPageRequested = [this](int /*itemsToAdd*/) {
-        magda::TrackManager::getInstance().addRackModPage(rackPath_);
-    };
-    modsPanel_->onRemovePageRequested = [this](int /*itemsToRemove*/) {
-        magda::TrackManager::getInstance().removeRackModPage(rackPath_);
-    };
-    addChildComponent(*modsPanel_);
-
-    // Modulator editor panel (shown when a mod is selected)
-    modulatorEditorPanel_ = std::make_unique<ModulatorEditorPanel>();
-    modulatorEditorPanel_->onTypeChanged = [this](magda::ModType type) {
-        if (selectedModIndex_ >= 0) {
-            magda::TrackManager::getInstance().setRackModType(rackPath_, selectedModIndex_, type);
-        }
-    };
-    modulatorEditorPanel_->onRateChanged = [this](float rate) {
-        if (selectedModIndex_ >= 0) {
-            magda::TrackManager::getInstance().setRackModRate(rackPath_, selectedModIndex_, rate);
-        }
-    };
-    addChildComponent(*modulatorEditorPanel_);
-
-    // Macro editor panel (shown when a macro is selected)
-    macroEditorPanel_ = std::make_unique<MacroEditorPanel>();
-    macroEditorPanel_->onNameChanged = [this](juce::String name) {
-        if (selectedMacroIndex_ >= 0) {
-            magda::TrackManager::getInstance().setRackMacroName(rackPath_, selectedMacroIndex_,
-                                                                name);
-        }
-    };
-    macroEditorPanel_->onValueChanged = [this](float value) {
-        if (selectedMacroIndex_ >= 0) {
-            magda::TrackManager::getInstance().setRackMacroValue(rackPath_, selectedMacroIndex_,
-                                                                 value);
-        }
-    };
-    addChildComponent(*macroEditorPanel_);
+    // Initialize mods/macros panels from base class
+    initializeModsMacrosPanels();
 
     // Build chain rows
     updateFromRack(rack);
@@ -255,21 +153,13 @@ void RackComponent::paintContent(juce::Graphics& g, juce::Rectangle<int> content
 
 void RackComponent::resizedContent(juce::Rectangle<int> contentArea) {
     // When collapsed, hide content controls only (buttons handled by resizedCollapsed)
-    // NOTE: Side panels (macro/mods) visibility is managed by resizedParamPanel/resizedModPanel
+    // NOTE: Side panels (macro/mods) visibility is managed by base class
     if (collapsed_) {
         chainsLabel_.setVisible(false);
         addChainButton_.setVisible(false);
         chainViewport_.setVisible(false);
         if (chainPanel_) {
             chainPanel_->setVisible(false);
-        }
-        // Only hide macro panel if param panel is not visible
-        if (!paramPanelVisible_ && macroPanel_) {
-            macroPanel_->setVisible(false);
-        }
-        // Only hide mods panel if mod panel is not visible
-        if (!modPanelVisible_ && modsPanel_) {
-            modsPanel_->setVisible(false);
         }
         volumeSlider_.setVisible(false);
         return;
@@ -282,18 +172,6 @@ void RackComponent::resizedContent(juce::Rectangle<int> contentArea) {
     modButton_->setVisible(true);
     macroButton_->setVisible(true);
     volumeSlider_.setVisible(true);
-
-    // Hide macro panel if param panel is not visible
-    // (resizedParamPanel will show it when visible)
-    if (!paramPanelVisible_ && macroPanel_) {
-        macroPanel_->setVisible(false);
-    }
-
-    // Hide mods panel if mod panel is not visible
-    // (resizedModPanel will show it when visible)
-    if (!modPanelVisible_ && modsPanel_) {
-        modsPanel_->setVisible(false);
-    }
 
     // Calculate chain panel positioning
     juce::Rectangle<int> chainPanelArea;
@@ -440,14 +318,12 @@ void RackComponent::updateFromRack(const magda::RackInfo& rack) {
     setBypassed(rack.bypassed);
     rebuildChainRows();
 
-    // Update macro panel if visible
-    if (paramPanelVisible_ && macroPanel_) {
-        updateMacroPanel();
+    // Update panels if visible (uses base class methods)
+    if (paramPanelVisible_) {
+        NodeComponent::updateMacroPanel();
     }
-
-    // Update mods panel if visible
-    if (modPanelVisible_ && modsPanel_) {
-        updateModsPanel();
+    if (modPanelVisible_) {
+        NodeComponent::updateModsPanel();
     }
 
     // Also refresh the chain panel if it's showing a chain
@@ -634,271 +510,107 @@ bool RackComponent::isChainPanelVisible() const {
     return chainPanel_ && chainPanel_->isVisible();
 }
 
-void RackComponent::updateMacroPanel() {
-    if (!macroPanel_) {
-        return;
-    }
+// === Virtual data provider overrides ===
 
-    // Get the rack data via path resolution
+const magda::ModArray* RackComponent::getModsData() const {
     const auto* rack = magda::TrackManager::getInstance().getRackByPath(rackPath_);
-    if (!rack) {
-        return;
-    }
+    return rack ? &rack->mods : nullptr;
+}
 
-    // Update macros
-    macroPanel_->setMacros(rack->macros);
+const magda::MacroArray* RackComponent::getMacrosData() const {
+    const auto* rack = magda::TrackManager::getInstance().getRackByPath(rackPath_);
+    return rack ? &rack->macros : nullptr;
+}
 
-    // Collect available devices for linking (devices from all chains in this rack)
+std::vector<std::pair<magda::DeviceId, juce::String>> RackComponent::getAvailableDevices() const {
     std::vector<std::pair<magda::DeviceId, juce::String>> availableDevices;
-    for (const auto& chain : rack->chains) {
-        for (const auto& element : chain.elements) {
-            if (magda::isDevice(element)) {
-                const auto& device = magda::getDevice(element);
-                availableDevices.emplace_back(device.id, device.name);
+    const auto* rack = magda::TrackManager::getInstance().getRackByPath(rackPath_);
+    if (rack) {
+        for (const auto& chain : rack->chains) {
+            for (const auto& element : chain.elements) {
+                if (magda::isDevice(element)) {
+                    const auto& device = magda::getDevice(element);
+                    availableDevices.emplace_back(device.id, device.name);
+                }
             }
         }
     }
-    macroPanel_->setAvailableDevices(availableDevices);
+    return availableDevices;
 }
+
+// === Virtual callback overrides for mod/macro persistence ===
+
+void RackComponent::onModAmountChangedInternal(int modIndex, float amount) {
+    magda::TrackManager::getInstance().setRackModAmount(rackPath_, modIndex, amount);
+}
+
+void RackComponent::onModTargetChangedInternal(int modIndex, magda::ModTarget target) {
+    magda::TrackManager::getInstance().setRackModTarget(rackPath_, modIndex, target);
+}
+
+void RackComponent::onModNameChangedInternal(int modIndex, const juce::String& name) {
+    magda::TrackManager::getInstance().setRackModName(rackPath_, modIndex, name);
+}
+
+void RackComponent::onModTypeChangedInternal(int modIndex, magda::ModType type) {
+    magda::TrackManager::getInstance().setRackModType(rackPath_, modIndex, type);
+}
+
+void RackComponent::onModRateChangedInternal(int modIndex, float rate) {
+    magda::TrackManager::getInstance().setRackModRate(rackPath_, modIndex, rate);
+}
+
+void RackComponent::onMacroValueChangedInternal(int macroIndex, float value) {
+    magda::TrackManager::getInstance().setRackMacroValue(rackPath_, macroIndex, value);
+}
+
+void RackComponent::onMacroTargetChangedInternal(int macroIndex, magda::MacroTarget target) {
+    magda::TrackManager::getInstance().setRackMacroTarget(rackPath_, macroIndex, target);
+}
+
+void RackComponent::onMacroNameChangedInternal(int macroIndex, const juce::String& name) {
+    magda::TrackManager::getInstance().setRackMacroName(rackPath_, macroIndex, name);
+}
+
+void RackComponent::onModClickedInternal(int modIndex) {
+    // Select this mod in the SelectionManager for inspector display
+    magda::SelectionManager::getInstance().selectMod(rackPath_, modIndex);
+}
+
+void RackComponent::onMacroClickedInternal(int macroIndex) {
+    // Select this macro in the SelectionManager for inspector display
+    magda::SelectionManager::getInstance().selectMacro(rackPath_, macroIndex);
+    DBG("Macro clicked: " << macroIndex << " on path: " << rackPath_.toString());
+}
+
+// === Virtual callbacks for page management ===
+
+void RackComponent::onModPageAddRequested(int /*itemsToAdd*/) {
+    magda::TrackManager::getInstance().addRackModPage(rackPath_);
+}
+
+void RackComponent::onModPageRemoveRequested(int /*itemsToRemove*/) {
+    magda::TrackManager::getInstance().removeRackModPage(rackPath_);
+}
+
+void RackComponent::onMacroPageAddRequested(int /*itemsToAdd*/) {
+    magda::TrackManager::getInstance().addRackMacroPage(rackPath_);
+}
+
+void RackComponent::onMacroPageRemoveRequested(int /*itemsToRemove*/) {
+    magda::TrackManager::getInstance().removeRackMacroPage(rackPath_);
+}
+
+// === Panel width overrides ===
 
 int RackComponent::getParamPanelWidth() const {
     // Width for 2 columns of macro knobs (2x4 grid)
     return 130;
 }
 
-void RackComponent::paintParamPanel(juce::Graphics& g, juce::Rectangle<int> panelArea) {
-    // Draw "MACROS" header
-    g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_PURPLE));
-    g.setFont(FontManager::getInstance().getUIFontBold(9.0f));
-    g.drawText("MACROS", panelArea.removeFromTop(16), juce::Justification::centred);
-}
-
-void RackComponent::resizedParamPanel(juce::Rectangle<int> panelArea) {
-    panelArea.removeFromTop(16);  // Skip "MACROS" header
-
-    if (macroPanel_) {
-        macroPanel_->setBounds(panelArea);
-        macroPanel_->setVisible(true);
-        updateMacroPanel();
-    }
-}
-
-void RackComponent::updateModsPanel() {
-    if (!modsPanel_) {
-        return;
-    }
-
-    // Get the rack data via path resolution
-    const auto* rack = magda::TrackManager::getInstance().getRackByPath(rackPath_);
-    if (!rack) {
-        return;
-    }
-
-    // Update mods
-    modsPanel_->setMods(rack->mods);
-
-    // Collect available devices for linking (devices from all chains in this rack)
-    std::vector<std::pair<magda::DeviceId, juce::String>> availableDevices;
-    for (const auto& chain : rack->chains) {
-        for (const auto& element : chain.elements) {
-            if (magda::isDevice(element)) {
-                const auto& device = magda::getDevice(element);
-                availableDevices.emplace_back(device.id, device.name);
-            }
-        }
-    }
-    modsPanel_->setAvailableDevices(availableDevices);
-}
-
 int RackComponent::getModPanelWidth() const {
     // Width for 2 columns of mod knobs (2x4 grid)
     return 130;
-}
-
-int RackComponent::getLeftPanelsWidth() const {
-    int width = 0;
-    if (modPanelVisible_)
-        width += getModPanelWidth();
-    if (modulatorEditorVisible_)
-        width += getModulatorEditorWidth();
-    if (paramPanelVisible_)
-        width += getParamPanelWidth();
-    if (macroEditorVisible_)
-        width += getMacroEditorWidth();
-    return width;
-}
-
-void RackComponent::paintModPanel(juce::Graphics& g, juce::Rectangle<int> panelArea) {
-    // Draw "MODS" header
-    g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
-    g.setFont(FontManager::getInstance().getUIFontBold(9.0f));
-    g.drawText("MODS", panelArea.removeFromTop(16), juce::Justification::centred);
-}
-
-void RackComponent::resizedModPanel(juce::Rectangle<int> panelArea) {
-    panelArea.removeFromTop(16);  // Skip "MODS" header
-
-    if (modsPanel_) {
-        modsPanel_->setBounds(panelArea);
-        modsPanel_->setVisible(true);
-        updateModsPanel();
-    }
-}
-
-// === Modulator Editor Panel ===
-
-void RackComponent::showModulatorEditor(int modIndex) {
-    selectedModIndex_ = modIndex;
-    modulatorEditorVisible_ = true;
-
-    updateModulatorEditor();
-
-    // Trigger relayout
-    resized();
-    repaint();
-    if (onLayoutChanged)
-        onLayoutChanged();
-}
-
-void RackComponent::hideModulatorEditor() {
-    selectedModIndex_ = -1;
-    modulatorEditorVisible_ = false;
-
-    if (modulatorEditorPanel_) {
-        modulatorEditorPanel_->setVisible(false);
-        modulatorEditorPanel_->setSelectedModIndex(-1);
-    }
-
-    // Trigger relayout
-    resized();
-    repaint();
-    if (onLayoutChanged)
-        onLayoutChanged();
-}
-
-void RackComponent::updateModulatorEditor() {
-    if (!modulatorEditorPanel_ || selectedModIndex_ < 0)
-        return;
-
-    // Get the rack data
-    auto* rack = magda::TrackManager::getInstance().getRackByPath(rackPath_);
-    if (!rack)
-        return;
-
-    // Get the mod info
-    if (selectedModIndex_ < static_cast<int>(rack->mods.size())) {
-        modulatorEditorPanel_->setModInfo(rack->mods[selectedModIndex_]);
-        modulatorEditorPanel_->setSelectedModIndex(selectedModIndex_);
-    }
-}
-
-int RackComponent::getModulatorEditorWidth() const {
-    return modulatorEditorVisible_ ? ModulatorEditorPanel::PREFERRED_WIDTH : 0;
-}
-
-int RackComponent::getExtraLeftPanelWidth() const {
-    return getModulatorEditorWidth();
-}
-
-void RackComponent::paintExtraLeftPanel(juce::Graphics& g, juce::Rectangle<int> panelArea) {
-    if (!modulatorEditorVisible_)
-        return;
-
-    // Draw "MOD EDIT" header
-    g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE).darker(0.2f));
-    g.setFont(FontManager::getInstance().getUIFontBold(9.0f));
-    g.drawText("MOD EDIT", panelArea.removeFromTop(16), juce::Justification::centred);
-}
-
-void RackComponent::resizedExtraLeftPanel(juce::Rectangle<int> panelArea) {
-    if (!modulatorEditorVisible_ || !modulatorEditorPanel_) {
-        if (modulatorEditorPanel_)
-            modulatorEditorPanel_->setVisible(false);
-        return;
-    }
-
-    panelArea.removeFromTop(16);  // Skip header
-
-    modulatorEditorPanel_->setBounds(panelArea);
-    modulatorEditorPanel_->setVisible(true);
-}
-
-// === Macro Editor Panel ===
-
-void RackComponent::showMacroEditor(int macroIndex) {
-    selectedMacroIndex_ = macroIndex;
-    macroEditorVisible_ = true;
-
-    updateMacroEditor();
-
-    // Trigger relayout
-    resized();
-    repaint();
-    if (onLayoutChanged)
-        onLayoutChanged();
-}
-
-void RackComponent::hideMacroEditor() {
-    selectedMacroIndex_ = -1;
-    macroEditorVisible_ = false;
-
-    if (macroEditorPanel_) {
-        macroEditorPanel_->setVisible(false);
-        macroEditorPanel_->setSelectedMacroIndex(-1);
-    }
-
-    // Trigger relayout
-    resized();
-    repaint();
-    if (onLayoutChanged)
-        onLayoutChanged();
-}
-
-void RackComponent::updateMacroEditor() {
-    if (!macroEditorPanel_ || selectedMacroIndex_ < 0)
-        return;
-
-    // Get the rack data
-    auto* rack = magda::TrackManager::getInstance().getRackByPath(rackPath_);
-    if (!rack)
-        return;
-
-    // Get the macro info
-    if (selectedMacroIndex_ < static_cast<int>(rack->macros.size())) {
-        macroEditorPanel_->setMacroInfo(rack->macros[selectedMacroIndex_]);
-        macroEditorPanel_->setSelectedMacroIndex(selectedMacroIndex_);
-    }
-}
-
-int RackComponent::getMacroEditorWidth() const {
-    return macroEditorVisible_ ? MacroEditorPanel::PREFERRED_WIDTH : 0;
-}
-
-int RackComponent::getExtraRightPanelWidth() const {
-    return getMacroEditorWidth();
-}
-
-void RackComponent::paintExtraRightPanel(juce::Graphics& g, juce::Rectangle<int> panelArea) {
-    if (!macroEditorVisible_)
-        return;
-
-    // Draw "MACRO EDIT" header
-    g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_PURPLE).darker(0.2f));
-    g.setFont(FontManager::getInstance().getUIFontBold(9.0f));
-    g.drawText("MACRO EDIT", panelArea.removeFromTop(16), juce::Justification::centred);
-}
-
-void RackComponent::resizedExtraRightPanel(juce::Rectangle<int> panelArea) {
-    if (!macroEditorVisible_ || !macroEditorPanel_) {
-        if (macroEditorPanel_)
-            macroEditorPanel_->setVisible(false);
-        return;
-    }
-
-    panelArea.removeFromTop(16);  // Skip header
-
-    macroEditorPanel_->setBounds(panelArea);
-    macroEditorPanel_->setVisible(true);
 }
 
 }  // namespace magda::daw::ui

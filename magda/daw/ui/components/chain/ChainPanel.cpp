@@ -4,6 +4,8 @@
 
 #include "NodeComponent.hpp"
 #include "RackComponent.hpp"
+#include "core/MacroInfo.hpp"
+#include "core/ModInfo.hpp"
 #include "core/SelectionManager.hpp"
 #include "ui/components/common/SvgButton.hpp"
 #include "ui/components/common/TextSlider.hpp"
@@ -53,16 +55,27 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
         modButton_->setActiveBackgroundColor(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
         modButton_->onClick = [this]() {
             modButton_->setActive(modButton_->getToggleState());
-            modPanelVisible_ = modButton_->getToggleState();
-            // Side panel shows alongside collapsed strip - no need to expand
-            resized();
-            repaint();
-            if (onModPanelToggled)
-                onModPanelToggled(modPanelVisible_);
+            // Use inherited method to properly handle editor visibility
+            setModPanelVisible(modButton_->getToggleState());
         };
         addAndMakeVisible(*modButton_);
 
-        // Note: No macro button on devices - params are shown inline
+        // Macro button (toggle macro panel) - link icon
+        macroButton_ = std::make_unique<magda::SvgButton>("Macro", BinaryData::link_bright_svg,
+                                                          BinaryData::link_bright_svgSize);
+        macroButton_->setClickingTogglesState(true);
+        macroButton_->setNormalColor(DarkTheme::getSecondaryTextColour());
+        macroButton_->setActiveColor(juce::Colours::white);
+        macroButton_->setActiveBackgroundColor(DarkTheme::getColour(DarkTheme::ACCENT_PURPLE));
+        macroButton_->onClick = [this]() {
+            macroButton_->setActive(macroButton_->getToggleState());
+            // Use inherited method to properly handle editor visibility
+            setParamPanelVisible(macroButton_->getToggleState());
+        };
+        addAndMakeVisible(*macroButton_);
+
+        // Initialize mods/macros panels from base class
+        initializeModsMacrosPanels();
 
         // Gain text slider in header
         gainSlider_.setRange(-60.0, 12.0, 0.1);
@@ -155,11 +168,15 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
 
   protected:
     void resizedHeaderExtra(juce::Rectangle<int>& headerArea) override {
-        // Header layout: [M] [Name...] [gain slider] [UI] [on]
+        // Header layout: [M] [Macro] [Name...] [gain slider] [UI] [on]
         // Note: delete (X) is handled by NodeComponent on the right
 
         // Mod button on the left (before name)
         modButton_->setBounds(headerArea.removeFromLeft(BUTTON_SIZE));
+        headerArea.removeFromLeft(4);
+
+        // Macro button
+        macroButton_->setBounds(headerArea.removeFromLeft(BUTTON_SIZE));
         headerArea.removeFromLeft(4);
 
         // Power button on the right (before delete which is handled by parent)
@@ -177,12 +194,12 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
         // Remaining space is for the name label (handled by NodeComponent)
     }
 
-    // Devices show mod panel but not param/gain panels (params are inline)
+    // Devices show mod panel and macro panel as side panels
     int getModPanelWidth() const override {
-        return DEFAULT_PANEL_WIDTH;  // 60px
+        return modPanelVisible_ ? DEFAULT_PANEL_WIDTH : 0;
     }
     int getParamPanelWidth() const override {
-        return 0;  // Params shown inline
+        return paramPanelVisible_ ? DEFAULT_PANEL_WIDTH : 0;  // Macros panel as param panel
     }
     int getGainPanelWidth() const override {
         return 0;  // Gain in header
@@ -211,6 +228,7 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
 
         // Show header controls when expanded
         modButton_->setVisible(true);
+        macroButton_->setVisible(true);
         uiButton_->setVisible(true);
         onButton_->setVisible(true);
         gainSlider_.setVisible(true);
@@ -251,7 +269,7 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
 
     void resizedCollapsed(juce::Rectangle<int>& area) override {
         // Add device-specific buttons vertically when collapsed
-        // Order: X (from base), ON, UI, Mod
+        // Order: X (from base), ON, UI, Mod, Macro
         int buttonSize = juce::jmin(16, area.getWidth() - 4);
 
         // On/power button (right after X)
@@ -270,6 +288,90 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
         modButton_->setBounds(
             area.removeFromTop(buttonSize).withSizeKeepingCentre(buttonSize, buttonSize));
         modButton_->setVisible(true);
+        area.removeFromTop(4);
+
+        // Macro button
+        macroButton_->setBounds(
+            area.removeFromTop(buttonSize).withSizeKeepingCentre(buttonSize, buttonSize));
+        macroButton_->setVisible(true);
+    }
+
+    // === Virtual data provider overrides ===
+    const magda::ModArray* getModsData() const override {
+        // Use path-based lookup to get current device data
+        if (auto* dev = magda::TrackManager::getInstance().getDeviceInChainByPath(nodePath_)) {
+            return &dev->mods;
+        }
+        return nullptr;
+    }
+
+    const magda::MacroArray* getMacrosData() const override {
+        if (auto* dev = magda::TrackManager::getInstance().getDeviceInChainByPath(nodePath_)) {
+            return &dev->macros;
+        }
+        return nullptr;
+    }
+
+    std::vector<std::pair<magda::DeviceId, juce::String>> getAvailableDevices() const override {
+        // For device mods/macros, the target is this device itself
+        return {{device_.id, device_.name}};
+    }
+
+    // === Virtual callback overrides for mod/macro persistence ===
+    void onModAmountChangedInternal(int modIndex, float amount) override {
+        magda::TrackManager::getInstance().setDeviceModAmount(nodePath_, modIndex, amount);
+    }
+
+    void onModTargetChangedInternal(int modIndex, magda::ModTarget target) override {
+        magda::TrackManager::getInstance().setDeviceModTarget(nodePath_, modIndex, target);
+    }
+
+    void onModNameChangedInternal(int modIndex, const juce::String& name) override {
+        magda::TrackManager::getInstance().setDeviceModName(nodePath_, modIndex, name);
+    }
+
+    void onModTypeChangedInternal(int modIndex, magda::ModType type) override {
+        magda::TrackManager::getInstance().setDeviceModType(nodePath_, modIndex, type);
+    }
+
+    void onModRateChangedInternal(int modIndex, float rate) override {
+        magda::TrackManager::getInstance().setDeviceModRate(nodePath_, modIndex, rate);
+    }
+
+    void onMacroValueChangedInternal(int macroIndex, float value) override {
+        magda::TrackManager::getInstance().setDeviceMacroValue(nodePath_, macroIndex, value);
+    }
+
+    void onMacroTargetChangedInternal(int macroIndex, magda::MacroTarget target) override {
+        magda::TrackManager::getInstance().setDeviceMacroTarget(nodePath_, macroIndex, target);
+    }
+
+    void onMacroNameChangedInternal(int macroIndex, const juce::String& name) override {
+        magda::TrackManager::getInstance().setDeviceMacroName(nodePath_, macroIndex, name);
+    }
+
+    void onModClickedInternal(int modIndex) override {
+        magda::SelectionManager::getInstance().selectMod(nodePath_, modIndex);
+    }
+
+    void onMacroClickedInternal(int macroIndex) override {
+        magda::SelectionManager::getInstance().selectMacro(nodePath_, macroIndex);
+    }
+
+    void onModPageAddRequested(int /*itemsToAdd*/) override {
+        magda::TrackManager::getInstance().addDeviceModPage(nodePath_);
+    }
+
+    void onModPageRemoveRequested(int /*itemsToRemove*/) override {
+        magda::TrackManager::getInstance().removeDeviceModPage(nodePath_);
+    }
+
+    void onMacroPageAddRequested(int /*itemsToAdd*/) override {
+        magda::TrackManager::getInstance().addDeviceMacroPage(nodePath_);
+    }
+
+    void onMacroPageRemoveRequested(int /*itemsToRemove*/) override {
+        magda::TrackManager::getInstance().removeDeviceMacroPage(nodePath_);
     }
 
   private:
@@ -278,6 +380,7 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
 
     // Header controls
     std::unique_ptr<magda::SvgButton> modButton_;
+    std::unique_ptr<magda::SvgButton> macroButton_;
     TextSlider gainSlider_;
     std::unique_ptr<magda::SvgButton> uiButton_;
     std::unique_ptr<magda::SvgButton> onButton_;

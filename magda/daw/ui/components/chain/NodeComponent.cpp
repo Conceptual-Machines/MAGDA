@@ -4,6 +4,10 @@
 
 #include <cstdlib>
 
+#include "MacroEditorPanel.hpp"
+#include "MacroPanelComponent.hpp"
+#include "ModsPanelComponent.hpp"
+#include "ModulatorEditorPanel.hpp"
 #include "core/SelectionManager.hpp"
 #include "ui/themes/DarkTheme.hpp"
 #include "ui/themes/FontManager.hpp"
@@ -299,6 +303,9 @@ void NodeComponent::resized() {
                 if (btn)
                     btn->setVisible(false);
             }
+            // Hide the real mods panel if it exists
+            if (modsPanel_)
+                modsPanel_->setVisible(false);
         }
 
         // Extra left panel (e.g., modulator editor)
@@ -316,6 +323,9 @@ void NodeComponent::resized() {
             for (auto& knob : paramKnobs_) {
                 knob->setVisible(false);
             }
+            // Hide the real macro panel if it exists
+            if (macroPanel_)
+                macroPanel_->setVisible(false);
         }
 
         // Extra right panel (e.g., macro editor) - after params
@@ -369,6 +379,9 @@ void NodeComponent::resized() {
             if (btn)
                 btn->setVisible(false);
         }
+        // Hide the real mods panel if it exists
+        if (modsPanel_)
+            modsPanel_->setVisible(false);
     }
 
     // Extra left panel (e.g., modulator editor)
@@ -386,6 +399,9 @@ void NodeComponent::resized() {
         for (auto& knob : paramKnobs_) {
             knob->setVisible(false);
         }
+        // Hide the real macro panel if it exists
+        if (macroPanel_)
+            macroPanel_->setVisible(false);
     }
 
     // Extra right panel (e.g., macro editor) - after params
@@ -458,6 +474,12 @@ bool NodeComponent::isBypassed() const {
 void NodeComponent::setModPanelVisible(bool visible) {
     if (modPanelVisible_ != visible) {
         modPanelVisible_ = visible;
+
+        // When hiding the mod panel, also hide the modulator editor
+        if (!visible && modulatorEditorVisible_) {
+            hideModulatorEditor();
+        }
+
         if (onModPanelToggled) {
             onModPanelToggled(modPanelVisible_);
         }
@@ -472,6 +494,12 @@ void NodeComponent::setModPanelVisible(bool visible) {
 void NodeComponent::setParamPanelVisible(bool visible) {
     if (paramPanelVisible_ != visible) {
         paramPanelVisible_ = visible;
+
+        // When hiding the macro panel, also hide the macro editor
+        if (!visible && macroEditorVisible_) {
+            hideMacroEditor();
+        }
+
         if (onParamPanelToggled) {
             onParamPanelToggled(paramPanelVisible_);
         }
@@ -540,18 +568,45 @@ int NodeComponent::getTotalWidth(int baseContentWidth) const {
     return getLeftPanelsWidth() + baseContentWidth + getRightPanelsWidth();
 }
 
+int NodeComponent::getExtraLeftPanelWidth() const {
+    return getModulatorEditorWidth();
+}
+
+int NodeComponent::getExtraRightPanelWidth() const {
+    return getMacroEditorWidth();
+}
+
 void NodeComponent::paintModPanel(juce::Graphics& g, juce::Rectangle<int> panelArea) {
+    // If we have a real mods panel, just draw the header
+    if (modsPanel_) {
+        g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
+        g.setFont(FontManager::getInstance().getUIFontBold(9.0f));
+        g.drawText("MODS", panelArea.removeFromTop(16), juce::Justification::centred);
+        return;
+    }
     // Default: draw labeled placeholder (vertical side panel)
     g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
     g.setFont(FontManager::getInstance().getUIFont(8.0f));
     g.drawText("MOD", panelArea.removeFromTop(16), juce::Justification::centred);
 }
 
-void NodeComponent::paintExtraLeftPanel(juce::Graphics& /*g*/, juce::Rectangle<int> /*panelArea*/) {
-    // Default: empty - subclasses override to add extra left panel (e.g., modulator editor)
+void NodeComponent::paintExtraLeftPanel(juce::Graphics& g, juce::Rectangle<int> panelArea) {
+    // Draw modulator editor panel header if visible
+    if (modulatorEditorVisible_ && modulatorEditorPanel_) {
+        g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE).darker(0.2f));
+        g.setFont(FontManager::getInstance().getUIFontBold(9.0f));
+        g.drawText("MOD EDIT", panelArea.removeFromTop(16), juce::Justification::centred);
+    }
 }
 
 void NodeComponent::paintParamPanel(juce::Graphics& g, juce::Rectangle<int> panelArea) {
+    // If we have a real macros panel, just draw the header
+    if (macroPanel_) {
+        g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_PURPLE));
+        g.setFont(FontManager::getInstance().getUIFontBold(9.0f));
+        g.drawText("MACROS", panelArea.removeFromTop(16), juce::Justification::centred);
+        return;
+    }
     // Default: draw labeled placeholder (vertical side panel)
     g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_PURPLE));
     g.setFont(FontManager::getInstance().getUIFont(8.0f));
@@ -585,9 +640,23 @@ void NodeComponent::paintGainPanel(juce::Graphics& g, juce::Rectangle<int> panel
 }
 
 void NodeComponent::resizedModPanel(juce::Rectangle<int> panelArea) {
-    panelArea.removeFromTop(16);  // Skip label
-    panelArea = panelArea.reduced(2);
+    panelArea.removeFromTop(16);  // Skip header
 
+    // If we have a real mods panel, use it
+    if (modsPanel_) {
+        modsPanel_->setBounds(panelArea);
+        modsPanel_->setVisible(true);
+        updateModsPanel();
+        // Hide placeholder buttons
+        for (auto& btn : modSlotButtons_) {
+            if (btn)
+                btn->setVisible(false);
+        }
+        return;
+    }
+
+    // Default: placeholder mod slot buttons
+    panelArea = panelArea.reduced(2);
     int slotHeight = (panelArea.getHeight() - 4) / 3;
     for (int i = 0; i < 3; ++i) {
         modSlotButtons_[i]->setBounds(panelArea.removeFromTop(slotHeight).reduced(0, 1));
@@ -595,14 +664,34 @@ void NodeComponent::resizedModPanel(juce::Rectangle<int> panelArea) {
     }
 }
 
-void NodeComponent::resizedExtraLeftPanel(juce::Rectangle<int> /*panelArea*/) {
-    // Default: empty - subclasses override to layout extra left panel (e.g., modulator editor)
+void NodeComponent::resizedExtraLeftPanel(juce::Rectangle<int> panelArea) {
+    // Layout modulator editor panel if visible
+    if (modulatorEditorVisible_ && modulatorEditorPanel_) {
+        panelArea.removeFromTop(16);  // Skip header
+        modulatorEditorPanel_->setBounds(panelArea);
+        modulatorEditorPanel_->setVisible(true);
+    } else if (modulatorEditorPanel_) {
+        modulatorEditorPanel_->setVisible(false);
+    }
 }
 
 void NodeComponent::resizedParamPanel(juce::Rectangle<int> panelArea) {
-    panelArea.removeFromTop(16);  // Skip label
-    panelArea = panelArea.reduced(2);
+    panelArea.removeFromTop(16);  // Skip header
 
+    // If we have a real macros panel, use it
+    if (macroPanel_) {
+        macroPanel_->setBounds(panelArea);
+        macroPanel_->setVisible(true);
+        updateMacroPanel();
+        // Hide placeholder knobs
+        for (auto& knob : paramKnobs_) {
+            knob->setVisible(false);
+        }
+        return;
+    }
+
+    // Default: placeholder param knobs
+    panelArea = panelArea.reduced(2);
     int knobSize = (panelArea.getWidth() - 2) / 2;
     int row = 0, col = 0;
     for (auto& knob : paramKnobs_) {
@@ -622,13 +711,24 @@ void NodeComponent::resizedGainPanel(juce::Rectangle<int> /*panelArea*/) {
     // Default: nothing - gain meter drawn in paintGainPanel
 }
 
-void NodeComponent::paintExtraRightPanel(juce::Graphics& /*g*/,
-                                         juce::Rectangle<int> /*panelArea*/) {
-    // Default: empty - subclasses override to add extra right panel (e.g., macro editor)
+void NodeComponent::paintExtraRightPanel(juce::Graphics& g, juce::Rectangle<int> panelArea) {
+    // Draw macro editor panel header if visible
+    if (macroEditorVisible_ && macroEditorPanel_) {
+        g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_PURPLE).darker(0.2f));
+        g.setFont(FontManager::getInstance().getUIFontBold(9.0f));
+        g.drawText("MACRO EDIT", panelArea.removeFromTop(16), juce::Justification::centred);
+    }
 }
 
-void NodeComponent::resizedExtraRightPanel(juce::Rectangle<int> /*panelArea*/) {
-    // Default: empty - subclasses override to layout extra right panel (e.g., macro editor)
+void NodeComponent::resizedExtraRightPanel(juce::Rectangle<int> panelArea) {
+    // Layout macro editor panel if visible
+    if (macroEditorVisible_ && macroEditorPanel_) {
+        panelArea.removeFromTop(16);  // Skip header
+        macroEditorPanel_->setBounds(panelArea);
+        macroEditorPanel_->setVisible(true);
+    } else if (macroEditorPanel_) {
+        macroEditorPanel_->setVisible(false);
+    }
 }
 
 void NodeComponent::resizedCollapsed(juce::Rectangle<int>& /*area*/) {
@@ -754,6 +854,216 @@ void NodeComponent::mouseUp(const juce::MouseEvent& e) {
     }
 
     isDragging_ = false;
+}
+
+// === Mods/Macros Panel Support ===
+
+void NodeComponent::initializeModsMacrosPanels() {
+    // Create mods panel
+    modsPanel_ = std::make_unique<ModsPanelComponent>();
+    modsPanel_->onModAmountChanged = [this](int modIndex, float amount) {
+        onModAmountChangedInternal(modIndex, amount);
+    };
+    modsPanel_->onModTargetChanged = [this](int modIndex, magda::ModTarget target) {
+        onModTargetChangedInternal(modIndex, target);
+    };
+    modsPanel_->onModNameChanged = [this](int modIndex, juce::String name) {
+        onModNameChangedInternal(modIndex, name);
+    };
+    modsPanel_->onModClicked = [this](int modIndex) {
+        onModClickedInternal(modIndex);
+        // Toggle modulator editor - if clicking same mod, hide; otherwise show
+        if (modulatorEditorVisible_ && selectedModIndex_ == modIndex) {
+            hideModulatorEditor();
+        } else {
+            showModulatorEditor(modIndex);
+        }
+    };
+    modsPanel_->onAddPageRequested = [this](int itemsToAdd) { onModPageAddRequested(itemsToAdd); };
+    modsPanel_->onRemovePageRequested = [this](int itemsToRemove) {
+        onModPageRemoveRequested(itemsToRemove);
+    };
+    addChildComponent(*modsPanel_);
+
+    // Create macro panel
+    macroPanel_ = std::make_unique<MacroPanelComponent>();
+    macroPanel_->onMacroValueChanged = [this](int macroIndex, float value) {
+        onMacroValueChangedInternal(macroIndex, value);
+    };
+    macroPanel_->onMacroTargetChanged = [this](int macroIndex, magda::MacroTarget target) {
+        onMacroTargetChangedInternal(macroIndex, target);
+    };
+    macroPanel_->onMacroNameChanged = [this](int macroIndex, juce::String name) {
+        onMacroNameChangedInternal(macroIndex, name);
+    };
+    macroPanel_->onMacroClicked = [this](int macroIndex) {
+        onMacroClickedInternal(macroIndex);
+        // Toggle macro editor - if clicking same macro, hide; otherwise show
+        if (macroEditorVisible_ && selectedMacroIndex_ == macroIndex) {
+            hideMacroEditor();
+        } else {
+            showMacroEditor(macroIndex);
+        }
+    };
+    macroPanel_->onAddPageRequested = [this](int itemsToAdd) {
+        onMacroPageAddRequested(itemsToAdd);
+    };
+    macroPanel_->onRemovePageRequested = [this](int itemsToRemove) {
+        onMacroPageRemoveRequested(itemsToRemove);
+    };
+    addChildComponent(*macroPanel_);
+
+    // Create modulator editor panel
+    modulatorEditorPanel_ = std::make_unique<ModulatorEditorPanel>();
+    modulatorEditorPanel_->onTypeChanged = [this](magda::ModType type) {
+        if (selectedModIndex_ >= 0) {
+            onModTypeChangedInternal(selectedModIndex_, type);
+        }
+    };
+    modulatorEditorPanel_->onRateChanged = [this](float rate) {
+        if (selectedModIndex_ >= 0) {
+            onModRateChangedInternal(selectedModIndex_, rate);
+        }
+    };
+    addChildComponent(*modulatorEditorPanel_);
+
+    // Create macro editor panel
+    macroEditorPanel_ = std::make_unique<MacroEditorPanel>();
+    macroEditorPanel_->onNameChanged = [this](juce::String name) {
+        if (selectedMacroIndex_ >= 0) {
+            onMacroNameChangedInternal(selectedMacroIndex_, name);
+        }
+    };
+    macroEditorPanel_->onValueChanged = [this](float value) {
+        if (selectedMacroIndex_ >= 0) {
+            onMacroValueChangedInternal(selectedMacroIndex_, value);
+        }
+    };
+    addChildComponent(*macroEditorPanel_);
+}
+
+void NodeComponent::updateModsPanel() {
+    if (!modsPanel_)
+        return;
+
+    const auto* mods = getModsData();
+    if (mods) {
+        modsPanel_->setMods(*mods);
+    }
+
+    auto devices = getAvailableDevices();
+    modsPanel_->setAvailableDevices(devices);
+}
+
+void NodeComponent::updateMacroPanel() {
+    if (!macroPanel_)
+        return;
+
+    const auto* macros = getMacrosData();
+    if (macros) {
+        macroPanel_->setMacros(*macros);
+    }
+
+    auto devices = getAvailableDevices();
+    macroPanel_->setAvailableDevices(devices);
+}
+
+// === Modulator Editor Panel ===
+
+void NodeComponent::showModulatorEditor(int modIndex) {
+    selectedModIndex_ = modIndex;
+    modulatorEditorVisible_ = true;
+
+    updateModulatorEditor();
+
+    // Trigger relayout
+    resized();
+    repaint();
+    if (onLayoutChanged)
+        onLayoutChanged();
+}
+
+void NodeComponent::hideModulatorEditor() {
+    selectedModIndex_ = -1;
+    modulatorEditorVisible_ = false;
+
+    if (modulatorEditorPanel_) {
+        modulatorEditorPanel_->setVisible(false);
+        modulatorEditorPanel_->setSelectedModIndex(-1);
+    }
+
+    // Trigger relayout
+    resized();
+    repaint();
+    if (onLayoutChanged)
+        onLayoutChanged();
+}
+
+void NodeComponent::updateModulatorEditor() {
+    if (!modulatorEditorPanel_ || selectedModIndex_ < 0)
+        return;
+
+    const auto* mods = getModsData();
+    if (!mods)
+        return;
+
+    if (selectedModIndex_ < static_cast<int>(mods->size())) {
+        modulatorEditorPanel_->setModInfo((*mods)[selectedModIndex_]);
+        modulatorEditorPanel_->setSelectedModIndex(selectedModIndex_);
+    }
+}
+
+// === Macro Editor Panel ===
+
+void NodeComponent::showMacroEditor(int macroIndex) {
+    selectedMacroIndex_ = macroIndex;
+    macroEditorVisible_ = true;
+
+    updateMacroEditor();
+
+    // Trigger relayout
+    resized();
+    repaint();
+    if (onLayoutChanged)
+        onLayoutChanged();
+}
+
+void NodeComponent::hideMacroEditor() {
+    selectedMacroIndex_ = -1;
+    macroEditorVisible_ = false;
+
+    if (macroEditorPanel_) {
+        macroEditorPanel_->setVisible(false);
+        macroEditorPanel_->setSelectedMacroIndex(-1);
+    }
+
+    // Trigger relayout
+    resized();
+    repaint();
+    if (onLayoutChanged)
+        onLayoutChanged();
+}
+
+void NodeComponent::updateMacroEditor() {
+    if (!macroEditorPanel_ || selectedMacroIndex_ < 0)
+        return;
+
+    const auto* macros = getMacrosData();
+    if (!macros)
+        return;
+
+    if (selectedMacroIndex_ < static_cast<int>(macros->size())) {
+        macroEditorPanel_->setMacroInfo((*macros)[selectedMacroIndex_]);
+        macroEditorPanel_->setSelectedMacroIndex(selectedMacroIndex_);
+    }
+}
+
+int NodeComponent::getModulatorEditorWidth() const {
+    return modulatorEditorVisible_ ? ModulatorEditorPanel::PREFERRED_WIDTH : 0;
+}
+
+int NodeComponent::getMacroEditorWidth() const {
+    return macroEditorVisible_ ? MacroEditorPanel::PREFERRED_WIDTH : 0;
 }
 
 }  // namespace magda::daw::ui
