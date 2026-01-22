@@ -572,23 +572,20 @@ TrackChainContent::TrackChainContent() : chainContainer_(std::make_unique<ChainC
 
     // === HEADER BAR CONTROLS - LEFT SIDE (action buttons) ===
 
-    // Global mods toggle button
-    globalModsButton_.setButtonText("MOD");
-    globalModsButton_.setColour(juce::TextButton::buttonColourId,
-                                DarkTheme::getColour(DarkTheme::SURFACE));
-    globalModsButton_.setColour(juce::TextButton::buttonOnColourId,
-                                DarkTheme::getColour(DarkTheme::ACCENT_PURPLE));
-    globalModsButton_.setColour(juce::TextButton::textColourOffId,
-                                DarkTheme::getSecondaryTextColour());
-    globalModsButton_.setColour(juce::TextButton::textColourOnId,
-                                DarkTheme::getColour(DarkTheme::TEXT_PRIMARY));
-    globalModsButton_.setClickingTogglesState(true);
-    globalModsButton_.onClick = [this]() {
-        globalModsVisible_ = globalModsButton_.getToggleState();
+    // Global mods toggle button (sine wave icon - same as rack/device mod buttons)
+    globalModsButton_ = std::make_unique<magda::SvgButton>("Mod", BinaryData::sinewavebright_svg,
+                                                           BinaryData::sinewavebright_svgSize);
+    globalModsButton_->setClickingTogglesState(true);
+    globalModsButton_->setNormalColor(DarkTheme::getSecondaryTextColour());
+    globalModsButton_->setActiveColor(juce::Colours::white);
+    globalModsButton_->setActiveBackgroundColor(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
+    globalModsButton_->onClick = [this]() {
+        globalModsButton_->setActive(globalModsButton_->getToggleState());
+        globalModsVisible_ = globalModsButton_->getToggleState();
         resized();
         repaint();
     };
-    addChildComponent(globalModsButton_);
+    addChildComponent(*globalModsButton_);
 
     // Add rack button
     addRackButton_.setButtonText("RACK+");
@@ -636,26 +633,25 @@ TrackChainContent::TrackChainContent() : chainContainer_(std::make_unique<ChainC
     };
     addChildComponent(volumeSlider_);
 
-    // Chain bypass button (on/off for entire track chain)
-    chainBypassButton_.setButtonText("ON");
-    chainBypassButton_.setColour(juce::TextButton::buttonColourId,
-                                 DarkTheme::getColour(DarkTheme::ACCENT_GREEN).darker(0.3f));
-    chainBypassButton_.setColour(juce::TextButton::buttonOnColourId,
-                                 DarkTheme::getColour(DarkTheme::SURFACE));
-    chainBypassButton_.setColour(juce::TextButton::textColourOffId,
-                                 DarkTheme::getColour(DarkTheme::BACKGROUND));
-    chainBypassButton_.setColour(juce::TextButton::textColourOnId,
-                                 DarkTheme::getSecondaryTextColour());
-    chainBypassButton_.setClickingTogglesState(true);
-    chainBypassButton_.onClick = [this]() {
-        // When toggled ON (getToggleState() == true), chain is BYPASSED
-        bool bypassed = chainBypassButton_.getToggleState();
-        chainBypassButton_.setButtonText(bypassed ? "OFF" : "ON");
+    // Chain bypass button (power icon - same as device bypass buttons)
+    chainBypassButton_ = std::make_unique<magda::SvgButton>("Power", BinaryData::power_on_svg,
+                                                            BinaryData::power_on_svgSize);
+    chainBypassButton_->setClickingTogglesState(true);
+    chainBypassButton_->setToggleState(true,
+                                       juce::dontSendNotification);  // Start active (not bypassed)
+    chainBypassButton_->setNormalColor(DarkTheme::getColour(DarkTheme::STATUS_ERROR));
+    chainBypassButton_->setActiveColor(juce::Colours::white);
+    chainBypassButton_->setActiveBackgroundColor(
+        DarkTheme::getColour(DarkTheme::ACCENT_GREEN).darker(0.3f));
+    chainBypassButton_->setActive(true);  // Start active
+    chainBypassButton_->onClick = [this]() {
+        bool active = chainBypassButton_->getToggleState();
+        chainBypassButton_->setActive(active);
         // TODO: Actually bypass all devices in the track chain
-        DBG("Track chain bypass: " << (bypassed ? "BYPASSED" : "ACTIVE"));
+        DBG("Track chain bypass: " << (active ? "ACTIVE" : "BYPASSED"));
         repaint();
     };
-    addChildComponent(chainBypassButton_);
+    addChildComponent(*chainBypassButton_);
 
     // Register as listener
     magda::TrackManager::getInstance().addListener(this);
@@ -736,7 +732,7 @@ void TrackChainContent::resized() {
         auto headerArea = bounds.removeFromTop(HEADER_HEIGHT).reduced(8, 4);
 
         // LEFT SIDE - Action buttons
-        globalModsButton_.setBounds(headerArea.removeFromLeft(40));
+        globalModsButton_->setBounds(headerArea.removeFromLeft(24));
         headerArea.removeFromLeft(4);
         addRackButton_.setBounds(headerArea.removeFromLeft(55));
         headerArea.removeFromLeft(4);
@@ -744,7 +740,7 @@ void TrackChainContent::resized() {
         headerArea.removeFromLeft(16);
 
         // RIGHT SIDE - Track info (from right to left)
-        chainBypassButton_.setBounds(headerArea.removeFromRight(36));
+        chainBypassButton_->setBounds(headerArea.removeFromRight(24));
         headerArea.removeFromRight(8);
         volumeSlider_.setBounds(headerArea.removeFromRight(50));
         headerArea.removeFromRight(8);
@@ -878,9 +874,9 @@ void TrackChainContent::updateFromSelectedTrack() {
             float db = gainToDb(track->volume);
             volumeSlider_.setValue(db, juce::dontSendNotification);
 
-            // Reset chain bypass button state
-            chainBypassButton_.setToggleState(false, juce::dontSendNotification);
-            chainBypassButton_.setButtonText("ON");
+            // Reset chain bypass button state (active = not bypassed)
+            chainBypassButton_->setToggleState(true, juce::dontSendNotification);
+            chainBypassButton_->setActive(true);
 
             showHeader(true);
             noSelectionLabel_.setVisible(false);
@@ -900,13 +896,13 @@ void TrackChainContent::updateFromSelectedTrack() {
 
 void TrackChainContent::showHeader(bool show) {
     // Left side - action buttons
-    globalModsButton_.setVisible(show);
+    globalModsButton_->setVisible(show);
     addRackButton_.setVisible(show);
     addMultibandRackButton_.setVisible(show);
     // Right side - track info
     trackNameLabel_.setVisible(show);
     volumeSlider_.setVisible(show);
-    chainBypassButton_.setVisible(show);
+    chainBypassButton_->setVisible(show);
 }
 
 void TrackChainContent::rebuildDeviceSlots() {

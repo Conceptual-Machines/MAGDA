@@ -4,6 +4,7 @@
 #include "PanelContent.hpp"
 #include "core/DeviceInfo.hpp"
 #include "core/TrackManager.hpp"
+#include "ui/components/common/SvgButton.hpp"
 #include "ui/components/common/TextSlider.hpp"
 
 namespace magda::daw::ui {
@@ -62,14 +63,14 @@ class TrackChainContent : public PanelContent, public magda::TrackManagerListene
     juce::Label noSelectionLabel_;
 
     // Header bar controls - LEFT side (action buttons)
-    juce::TextButton globalModsButton_;        // Toggle global modulators panel
-    juce::TextButton addRackButton_;           // Add rack button
-    juce::TextButton addMultibandRackButton_;  // Add multi-band rack button
+    std::unique_ptr<magda::SvgButton> globalModsButton_;  // Toggle global modulators panel
+    juce::TextButton addRackButton_;                      // Add rack button
+    juce::TextButton addMultibandRackButton_;             // Add multi-band rack button
 
     // Header bar controls - RIGHT side (track info)
     juce::Label trackNameLabel_;
     TextSlider volumeSlider_{TextSlider::Format::Decibels};  // Track volume (dB)
-    juce::TextButton chainBypassButton_;                     // On/off - bypasses entire track chain
+    std::unique_ptr<magda::SvgButton> chainBypassButton_;    // On/off - bypasses entire track chain
 
     // Global mods panel visibility
     bool globalModsVisible_ = false;
