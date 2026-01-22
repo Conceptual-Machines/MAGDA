@@ -259,7 +259,12 @@ class ChainTreeDialog::ContentComponent : public juce::Component,
     }
 
     // SelectionManagerListener
-    void selectionTypeChanged(SelectionType /*newType*/) override {}
+    void selectionTypeChanged(SelectionType newType) override {
+        // When selection changes to something other than ChainNode, clear tree selection
+        if (newType != SelectionType::ChainNode) {
+            treeView_.clearSelectedItems();
+        }
+    }
 
     void chainNodeSelectionChanged(const ChainNodePath& path) override {
         // Find and select the tree item matching this path
