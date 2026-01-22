@@ -1161,6 +1161,17 @@ void TrackChainContent::rebuildNodeComponents() {
         }
     }
 
+    // Restore selection state from SelectionManager
+    const auto& selectedPath = magda::SelectionManager::getInstance().getSelectedChainNode();
+    if (selectedPath.isValid() && selectedPath.trackId == selectedTrackId_) {
+        for (auto& node : nodeComponents_) {
+            if (node->getNodePath() == selectedPath) {
+                node->setSelected(true);
+                break;
+            }
+        }
+    }
+
     resized();
     repaint();
 }
