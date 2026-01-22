@@ -856,6 +856,21 @@ void NodeComponent::mouseUp(const juce::MouseEvent& e) {
     isDragging_ = false;
 }
 
+void NodeComponent::mouseWheelMove(const juce::MouseEvent& e,
+                                   const juce::MouseWheelDetails& wheel) {
+    DBG("NodeComponent::mouseWheelMove - deltaY=" << wheel.deltaY << " isCommandDown="
+                                                  << (e.mods.isCommandDown() ? "yes" : "no"));
+
+    // Cmd/Ctrl + scroll wheel = zoom (forward to parent chain panel)
+    if (e.mods.isCommandDown() && onZoomDelta) {
+        float delta = wheel.deltaY > 0 ? 0.1f : -0.1f;
+        onZoomDelta(delta);
+    } else {
+        // Let parent handle normal scrolling
+        Component::mouseWheelMove(e, wheel);
+    }
+}
+
 // === Mods/Macros Panel Support ===
 
 void NodeComponent::initializeModsMacrosPanels() {

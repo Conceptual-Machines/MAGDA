@@ -41,6 +41,13 @@ class ChainPanel : public NodeComponent, private juce::Timer {
     int getContentWidth() const;     // Returns full width needed to show all devices
     void setMaxWidth(int maxWidth);  // Set maximum width before scrolling kicks in
 
+    // Horizontal zoom (Cmd/Ctrl + scroll wheel)
+    void setZoomLevel(float zoom);
+    float getZoomLevel() const {
+        return zoomLevel_;
+    }
+    void resetZoom();  // Reset to 1.0
+
     // Device selection management
     void clearDeviceSelection();
     magda::DeviceId getSelectedDeviceId() const {
@@ -55,6 +62,9 @@ class ChainPanel : public NodeComponent, private juce::Timer {
   protected:
     void paintContent(juce::Graphics& g, juce::Rectangle<int> contentArea) override;
     void resizedContent(juce::Rectangle<int> contentArea) override;
+    void mouseEnter(const juce::MouseEvent& event) override;
+    void mouseWheelMove(const juce::MouseEvent& event,
+                        const juce::MouseWheelDetails& wheel) override;
 
     // Hide header - controls are on the chain row instead
     int getHeaderHeight() const override {
@@ -64,6 +74,7 @@ class ChainPanel : public NodeComponent, private juce::Timer {
   private:
     class DeviceSlotComponent;
     class ElementSlotsContainer;
+    class ZoomableViewport;
 
     void rebuildElementSlots();
     void onAddDeviceClicked();
@@ -76,8 +87,15 @@ class ChainPanel : public NodeComponent, private juce::Timer {
     bool hasChain_ = false;
     int maxWidth_ = 0;  // 0 = no limit, otherwise constrain width and scroll
 
+    // Horizontal zoom
+    float zoomLevel_ = 1.0f;
+    static constexpr float MIN_ZOOM = 0.5f;
+    static constexpr float MAX_ZOOM = 2.0f;
+    static constexpr float ZOOM_STEP = 0.1f;
+    int getScaledWidth(int width) const;  // Apply zoom to width
+
     // Chain elements (devices and nested racks) with viewport for horizontal scrolling
-    juce::Viewport elementViewport_;
+    std::unique_ptr<ZoomableViewport> elementViewport_;
     std::unique_ptr<ElementSlotsContainer> elementSlotsContainer_;
     juce::TextButton addDeviceButton_;
     std::vector<std::unique_ptr<NodeComponent>> elementSlots_;

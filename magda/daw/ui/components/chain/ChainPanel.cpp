@@ -392,6 +392,33 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
 };
 
 //==============================================================================
+// ZoomableViewport - Viewport that supports Cmd+scroll for zooming
+//==============================================================================
+class ChainPanel::ZoomableViewport : public juce::Viewport {
+  public:
+    explicit ZoomableViewport(ChainPanel& owner) : owner_(owner) {}
+
+    void mouseWheelMove(const juce::MouseEvent& event,
+                        const juce::MouseWheelDetails& wheel) override {
+        DBG("ZoomableViewport::mouseWheelMove - deltaY="
+            << wheel.deltaY << " isCommandDown=" << (event.mods.isCommandDown() ? "yes" : "no"));
+
+        // Cmd/Ctrl + scroll wheel = zoom
+        if (event.mods.isCommandDown()) {
+            float delta = wheel.deltaY > 0 ? ChainPanel::ZOOM_STEP : -ChainPanel::ZOOM_STEP;
+            DBG("  -> Zooming by " << delta << " to " << (owner_.getZoomLevel() + delta));
+            owner_.setZoomLevel(owner_.getZoomLevel() + delta);
+        } else {
+            // Normal scroll - let viewport handle horizontal scrolling
+            Viewport::mouseWheelMove(event, wheel);
+        }
+    }
+
+  private:
+    ChainPanel& owner_;
+};
+
+//==============================================================================
 // ElementSlotsContainer - Custom container that paints arrows between chain elements
 //==============================================================================
 class ChainPanel::ElementSlotsContainer : public juce::Component, public juce::DragAndDropTarget {
@@ -415,6 +442,21 @@ class ChainPanel::ElementSlotsContainer : public juce::Component, public juce::D
     void mouseEnter(const juce::MouseEvent&) override {
         // Check if drop state is stale (drag was cancelled while outside)
         checkAndResetStaleDropState();
+    }
+
+    void mouseWheelMove(const juce::MouseEvent& event,
+                        const juce::MouseWheelDetails& wheel) override {
+        DBG("ElementSlotsContainer::mouseWheelMove - deltaY="
+            << wheel.deltaY << " isCommandDown=" << (event.mods.isCommandDown() ? "yes" : "no"));
+
+        // Cmd/Ctrl + scroll wheel = zoom
+        if (event.mods.isCommandDown()) {
+            float delta = wheel.deltaY > 0 ? ChainPanel::ZOOM_STEP : -ChainPanel::ZOOM_STEP;
+            owner_.setZoomLevel(owner_.getZoomLevel() + delta);
+        } else {
+            // Normal scroll - let parent handle it (viewport scrolling)
+            Component::mouseWheelMove(event, wheel);
+        }
     }
 
     void paint(juce::Graphics& g) override {
@@ -547,7 +589,9 @@ class ChainPanel::ElementSlotsContainer : public juce::Component, public juce::D
 // ChainPanel
 //==============================================================================
 
-ChainPanel::ChainPanel() : elementSlotsContainer_(std::make_unique<ElementSlotsContainer>(*this)) {
+ChainPanel::ChainPanel()
+    : elementViewport_(std::make_unique<ZoomableViewport>(*this)),
+      elementSlotsContainer_(std::make_unique<ElementSlotsContainer>(*this)) {
     // No header - controls are on the chain row
 
     // Listen for debug settings changes
@@ -572,9 +616,9 @@ ChainPanel::ChainPanel() : elementSlotsContainer_(std::make_unique<ElementSlotsC
     };
 
     // Viewport for horizontal scrolling of element slots
-    elementViewport_.setViewedComponent(elementSlotsContainer_.get(), false);
-    elementViewport_.setScrollBarsShown(false, true);  // Horizontal only
-    addAndMakeVisible(elementViewport_);
+    elementViewport_->setViewedComponent(elementSlotsContainer_.get(), false);
+    elementViewport_->setScrollBarsShown(false, true);  // Horizontal only
+    addAndMakeVisible(*elementViewport_);
 
     // Add device button (inside the container, after all slots)
     addDeviceButton_.setButtonText("+");
@@ -599,7 +643,7 @@ void ChainPanel::paintContent(juce::Graphics& /*g*/, juce::Rectangle<int> /*cont
 
 void ChainPanel::resizedContent(juce::Rectangle<int> contentArea) {
     // Viewport fills the content area
-    elementViewport_.setBounds(contentArea);
+    elementViewport_->setBounds(contentArea);
 
     // Calculate total width needed for all element slots
     int totalWidth = calculateTotalContentWidth();
@@ -618,14 +662,15 @@ void ChainPanel::resizedContent(juce::Rectangle<int> contentArea) {
     bool isDraggingOrDropping = dragOriginalIndex_ >= 0 || dropInsertIndex_ >= 0;
     int x = isDraggingOrDropping ? DRAG_LEFT_PADDING : 0;
 
-    // Layout element slots inside the container
+    // Layout element slots inside the container with zoom applied
+    int scaledArrowWidth = getScaledWidth(ARROW_WIDTH);
     for (auto& slot : elementSlots_) {
-        int slotWidth = slot->getPreferredWidth();
+        int slotWidth = getScaledWidth(slot->getPreferredWidth());
         slot->setBounds(x, 0, slotWidth, containerHeight);
-        x += slotWidth + ARROW_WIDTH;
+        x += slotWidth + scaledArrowWidth;
     }
 
-    // Add device button after all slots
+    // Add device button after all slots (not scaled)
     addDeviceButton_.setBounds(x, (containerHeight - 20) / 2, 20, 20);
 }
 
@@ -634,10 +679,11 @@ int ChainPanel::calculateTotalContentWidth() const {
     bool isDraggingOrDropping = dragOriginalIndex_ >= 0 || dropInsertIndex_ >= 0;
     int totalWidth = isDraggingOrDropping ? DRAG_LEFT_PADDING : 0;
 
+    int scaledArrowWidth = getScaledWidth(ARROW_WIDTH);
     for (const auto& slot : elementSlots_) {
-        totalWidth += slot->getPreferredWidth() + ARROW_WIDTH;
+        totalWidth += getScaledWidth(slot->getPreferredWidth()) + scaledArrowWidth;
     }
-    totalWidth += 30;  // Space for add device button
+    totalWidth += 30;  // Space for add device button (not scaled)
     return totalWidth;
 }
 
@@ -648,6 +694,51 @@ int ChainPanel::getContentWidth() const {
 
 void ChainPanel::setMaxWidth(int maxWidth) {
     maxWidth_ = maxWidth;
+}
+
+void ChainPanel::setZoomLevel(float zoom) {
+    DBG("ChainPanel::setZoomLevel - requested=" << zoom << " current=" << zoomLevel_);
+    float newZoom = juce::jlimit(MIN_ZOOM, MAX_ZOOM, zoom);
+    if (std::abs(zoomLevel_ - newZoom) > 0.001f) {
+        zoomLevel_ = newZoom;
+        DBG("  -> Zoom changed to " << zoomLevel_);
+        resized();
+        repaint();
+        if (onLayoutChanged) {
+            onLayoutChanged();
+        }
+    } else {
+        DBG("  -> No change (clamped to " << newZoom << ")");
+    }
+}
+
+void ChainPanel::resetZoom() {
+    setZoomLevel(1.0f);
+}
+
+int ChainPanel::getScaledWidth(int width) const {
+    return static_cast<int>(std::round(width * zoomLevel_));
+}
+
+void ChainPanel::mouseEnter(const juce::MouseEvent&) {
+    DBG("ChainPanel::mouseEnter - visible=" << (isVisible() ? "yes" : "no")
+                                            << " bounds=" << getBounds().toString());
+}
+
+void ChainPanel::mouseWheelMove(const juce::MouseEvent& event,
+                                const juce::MouseWheelDetails& wheel) {
+    DBG("ChainPanel::mouseWheelMove - deltaY=" << wheel.deltaY << " isAltDown="
+                                               << (event.mods.isAltDown() ? "yes" : "no"));
+
+    // Option/Alt + scroll wheel = zoom (Cmd+scroll is intercepted by macOS)
+    if (event.mods.isAltDown()) {
+        float delta = wheel.deltaY > 0 ? ZOOM_STEP : -ZOOM_STEP;
+        DBG("  -> Zooming to " << (zoomLevel_ + delta));
+        setZoomLevel(zoomLevel_ + delta);
+    } else {
+        // Normal scroll - let viewport handle it
+        NodeComponent::mouseWheelMove(event, wheel);
+    }
 }
 
 void ChainPanel::onDeviceLayoutChanged() {
@@ -838,6 +929,13 @@ void ChainPanel::rebuildElementSlots() {
     auto safeThis = juce::Component::SafePointer<ChainPanel>(this);
 
     for (auto& slot : elementSlots_) {
+        // Wire up zoom callback (Cmd+scroll on any node forwards to ChainPanel)
+        slot->onZoomDelta = [safeThis](float delta) {
+            if (safeThis != nullptr) {
+                safeThis->setZoomLevel(safeThis->getZoomLevel() + delta);
+            }
+        };
+
         slot->onDragStart = [safeThis](NodeComponent* node, const juce::MouseEvent&) {
             if (safeThis == nullptr)
                 return;
@@ -1027,9 +1125,10 @@ int ChainPanel::calculateIndicatorX(int index) const {
         return DRAG_LEFT_PADDING / 2;
     }
 
-    // After previous element
+    // After previous element (use scaled arrow width)
     if (index > 0 && index <= static_cast<int>(elementSlots_.size())) {
-        return elementSlots_[index - 1]->getRight() + ARROW_WIDTH / 2;
+        int scaledArrowWidth = getScaledWidth(ARROW_WIDTH);
+        return elementSlots_[index - 1]->getRight() + scaledArrowWidth / 2;
     }
 
     // Fallback

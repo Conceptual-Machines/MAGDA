@@ -40,6 +40,9 @@ class TrackChainContent : public PanelContent,
     void paint(juce::Graphics& g) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent& e) override;
+    void mouseDrag(const juce::MouseEvent& e) override;
+    void mouseUp(const juce::MouseEvent& e) override;
+    void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override;
 
     void onActivated() override;
     void onDeactivated() override;
@@ -103,8 +106,9 @@ class TrackChainContent : public PanelContent,
     int calculateTotalContentWidth() const;
     void layoutChainContent();
 
-    // Viewport for horizontal scrolling of chain content
-    juce::Viewport chainViewport_;
+    // Viewport for horizontal scrolling of chain content (with zoom support)
+    class ZoomableViewport;
+    std::unique_ptr<ZoomableViewport> chainViewport_;
     class ChainContainer;
     std::unique_ptr<ChainContainer> chainContainer_;
 
@@ -128,6 +132,19 @@ class TrackChainContent : public PanelContent,
 
     static constexpr int HEADER_HEIGHT = 28;
     static constexpr int MODS_PANEL_WIDTH = 160;
+
+    // Horizontal zoom
+    float zoomLevel_ = 1.0f;
+    static constexpr float MIN_ZOOM = 0.5f;
+    static constexpr float MAX_ZOOM = 2.0f;
+    static constexpr float ZOOM_STEP = 0.1f;
+    void setZoomLevel(float zoom);
+    int getScaledWidth(int width) const;
+
+    // Zoom drag state (Alt+click-drag)
+    bool isZoomDragging_ = false;
+    int zoomDragStartX_ = 0;
+    float zoomStartLevel_ = 1.0f;
 
     // Drag-to-reorder state
     NodeComponent* draggedNode_ = nullptr;

@@ -4,10 +4,6 @@
 
 #include <functional>
 
-#include "MacroEditorPanel.hpp"
-#include "MacroPanelComponent.hpp"
-#include "ModsPanelComponent.hpp"
-#include "ModulatorEditorPanel.hpp"
 #include "NodeComponent.hpp"
 #include "core/RackInfo.hpp"
 #include "core/SelectionManager.hpp"
@@ -66,6 +62,7 @@ class RackComponent : public NodeComponent {
     std::function<void(magda::DeviceId)> onDeviceSelected;
 
     void mouseDown(const juce::MouseEvent& e) override;
+    void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override;
 
   protected:
     void paintContent(juce::Graphics& g, juce::Rectangle<int> contentArea) override;
@@ -113,58 +110,32 @@ class RackComponent : public NodeComponent {
     magda::ChainId selectedChainId_ = magda::INVALID_CHAIN_ID;
     int availableWidth_ = 0;  // 0 = no limit
 
-    // Macro panel (shown in left side param panel when macro button toggled)
-    std::unique_ptr<MacroPanelComponent> macroPanel_;
-    void updateMacroPanel();  // Update macro panel with current rack data
+    // === Virtual data provider overrides ===
+    const magda::ModArray* getModsData() const override;
+    const magda::MacroArray* getMacrosData() const override;
+    std::vector<std::pair<magda::DeviceId, juce::String>> getAvailableDevices() const override;
 
-    // Mods panel (shown in left side mod panel when mod button toggled)
-    std::unique_ptr<ModsPanelComponent> modsPanel_;
-    void updateModsPanel();  // Update mods panel with current rack data
+    // === Virtual callback overrides for mod/macro persistence ===
+    void onModAmountChangedInternal(int modIndex, float amount) override;
+    void onModTargetChangedInternal(int modIndex, magda::ModTarget target) override;
+    void onModNameChangedInternal(int modIndex, const juce::String& name) override;
+    void onModTypeChangedInternal(int modIndex, magda::ModType type) override;
+    void onModRateChangedInternal(int modIndex, float rate) override;
+    void onMacroValueChangedInternal(int macroIndex, float value) override;
+    void onMacroTargetChangedInternal(int macroIndex, magda::MacroTarget target) override;
+    void onMacroNameChangedInternal(int macroIndex, const juce::String& name) override;
+    void onModClickedInternal(int modIndex) override;
+    void onMacroClickedInternal(int macroIndex) override;
 
-    // Modulator editor panel (shown when a mod is selected)
-    std::unique_ptr<ModulatorEditorPanel> modulatorEditorPanel_;
-    bool modulatorEditorVisible_ = false;
-    int selectedModIndex_ = -1;
+    // === Virtual callbacks for page management ===
+    void onModPageAddRequested(int itemsToAdd) override;
+    void onModPageRemoveRequested(int itemsToRemove) override;
+    void onMacroPageAddRequested(int itemsToAdd) override;
+    void onMacroPageRemoveRequested(int itemsToRemove) override;
 
-    // Macro editor panel (shown when a macro is selected)
-    std::unique_ptr<MacroEditorPanel> macroEditorPanel_;
-    bool macroEditorVisible_ = false;
-    int selectedMacroIndex_ = -1;
-
-    // Override param panel for macro display (left side panel)
+    // Override panel widths for rack-specific sizing
     int getParamPanelWidth() const override;
-    void resizedParamPanel(juce::Rectangle<int> panelArea) override;
-    void paintParamPanel(juce::Graphics& g, juce::Rectangle<int> panelArea) override;
-
-    // Override mod panel for mods display (left side panel)
     int getModPanelWidth() const override;
-    void resizedModPanel(juce::Rectangle<int> panelArea) override;
-    void paintModPanel(juce::Graphics& g, juce::Rectangle<int> panelArea) override;
-
-    // Override left panels width to include modulator editor
-    int getLeftPanelsWidth() const override;
-
-    // Override extra left panel for modulator editor (between mods and macros)
-    int getExtraLeftPanelWidth() const override;
-    void resizedExtraLeftPanel(juce::Rectangle<int> panelArea) override;
-    void paintExtraLeftPanel(juce::Graphics& g, juce::Rectangle<int> panelArea) override;
-
-    // Modulator editor helpers
-    int getModulatorEditorWidth() const;
-    void showModulatorEditor(int modIndex);
-    void hideModulatorEditor();
-    void updateModulatorEditor();
-
-    // Macro editor helpers
-    int getMacroEditorWidth() const;
-    void showMacroEditor(int macroIndex);
-    void hideMacroEditor();
-    void updateMacroEditor();
-
-    // Override for extra right panel (macro editor after macros)
-    int getExtraRightPanelWidth() const override;
-    void resizedExtraRightPanel(juce::Rectangle<int> panelArea) override;
-    void paintExtraRightPanel(juce::Graphics& g, juce::Rectangle<int> panelArea) override;
 
     static constexpr int CHAINS_LABEL_HEIGHT = 18;
     static constexpr int MIN_CONTENT_HEIGHT = 30;

@@ -88,6 +88,7 @@ class NodeComponent : public juce::Component, public magda::SelectionManagerList
     std::function<void()> onLayoutChanged;         // Called when size changes (e.g., panel toggle)
     std::function<void()> onSelected;              // Called when node is clicked/selected
     std::function<void(bool)> onCollapsedChanged;  // Called when collapsed state changes
+    std::function<void(float)> onZoomDelta;        // Called for Cmd+scroll zoom (delta amount)
 
     // Toggle side panel visibility programmatically
     void setModPanelVisible(bool visible);
@@ -103,6 +104,7 @@ class NodeComponent : public juce::Component, public magda::SelectionManagerList
     void mouseDown(const juce::MouseEvent& e) override;
     void mouseDrag(const juce::MouseEvent& e) override;
     void mouseUp(const juce::MouseEvent& e) override;
+    void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override;
 
     // Get total width of left side panels (mods + params + any extras)
     virtual int getLeftPanelsWidth() const;

@@ -143,6 +143,21 @@ void RackComponent::mouseDown(const juce::MouseEvent& e) {
     NodeComponent::mouseDown(e);
 }
 
+void RackComponent::mouseWheelMove(const juce::MouseEvent& e,
+                                   const juce::MouseWheelDetails& wheel) {
+    DBG("!!!!! RackComponent::mouseWheelMove - deltaY=" << wheel.deltaY << " isAltDown="
+                                                        << (e.mods.isAltDown() ? "yes" : "no"));
+
+    // Alt/Option + scroll = zoom (forward to parent via callback)
+    if (e.mods.isAltDown() && onZoomDelta) {
+        float delta = wheel.deltaY > 0 ? 0.1f : -0.1f;
+        onZoomDelta(delta);
+    } else {
+        // Normal scroll - let base class / viewport handle it
+        NodeComponent::mouseWheelMove(e, wheel);
+    }
+}
+
 void RackComponent::paintContent(juce::Graphics& g, juce::Rectangle<int> contentArea) {
     // Chains label separator (below "Chains:" label)
     int chainsSeparatorY = contentArea.getY() + CHAINS_LABEL_HEIGHT;

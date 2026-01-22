@@ -636,19 +636,53 @@ class TrackChainContent::ChainContainer : public juce::Component, public juce::D
         nodeComponents_ = nodes;
     }
 
-    void mouseDown(const juce::MouseEvent& /*e*/) override {
-        // Clicking empty area deselects all devices
-        owner_.clearDeviceSelection();
-    }
-
     void mouseMove(const juce::MouseEvent&) override {
         // Check if drop state is stale (drag was cancelled)
         checkAndResetStaleDropState();
     }
 
     void mouseEnter(const juce::MouseEvent&) override {
+        DBG("ChainContainer::mouseEnter");
         // Check if drop state is stale (drag was cancelled while outside)
         checkAndResetStaleDropState();
+    }
+
+    void mouseDown(const juce::MouseEvent& e) override {
+        // Alt/Option + click = start zoom drag
+        if (e.mods.isAltDown()) {
+            isZoomDragging_ = true;
+            zoomDragStartX_ = e.x;
+            zoomStartLevel_ = owner_.zoomLevel_;
+            DBG("ChainContainer: Alt+click - starting zoom drag");
+        } else {
+            // Clicking empty area deselects all devices
+            owner_.clearDeviceSelection();
+        }
+    }
+
+    void mouseDrag(const juce::MouseEvent& e) override {
+        if (isZoomDragging_) {
+            // Drag right = zoom in, drag left = zoom out
+            int deltaX = e.x - zoomDragStartX_;
+            float zoomDelta = deltaX * 0.005f;  // Sensitivity factor
+            owner_.setZoomLevel(zoomStartLevel_ + zoomDelta);
+        }
+    }
+
+    void mouseUp(const juce::MouseEvent&) override {
+        if (isZoomDragging_) {
+            isZoomDragging_ = false;
+            DBG("ChainContainer: zoom drag ended");
+        }
+    }
+
+    void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override {
+        // Alt/Option + scroll wheel also works for zoom
+        if (e.mods.isAltDown()) {
+            owner_.setZoomLevel(owner_.zoomLevel_ + (wheel.deltaY > 0 ? 0.1f : -0.1f));
+        } else {
+            Component::mouseWheelMove(e, wheel);
+        }
     }
 
     void paint(juce::Graphics& g) override {
@@ -776,6 +810,41 @@ class TrackChainContent::ChainContainer : public juce::Component, public juce::D
 
     TrackChainContent& owner_;
     const std::vector<std::unique_ptr<NodeComponent>>* nodeComponents_ = nullptr;
+
+    // Zoom drag state
+    bool isZoomDragging_ = false;
+    int zoomDragStartX_ = 0;
+    float zoomStartLevel_ = 1.0f;
+};
+
+//==============================================================================
+// ZoomableViewport - Viewport that supports Alt+scroll for zooming
+//==============================================================================
+class TrackChainContent::ZoomableViewport : public juce::Viewport {
+  public:
+    explicit ZoomableViewport(TrackChainContent& owner) : owner_(owner) {
+        DBG("ZoomableViewport created for TrackChainContent");
+    }
+
+    void mouseWheelMove(const juce::MouseEvent& event,
+                        const juce::MouseWheelDetails& wheel) override {
+        DBG("!!!!! ZoomableViewport::mouseWheelMove CALLED - deltaY="
+            << wheel.deltaY << " isAltDown=" << (event.mods.isAltDown() ? "yes" : "no"));
+
+        // Alt/Option + scroll wheel = zoom
+        if (event.mods.isAltDown()) {
+            float delta =
+                wheel.deltaY > 0 ? TrackChainContent::ZOOM_STEP : -TrackChainContent::ZOOM_STEP;
+            DBG("  -> Zooming by " << delta);
+            owner_.setZoomLevel(owner_.zoomLevel_ + delta);
+        } else {
+            // Normal scroll - let viewport handle horizontal scrolling
+            Viewport::mouseWheelMove(event, wheel);
+        }
+    }
+
+  private:
+    TrackChainContent& owner_;
 };
 
 // dB conversion helpers
@@ -795,7 +864,9 @@ float dbToGain(float db) {
 }
 }  // namespace
 
-TrackChainContent::TrackChainContent() : chainContainer_(std::make_unique<ChainContainer>(*this)) {
+TrackChainContent::TrackChainContent()
+    : chainViewport_(std::make_unique<ZoomableViewport>(*this)),
+      chainContainer_(std::make_unique<ChainContainer>(*this)) {
     setName("Track Chain");
 
     // Listen for debug settings changes
@@ -810,9 +881,10 @@ TrackChainContent::TrackChainContent() : chainContainer_(std::make_unique<ChainC
     });
 
     // Viewport for horizontal scrolling of chain content
-    chainViewport_.setViewedComponent(chainContainer_.get(), false);
-    chainViewport_.setScrollBarsShown(false, true);  // Horizontal only
-    addAndMakeVisible(chainViewport_);
+    DBG("TrackChainContent::ctor - Setting up ZoomableViewport for chain content");
+    chainViewport_->setViewedComponent(chainContainer_.get(), false);
+    chainViewport_->setScrollBarsShown(false, true);  // Horizontal only
+    addAndMakeVisible(*chainViewport_);
 
     // No selection label
     noSelectionLabel_.setText("Select a track to view its signal chain",
@@ -1044,9 +1116,42 @@ void TrackChainContent::paint(juce::Graphics& g) {
 }
 
 void TrackChainContent::mouseDown(const juce::MouseEvent& e) {
-    // Click on header area selects the track
-    if (selectedTrackId_ != magda::INVALID_TRACK_ID && e.y < HEADER_HEIGHT) {
+    // Alt/Option + click = start zoom drag (works on header)
+    if (e.mods.isAltDown()) {
+        isZoomDragging_ = true;
+        zoomDragStartX_ = e.x;
+        zoomStartLevel_ = zoomLevel_;
+    } else if (selectedTrackId_ != magda::INVALID_TRACK_ID && e.y < HEADER_HEIGHT) {
+        // Click on header area selects the track
         magda::SelectionManager::getInstance().selectTrack(selectedTrackId_);
+    }
+}
+
+void TrackChainContent::mouseDrag(const juce::MouseEvent& e) {
+    if (isZoomDragging_) {
+        // Drag right = zoom in, drag left = zoom out
+        int deltaX = e.x - zoomDragStartX_;
+        float zoomDelta = deltaX * 0.005f;  // Sensitivity factor
+        setZoomLevel(zoomStartLevel_ + zoomDelta);
+    }
+}
+
+void TrackChainContent::mouseUp(const juce::MouseEvent&) {
+    isZoomDragging_ = false;
+}
+
+void TrackChainContent::mouseWheelMove(const juce::MouseEvent& e,
+                                       const juce::MouseWheelDetails& wheel) {
+    DBG("TrackChainContent::mouseWheelMove - deltaY=" << wheel.deltaY << " isAltDown="
+                                                      << (e.mods.isAltDown() ? "yes" : "no"));
+
+    // Alt/Option + scroll wheel = zoom
+    if (e.mods.isAltDown()) {
+        float delta = wheel.deltaY > 0 ? ZOOM_STEP : -ZOOM_STEP;
+        setZoomLevel(zoomLevel_ + delta);
+    } else {
+        // Forward to viewport for scrolling
+        chainViewport_->mouseWheelMove(e, wheel);
     }
 }
 
@@ -1099,7 +1204,7 @@ void TrackChainContent::resized() {
         auto contentArea = bounds.reduced(8);
 
         // Viewport fills the content area
-        chainViewport_.setBounds(contentArea);
+        chainViewport_->setBounds(contentArea);
 
         // Layout chain content inside the container
         layoutChainContent();
@@ -1107,11 +1212,11 @@ void TrackChainContent::resized() {
 }
 
 void TrackChainContent::layoutChainContent() {
-    auto viewportBounds = chainViewport_.getLocalBounds();
+    auto viewportBounds = chainViewport_->getLocalBounds();
     int chainHeight = viewportBounds.getHeight();
     int availableWidth = viewportBounds.getWidth();
 
-    // Calculate total content width
+    // Calculate total content width (with zoom applied)
     int totalWidth = calculateTotalContentWidth();
 
     // Account for scrollbar if needed
@@ -1125,30 +1230,36 @@ void TrackChainContent::layoutChainContent() {
 
     // Add left padding during drag/drop to show insertion indicator before first node
     bool isDraggingOrDropping = dragOriginalIndex_ >= 0 || dropInsertIndex_ >= 0;
-    int x = isDraggingOrDropping ? DRAG_LEFT_PADDING : 0;
+    int scaledArrowWidth = getScaledWidth(ARROW_WIDTH);
+    int scaledSlotSpacing = getScaledWidth(SLOT_SPACING);
+    int x = isDraggingOrDropping ? getScaledWidth(DRAG_LEFT_PADDING) : 0;
 
-    // Layout all node components horizontally
+    // Layout all node components horizontally (with zoom applied)
     for (auto& node : nodeComponents_) {
         // Check if it's a RackComponent to set available width
         if (auto* rack = dynamic_cast<RackComponent*>(node.get())) {
-            int remainingWidth = juce::jmax(300, availableWidth - x - ARROW_WIDTH - SLOT_SPACING);
+            int remainingWidth =
+                juce::jmax(300, availableWidth - x - scaledArrowWidth - scaledSlotSpacing);
             rack->setAvailableWidth(remainingWidth);
         }
 
-        int nodeWidth = node->getPreferredWidth();
+        int nodeWidth = getScaledWidth(node->getPreferredWidth());
         node->setBounds(x, 0, nodeWidth, chainHeight);
-        x += nodeWidth + ARROW_WIDTH + SLOT_SPACING;
+        x += nodeWidth + scaledArrowWidth + scaledSlotSpacing;
     }
 }
 
 int TrackChainContent::calculateTotalContentWidth() const {
     // Add left padding during drag/drop to show insertion indicator before first node
     bool isDraggingOrDropping = dragOriginalIndex_ >= 0 || dropInsertIndex_ >= 0;
-    int totalWidth = isDraggingOrDropping ? DRAG_LEFT_PADDING : 0;
+    int scaledArrowWidth = getScaledWidth(ARROW_WIDTH);
+    int scaledSlotSpacing = getScaledWidth(SLOT_SPACING);
+    int totalWidth = isDraggingOrDropping ? getScaledWidth(DRAG_LEFT_PADDING) : 0;
 
-    // Add width for all node components
+    // Add width for all node components (with zoom applied)
     for (const auto& node : nodeComponents_) {
-        totalWidth += node->getPreferredWidth() + ARROW_WIDTH + SLOT_SPACING;
+        totalWidth +=
+            getScaledWidth(node->getPreferredWidth()) + scaledArrowWidth + scaledSlotSpacing;
     }
 
     return totalWidth;
@@ -1631,6 +1742,21 @@ void TrackChainContent::timerCallback() {
     if (dragInsertIndex_ < 0 && draggedNode_ == nullptr && dropInsertIndex_ < 0) {
         stopTimer();
     }
+}
+
+void TrackChainContent::setZoomLevel(float zoom) {
+    DBG("TrackChainContent::setZoomLevel - requested=" << zoom << " current=" << zoomLevel_);
+    float newZoom = juce::jlimit(MIN_ZOOM, MAX_ZOOM, zoom);
+    if (std::abs(zoomLevel_ - newZoom) > 0.001f) {
+        zoomLevel_ = newZoom;
+        DBG("  -> Zoom changed to " << zoomLevel_);
+        layoutChainContent();
+        repaint();
+    }
+}
+
+int TrackChainContent::getScaledWidth(int width) const {
+    return static_cast<int>(std::round(width * zoomLevel_));
 }
 
 }  // namespace magda::daw::ui
