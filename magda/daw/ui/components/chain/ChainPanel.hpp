@@ -4,22 +4,37 @@
 
 #include "NodeComponent.hpp"
 #include "core/RackInfo.hpp"
+#include "core/SelectionManager.hpp"
 #include "core/TrackManager.hpp"
 
 namespace magda::daw::ui {
+
+class RackComponent;  // Forward declaration for nested racks
 
 /**
  * @brief Panel showing device sequence for a selected chain
  *
  * Inherits from NodeComponent for common header/footer layout.
  * Content area shows devices in sequence.
+ *
+ * Works recursively - can contain nested RackComponents which in turn
+ * contain ChainPanels. Uses ChainNodePath to track its location.
  */
 class ChainPanel : public NodeComponent {
   public:
     ChainPanel();
     ~ChainPanel() override;
 
+    // Show a chain with full path context (for proper nesting)
+    void showChain(const magda::ChainNodePath& chainPath);
+
+    // Legacy: show a chain by IDs (computes path internally)
     void showChain(magda::TrackId trackId, magda::RackId rackId, magda::ChainId chainId);
+
+    // Get the current chain path (for nested components)
+    const magda::ChainNodePath& getChainPath() const {
+        return chainPath_;
+    }
     void refresh();  // Rebuild device slots without resetting panel state
     void clear();
     void onDeviceLayoutChanged();    // Called when a device slot's size changes (panel toggle)
@@ -63,23 +78,24 @@ class ChainPanel : public NodeComponent {
 
   private:
     class DeviceSlotComponent;
-    class DeviceSlotsContainer;
+    class ElementSlotsContainer;
 
-    void rebuildDeviceSlots();
+    void rebuildElementSlots();
     void onAddDeviceClicked();
     int calculateTotalContentWidth() const;
 
+    magda::ChainNodePath chainPath_;  // Full path to this chain
     magda::TrackId trackId_;
     magda::RackId rackId_;
     magda::ChainId chainId_;
     bool hasChain_ = false;
     int maxWidth_ = 0;  // 0 = no limit, otherwise constrain width and scroll
 
-    // Devices with viewport for horizontal scrolling
-    juce::Viewport deviceViewport_;
-    std::unique_ptr<DeviceSlotsContainer> deviceSlotsContainer_;
+    // Chain elements (devices and nested racks) with viewport for horizontal scrolling
+    juce::Viewport elementViewport_;
+    std::unique_ptr<ElementSlotsContainer> elementSlotsContainer_;
     juce::TextButton addDeviceButton_;
-    std::vector<std::unique_ptr<DeviceSlotComponent>> deviceSlots_;
+    std::vector<std::unique_ptr<NodeComponent>> elementSlots_;
 
     // Chain-level mod/macro panel state
     bool chainModPanelVisible_ = false;

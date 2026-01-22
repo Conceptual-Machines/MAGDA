@@ -486,18 +486,102 @@ void TrackManager::setRackExpanded(TrackId trackId, RackId rackId, bool expanded
 // Chain Management
 // ============================================================================
 
-ChainId TrackManager::addChainToRack(TrackId trackId, RackId rackId, const juce::String& name) {
-    if (auto* rack = getRack(trackId, rackId)) {
+RackInfo* TrackManager::getRackByPath(const ChainNodePath& rackPath) {
+    DBG("getRackByPath: trackId=" << rackPath.trackId << ", steps=" << rackPath.steps.size());
+    for (size_t i = 0; i < rackPath.steps.size(); ++i) {
+        const auto& step = rackPath.steps[i];
+        DBG("  step[" << i << "]: type=" << static_cast<int>(step.type) << ", id=" << step.id);
+    }
+
+    auto* track = getTrack(rackPath.trackId);
+    if (!track) {
+        DBG("  -> track not found!");
+        return nullptr;
+    }
+
+    RackInfo* currentRack = nullptr;
+    ChainInfo* currentChain = nullptr;
+
+    for (const auto& step : rackPath.steps) {
+        switch (step.type) {
+            case ChainStepType::Rack: {
+                if (currentChain == nullptr) {
+                    // Top-level rack in track
+                    DBG("  Looking for top-level rack id=" << step.id << " in track with "
+                                                           << track->racks.size() << " racks");
+                    for (auto& rack : track->racks) {
+                        DBG("    checking rack id=" << rack.id);
+                        if (rack.id == step.id) {
+                            currentRack = &rack;
+                            DBG("    -> FOUND top-level rack");
+                            break;
+                        }
+                    }
+                } else {
+                    // Nested rack within a chain
+                    DBG("  Looking for nested rack id=" << step.id << " in chain with "
+                                                        << currentChain->elements.size()
+                                                        << " elements");
+                    for (auto& element : currentChain->elements) {
+                        if (magda::isRack(element)) {
+                            DBG("    checking nested rack id=" << magda::getRack(element).id);
+                            if (magda::getRack(element).id == step.id) {
+                                currentRack = &magda::getRack(element);
+                                currentChain = nullptr;  // Reset chain context
+                                DBG("    -> FOUND nested rack");
+                                break;
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+            case ChainStepType::Chain: {
+                if (currentRack != nullptr) {
+                    DBG("  Looking for chain id=" << step.id << " in rack with "
+                                                  << currentRack->chains.size() << " chains");
+                    for (auto& chain : currentRack->chains) {
+                        DBG("    checking chain id=" << chain.id);
+                        if (chain.id == step.id) {
+                            currentChain = &chain;
+                            DBG("    -> FOUND chain");
+                            break;
+                        }
+                    }
+                } else {
+                    DBG("  Chain step but no currentRack!");
+                }
+                break;
+            }
+            case ChainStepType::Device:
+                // Devices don't contain racks, skip
+                break;
+        }
+    }
+
+    DBG("  -> returning rack: " << (currentRack ? "found" : "NULL"));
+    return currentRack;
+}
+
+const RackInfo* TrackManager::getRackByPath(const ChainNodePath& rackPath) const {
+    // const version - delegates to non-const via const_cast (safe since we return const*)
+    return const_cast<TrackManager*>(this)->getRackByPath(rackPath);
+}
+
+ChainId TrackManager::addChainToRack(const ChainNodePath& rackPath, const juce::String& name) {
+    DBG("addChainToRack called with path:");
+    if (auto* rack = getRackByPath(rackPath)) {
         ChainInfo chain;
         chain.id = nextChainId_++;
         chain.name = name.isEmpty()
                          ? ("Chain " + juce::String(static_cast<int>(rack->chains.size()) + 1))
                          : name;
         rack->chains.push_back(chain);
-        notifyTrackDevicesChanged(trackId);
-        DBG("Added chain: " << chain.name << " (id=" << chain.id << ") to rack " << rackId);
+        notifyTrackDevicesChanged(rackPath.trackId);
+        DBG("Added chain: " << chain.name << " (id=" << chain.id << ") to rack via path");
         return chain.id;
     }
+    DBG("addChainToRack FAILED - rack not found via path!");
     return INVALID_CHAIN_ID;
 }
 
@@ -511,6 +595,44 @@ void TrackManager::removeChainFromRack(TrackId trackId, RackId rackId, ChainId c
             chains.erase(it);
             notifyTrackDevicesChanged(trackId);
         }
+    }
+}
+
+void TrackManager::removeChainByPath(const ChainNodePath& chainPath) {
+    // The chainPath should end with a Chain step - we need to find the parent rack
+    if (chainPath.steps.empty()) {
+        DBG("removeChainByPath FAILED - empty path!");
+        return;
+    }
+
+    // Extract chainId from the last step (should be Chain type)
+    ChainId chainId = INVALID_CHAIN_ID;
+    if (chainPath.steps.back().type == ChainStepType::Chain) {
+        chainId = chainPath.steps.back().id;
+    } else {
+        DBG("removeChainByPath FAILED - path doesn't end with Chain step!");
+        return;
+    }
+
+    // Build path to parent rack (all steps except the last Chain step)
+    ChainNodePath rackPath;
+    rackPath.trackId = chainPath.trackId;
+    for (size_t i = 0; i < chainPath.steps.size() - 1; ++i) {
+        rackPath.steps.push_back(chainPath.steps[i]);
+    }
+
+    // Find the rack and remove the chain
+    if (auto* rack = getRackByPath(rackPath)) {
+        auto& chains = rack->chains;
+        auto it = std::find_if(chains.begin(), chains.end(),
+                               [chainId](const ChainInfo& c) { return c.id == chainId; });
+        if (it != chains.end()) {
+            DBG("Removed chain via path: " << it->name << " (id=" << chainId << ")");
+            chains.erase(it);
+            notifyTrackDevicesChanged(chainPath.trackId);
+        }
+    } else {
+        DBG("removeChainByPath FAILED - rack not found via path!");
     }
 }
 
@@ -591,7 +713,7 @@ DeviceId TrackManager::addDeviceToChain(TrackId trackId, RackId rackId, ChainId 
     if (auto* chain = getChain(trackId, rackId, chainId)) {
         DeviceInfo newDevice = device;
         newDevice.id = nextDeviceId_++;
-        chain->devices.push_back(newDevice);
+        chain->elements.push_back(makeDeviceElement(newDevice));
         notifyTrackDevicesChanged(trackId);
         DBG("Added device: " << newDevice.name << " (id=" << newDevice.id << ") to chain "
                              << chainId);
@@ -600,16 +722,73 @@ DeviceId TrackManager::addDeviceToChain(TrackId trackId, RackId rackId, ChainId 
     return INVALID_DEVICE_ID;
 }
 
+DeviceId TrackManager::addDeviceToChainByPath(const ChainNodePath& chainPath,
+                                              const DeviceInfo& device) {
+    // The chainPath should end with a Chain step
+    DBG("addDeviceToChainByPath called with path steps=" << chainPath.steps.size());
+
+    if (chainPath.steps.empty()) {
+        DBG("addDeviceToChainByPath FAILED - empty path!");
+        return INVALID_DEVICE_ID;
+    }
+
+    // Extract chainId from the last step (should be Chain type)
+    ChainId chainId = INVALID_CHAIN_ID;
+    if (chainPath.steps.back().type == ChainStepType::Chain) {
+        chainId = chainPath.steps.back().id;
+    } else {
+        DBG("addDeviceToChainByPath FAILED - path doesn't end with Chain step!");
+        return INVALID_DEVICE_ID;
+    }
+
+    // Build the parent rack path (everything except the last Chain step)
+    ChainNodePath rackPath;
+    rackPath.trackId = chainPath.trackId;
+    for (size_t i = 0; i < chainPath.steps.size() - 1; ++i) {
+        rackPath.steps.push_back(chainPath.steps[i]);
+    }
+
+    // Get the parent rack
+    if (auto* rack = getRackByPath(rackPath)) {
+        // Find the chain within the rack
+        ChainInfo* chain = nullptr;
+        for (auto& c : rack->chains) {
+            if (c.id == chainId) {
+                chain = &c;
+                break;
+            }
+        }
+
+        if (!chain) {
+            DBG("addDeviceToChainByPath FAILED - chain not found in rack!");
+            return INVALID_DEVICE_ID;
+        }
+
+        // Add the device
+        DeviceInfo newDevice = device;
+        newDevice.id = nextDeviceId_++;
+        chain->elements.push_back(makeDeviceElement(newDevice));
+        notifyTrackDevicesChanged(chainPath.trackId);
+        DBG("Added device via path: " << newDevice.name << " (id=" << newDevice.id << ") to chain "
+                                      << chainId);
+        return newDevice.id;
+    }
+
+    DBG("addDeviceToChainByPath FAILED - rack not found via path!");
+    return INVALID_DEVICE_ID;
+}
+
 void TrackManager::removeDeviceFromChain(TrackId trackId, RackId rackId, ChainId chainId,
                                          DeviceId deviceId) {
     if (auto* chain = getChain(trackId, rackId, chainId)) {
-        auto& devices = chain->devices;
-        auto it = std::find_if(devices.begin(), devices.end(),
-                               [deviceId](const DeviceInfo& d) { return d.id == deviceId; });
-        if (it != devices.end()) {
-            DBG("Removed device: " << it->name << " (id=" << deviceId << ") from chain "
-                                   << chainId);
-            devices.erase(it);
+        auto& elements = chain->elements;
+        auto it = std::find_if(elements.begin(), elements.end(), [deviceId](const ChainElement& e) {
+            return magda::isDevice(e) && magda::getDevice(e).id == deviceId;
+        });
+        if (it != elements.end()) {
+            DBG("Removed device: " << magda::getDevice(*it).name << " (id=" << deviceId
+                                   << ") from chain " << chainId);
+            elements.erase(it);
             notifyTrackDevicesChanged(trackId);
         }
     }
@@ -618,16 +797,17 @@ void TrackManager::removeDeviceFromChain(TrackId trackId, RackId rackId, ChainId
 void TrackManager::moveDeviceInChain(TrackId trackId, RackId rackId, ChainId chainId,
                                      DeviceId deviceId, int newIndex) {
     if (auto* chain = getChain(trackId, rackId, chainId)) {
-        auto& devices = chain->devices;
-        auto it = std::find_if(devices.begin(), devices.end(),
-                               [deviceId](const DeviceInfo& d) { return d.id == deviceId; });
-        if (it != devices.end()) {
-            int currentIndex = static_cast<int>(std::distance(devices.begin(), it));
+        auto& elements = chain->elements;
+        auto it = std::find_if(elements.begin(), elements.end(), [deviceId](const ChainElement& e) {
+            return magda::isDevice(e) && magda::getDevice(e).id == deviceId;
+        });
+        if (it != elements.end()) {
+            int currentIndex = static_cast<int>(std::distance(elements.begin(), it));
             if (currentIndex != newIndex && newIndex >= 0 &&
-                newIndex < static_cast<int>(devices.size())) {
-                DeviceInfo device = *it;
-                devices.erase(it);
-                devices.insert(devices.begin() + newIndex, device);
+                newIndex < static_cast<int>(elements.size())) {
+                ChainElement element = std::move(*it);
+                elements.erase(it);
+                elements.insert(elements.begin() + newIndex, std::move(element));
                 notifyTrackDevicesChanged(trackId);
             }
         }
@@ -637,11 +817,10 @@ void TrackManager::moveDeviceInChain(TrackId trackId, RackId rackId, ChainId cha
 DeviceInfo* TrackManager::getDeviceInChain(TrackId trackId, RackId rackId, ChainId chainId,
                                            DeviceId deviceId) {
     if (auto* chain = getChain(trackId, rackId, chainId)) {
-        auto& devices = chain->devices;
-        auto it = std::find_if(devices.begin(), devices.end(),
-                               [deviceId](const DeviceInfo& d) { return d.id == deviceId; });
-        if (it != devices.end()) {
-            return &(*it);
+        for (auto& element : chain->elements) {
+            if (magda::isDevice(element) && magda::getDevice(element).id == deviceId) {
+                return &magda::getDevice(element);
+            }
         }
     }
     return nullptr;
@@ -653,6 +832,370 @@ void TrackManager::setDeviceInChainBypassed(TrackId trackId, RackId rackId, Chai
         device->bypassed = bypassed;
         notifyTrackDevicesChanged(trackId);
     }
+}
+
+// Helper to get chain from a path that ends with Chain step
+static ChainInfo* getChainFromPath(TrackManager& tm, const ChainNodePath& chainPath) {
+    if (chainPath.steps.empty())
+        return nullptr;
+
+    // Extract chainId from the last step (should be Chain type)
+    ChainId chainId = INVALID_CHAIN_ID;
+    if (chainPath.steps.back().type == ChainStepType::Chain) {
+        chainId = chainPath.steps.back().id;
+    } else {
+        return nullptr;
+    }
+
+    // Build the parent rack path
+    ChainNodePath rackPath;
+    rackPath.trackId = chainPath.trackId;
+    for (size_t i = 0; i < chainPath.steps.size() - 1; ++i) {
+        rackPath.steps.push_back(chainPath.steps[i]);
+    }
+
+    // Get the parent rack and find the chain
+    if (auto* rack = tm.getRackByPath(rackPath)) {
+        for (auto& c : rack->chains) {
+            if (c.id == chainId) {
+                return &c;
+            }
+        }
+    }
+    return nullptr;
+}
+
+void TrackManager::removeDeviceFromChainByPath(const ChainNodePath& devicePath) {
+    // devicePath ends with a Device step
+    if (devicePath.steps.empty())
+        return;
+
+    DeviceId deviceId = INVALID_DEVICE_ID;
+    if (devicePath.steps.back().type == ChainStepType::Device) {
+        deviceId = devicePath.steps.back().id;
+    } else {
+        DBG("removeDeviceFromChainByPath FAILED - path doesn't end with Device step!");
+        return;
+    }
+
+    // Build chain path (everything except last Device step)
+    ChainNodePath chainPath;
+    chainPath.trackId = devicePath.trackId;
+    for (size_t i = 0; i < devicePath.steps.size() - 1; ++i) {
+        chainPath.steps.push_back(devicePath.steps[i]);
+    }
+
+    if (auto* chain = getChainFromPath(*this, chainPath)) {
+        auto& elements = chain->elements;
+        auto it = std::find_if(elements.begin(), elements.end(), [deviceId](const ChainElement& e) {
+            return magda::isDevice(e) && magda::getDevice(e).id == deviceId;
+        });
+        if (it != elements.end()) {
+            DBG("Removed device via path: " << magda::getDevice(*it).name << " (id=" << deviceId
+                                            << ")");
+            elements.erase(it);
+            notifyTrackDevicesChanged(devicePath.trackId);
+        }
+    }
+}
+
+DeviceInfo* TrackManager::getDeviceInChainByPath(const ChainNodePath& devicePath) {
+    // devicePath ends with a Device step
+    if (devicePath.steps.empty())
+        return nullptr;
+
+    DeviceId deviceId = INVALID_DEVICE_ID;
+    if (devicePath.steps.back().type == ChainStepType::Device) {
+        deviceId = devicePath.steps.back().id;
+    } else {
+        return nullptr;
+    }
+
+    // Build chain path
+    ChainNodePath chainPath;
+    chainPath.trackId = devicePath.trackId;
+    for (size_t i = 0; i < devicePath.steps.size() - 1; ++i) {
+        chainPath.steps.push_back(devicePath.steps[i]);
+    }
+
+    if (auto* chain = getChainFromPath(*this, chainPath)) {
+        for (auto& element : chain->elements) {
+            if (magda::isDevice(element) && magda::getDevice(element).id == deviceId) {
+                return &magda::getDevice(element);
+            }
+        }
+    }
+    return nullptr;
+}
+
+void TrackManager::setDeviceInChainBypassedByPath(const ChainNodePath& devicePath, bool bypassed) {
+    if (auto* device = getDeviceInChainByPath(devicePath)) {
+        device->bypassed = bypassed;
+        notifyTrackDevicesChanged(devicePath.trackId);
+    }
+}
+
+RackId TrackManager::addRackToChain(TrackId trackId, RackId parentRackId, ChainId chainId,
+                                    const juce::String& name) {
+    if (auto* chain = getChain(trackId, parentRackId, chainId)) {
+        RackInfo nestedRack;
+        nestedRack.id = nextRackId_++;
+        nestedRack.name = name.isEmpty() ? "Rack " + juce::String(nestedRack.id) : name;
+
+        // Add a default chain to the nested rack
+        ChainInfo defaultChain;
+        defaultChain.id = nextChainId_++;
+        defaultChain.name = "Chain 1";
+        nestedRack.chains.push_back(std::move(defaultChain));
+
+        RackId newRackId = nestedRack.id;
+        chain->elements.push_back(makeRackElement(std::move(nestedRack)));
+
+        notifyTrackDevicesChanged(trackId);
+        DBG("Added nested rack: " << name << " (id=" << newRackId << ") to chain " << chainId);
+        return newRackId;
+    }
+    return INVALID_RACK_ID;
+}
+
+RackId TrackManager::addRackToChainByPath(const ChainNodePath& chainPath,
+                                          const juce::String& name) {
+    // The chainPath should end with a Chain step - we add a rack to that chain
+    DBG("addRackToChainByPath called with path steps=" << chainPath.steps.size());
+    for (size_t i = 0; i < chainPath.steps.size(); ++i) {
+        DBG("  step[" << i << "]: type=" << static_cast<int>(chainPath.steps[i].type)
+                      << ", id=" << chainPath.steps[i].id);
+    }
+
+    if (chainPath.steps.empty()) {
+        DBG("addRackToChainByPath FAILED - empty path!");
+        return INVALID_RACK_ID;
+    }
+
+    // Extract chainId from the last step (should be Chain type)
+    ChainId chainId = INVALID_CHAIN_ID;
+    if (chainPath.steps.back().type == ChainStepType::Chain) {
+        chainId = chainPath.steps.back().id;
+    } else {
+        DBG("addRackToChainByPath FAILED - path doesn't end with Chain step!");
+        return INVALID_RACK_ID;
+    }
+
+    // Build the parent rack path (everything except the last Chain step)
+    ChainNodePath rackPath;
+    rackPath.trackId = chainPath.trackId;
+    for (size_t i = 0; i < chainPath.steps.size() - 1; ++i) {
+        rackPath.steps.push_back(chainPath.steps[i]);
+    }
+
+    // Get the parent rack
+    if (auto* rack = getRackByPath(rackPath)) {
+        // Find the chain within the rack
+        ChainInfo* chain = nullptr;
+        for (auto& c : rack->chains) {
+            if (c.id == chainId) {
+                chain = &c;
+                break;
+            }
+        }
+
+        if (!chain) {
+            DBG("addRackToChainByPath FAILED - chain not found in rack!");
+            return INVALID_RACK_ID;
+        }
+
+        // Create the nested rack
+        RackInfo nestedRack;
+        nestedRack.id = nextRackId_++;
+        nestedRack.name = name.isEmpty() ? "Rack " + juce::String(nestedRack.id) : name;
+
+        // Add a default chain to the nested rack
+        ChainInfo defaultChain;
+        defaultChain.id = nextChainId_++;
+        defaultChain.name = "Chain 1";
+        nestedRack.chains.push_back(std::move(defaultChain));
+
+        RackId newRackId = nestedRack.id;
+        chain->elements.push_back(makeRackElement(std::move(nestedRack)));
+
+        notifyTrackDevicesChanged(chainPath.trackId);
+        DBG("Added nested rack via path: " << nestedRack.name << " (id=" << newRackId
+                                           << ") to chain " << chainId);
+        return newRackId;
+    }
+
+    DBG("addRackToChainByPath FAILED - rack not found via path!");
+    return INVALID_RACK_ID;
+}
+
+void TrackManager::removeRackFromChain(TrackId trackId, RackId parentRackId, ChainId chainId,
+                                       RackId nestedRackId) {
+    DBG("removeRackFromChain: trackId=" << trackId << " parentRackId=" << parentRackId
+                                        << " chainId=" << chainId
+                                        << " nestedRackId=" << nestedRackId);
+    if (auto* chain = getChain(trackId, parentRackId, chainId)) {
+        DBG("  found chain with " << chain->elements.size() << " elements");
+        auto& elements = chain->elements;
+        for (auto it = elements.begin(); it != elements.end(); ++it) {
+            if (magda::isRack(*it)) {
+                DBG("    checking rack element id=" << magda::getRack(*it).id);
+                if (magda::getRack(*it).id == nestedRackId) {
+                    elements.erase(it);
+                    notifyTrackDevicesChanged(trackId);
+                    DBG("Removed nested rack: " << nestedRackId << " from chain " << chainId);
+                    return;
+                }
+            }
+        }
+        DBG("  nested rack not found in chain elements");
+    } else {
+        DBG("  FAILED: chain not found");
+    }
+}
+
+void TrackManager::removeRackFromChainByPath(const ChainNodePath& rackPath) {
+    // rackPath ends with a Rack step - we need to find the parent chain and remove this rack
+    DBG("removeRackFromChainByPath: path steps=" << rackPath.steps.size());
+    for (size_t i = 0; i < rackPath.steps.size(); ++i) {
+        DBG("  step[" << i << "]: type=" << static_cast<int>(rackPath.steps[i].type)
+                      << ", id=" << rackPath.steps[i].id);
+    }
+
+    if (rackPath.steps.size() < 2) {
+        DBG("removeRackFromChainByPath FAILED - path too short (need at least Chain > Rack)!");
+        return;
+    }
+
+    // Extract rackId from the last step (should be Rack type)
+    RackId rackId = INVALID_RACK_ID;
+    if (rackPath.steps.back().type == ChainStepType::Rack) {
+        rackId = rackPath.steps.back().id;
+    } else {
+        DBG("removeRackFromChainByPath FAILED - path doesn't end with Rack step!");
+        return;
+    }
+
+    // Build the parent chain path (everything except the last Rack step)
+    ChainNodePath chainPath;
+    chainPath.trackId = rackPath.trackId;
+    for (size_t i = 0; i < rackPath.steps.size() - 1; ++i) {
+        chainPath.steps.push_back(rackPath.steps[i]);
+    }
+
+    // Get the parent chain using path-based lookup
+    if (auto* chain = getChainFromPath(*this, chainPath)) {
+        DBG("  found chain via path with " << chain->elements.size() << " elements");
+        auto& elements = chain->elements;
+        for (auto it = elements.begin(); it != elements.end(); ++it) {
+            if (magda::isRack(*it)) {
+                DBG("    checking rack element id=" << magda::getRack(*it).id);
+                if (magda::getRack(*it).id == rackId) {
+                    elements.erase(it);
+                    notifyTrackDevicesChanged(rackPath.trackId);
+                    DBG("Removed nested rack via path: " << rackId);
+                    return;
+                }
+            }
+        }
+        DBG("  nested rack not found in chain elements");
+    } else {
+        DBG("  FAILED: chain not found via path!");
+    }
+}
+
+// ============================================================================
+// Path Resolution
+// ============================================================================
+
+TrackManager::ResolvedPath TrackManager::resolvePath(const ChainNodePath& path) const {
+    ResolvedPath result;
+
+    const auto* track = getTrack(path.trackId);
+    if (!track) {
+        return result;
+    }
+
+    // Handle top-level device (legacy)
+    if (path.topLevelDeviceId != INVALID_DEVICE_ID) {
+        for (const auto& device : track->devices) {
+            if (device.id == path.topLevelDeviceId) {
+                result.valid = true;
+                result.device = &device;
+                result.displayPath = device.name;
+                return result;
+            }
+        }
+        return result;
+    }
+
+    // Walk through the path steps
+    juce::StringArray pathNames;
+    const RackInfo* currentRack = nullptr;
+    const ChainInfo* currentChain = nullptr;
+
+    for (size_t i = 0; i < path.steps.size(); ++i) {
+        const auto& step = path.steps[i];
+
+        switch (step.type) {
+            case ChainStepType::Rack: {
+                if (currentChain == nullptr) {
+                    // Top-level rack in track
+                    for (const auto& rack : track->racks) {
+                        if (rack.id == step.id) {
+                            currentRack = &rack;
+                            pathNames.add(rack.name);
+                            break;
+                        }
+                    }
+                } else {
+                    // Nested rack within a chain
+                    for (const auto& element : currentChain->elements) {
+                        if (magda::isRack(element) && magda::getRack(element).id == step.id) {
+                            currentRack = &magda::getRack(element);
+                            currentChain = nullptr;  // Reset chain context
+                            pathNames.add(currentRack->name);
+                            break;
+                        }
+                    }
+                }
+                break;
+            }
+            case ChainStepType::Chain: {
+                if (currentRack != nullptr) {
+                    for (const auto& chain : currentRack->chains) {
+                        if (chain.id == step.id) {
+                            currentChain = &chain;
+                            pathNames.add(chain.name);
+                            break;
+                        }
+                    }
+                }
+                break;
+            }
+            case ChainStepType::Device: {
+                if (currentChain != nullptr) {
+                    for (const auto& element : currentChain->elements) {
+                        if (magda::isDevice(element) && magda::getDevice(element).id == step.id) {
+                            result.device = &magda::getDevice(element);
+                            pathNames.add(result.device->name);
+                            break;
+                        }
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    // Set result based on what we found
+    if (!path.steps.empty()) {
+        result.displayPath = pathNames.joinIntoString(" > ");
+        result.rack = currentRack;
+        result.chain = currentChain;
+        result.valid = !pathNames.isEmpty();
+    }
+
+    return result;
 }
 
 // ============================================================================

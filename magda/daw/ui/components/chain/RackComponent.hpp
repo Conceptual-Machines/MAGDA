@@ -6,6 +6,7 @@
 
 #include "NodeComponent.hpp"
 #include "core/RackInfo.hpp"
+#include "core/SelectionManager.hpp"
 #include "core/TrackManager.hpp"
 #include "ui/components/common/SvgButton.hpp"
 
@@ -19,14 +20,21 @@ class ChainPanel;
  *
  * Inherits from NodeComponent for common header/footer layout.
  * Content area shows "Chains:" label and chain rows.
+ *
+ * Works recursively - can be nested inside ChainPanel at any depth.
+ * Uses ChainNodePath to track its location in the hierarchy.
  */
 class RackComponent : public NodeComponent {
   public:
+    // Constructor for top-level rack (in track)
     RackComponent(magda::TrackId trackId, const magda::RackInfo& rack);
+
+    // Constructor for nested rack (in chain) - with full path context
+    RackComponent(const magda::ChainNodePath& rackPath, const magda::RackInfo& rack);
     ~RackComponent() override;
 
     int getPreferredHeight() const;
-    int getPreferredWidth() const;
+    int getPreferredWidth() const override;
     int getMinimumWidth() const;        // Width without chain panel expansion
     void setAvailableWidth(int width);  // Set available width for chain panel
     magda::RackId getRackId() const {
@@ -59,10 +67,22 @@ class RackComponent : public NodeComponent {
         return 0;
     }
 
+    // Get the full path to this rack (for nested context)
+    const magda::ChainNodePath& getRackPath() const {
+        return rackPath_;
+    }
+
+    // Check if this is a nested rack (inside a chain)
+    bool isNested() const {
+        return rackPath_.steps.size() > 1;
+    }
+
   private:
+    void initializeCommon(const magda::RackInfo& rack);
     void onChainRowSelected(ChainRowComponent& row);
     void onAddChainClicked();
 
+    magda::ChainNodePath rackPath_;  // Full path to this rack
     magda::TrackId trackId_;
     magda::RackId rackId_;
 

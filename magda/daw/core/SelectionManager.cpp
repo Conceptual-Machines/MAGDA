@@ -530,9 +530,7 @@ void SelectionManager::notifyDeviceSelectionChanged(const DeviceSelection& selec
 // ============================================================================
 
 void SelectionManager::selectChainNode(const ChainNodePath& path) {
-    DBG("SelectionManager::selectChainNode - trackId=" + juce::String(path.trackId) +
-        " rackId=" + juce::String(path.rackId) + " chainId=" + juce::String(path.chainId) +
-        " deviceId=" + juce::String(path.deviceId) +
+    DBG("SelectionManager::selectChainNode - " + path.toString() +
         " valid=" + juce::String(path.isValid() ? 1 : 0));
 
     bool typeChanged = selectionType_ != SelectionType::ChainNode;

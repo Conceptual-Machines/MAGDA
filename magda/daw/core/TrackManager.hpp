@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 
+#include "SelectionManager.hpp"
 #include "TrackInfo.hpp"
 #include "TrackTypes.hpp"
 #include "ViewModeState.hpp"
@@ -127,9 +128,14 @@ class TrackManager {
     void setRackBypassed(TrackId trackId, RackId rackId, bool bypassed);
     void setRackExpanded(TrackId trackId, RackId rackId, bool expanded);
 
-    // Chain management (within racks)
-    ChainId addChainToRack(TrackId trackId, RackId rackId, const juce::String& name = "Chain");
+    // Path-based rack lookup (works for nested racks at any depth)
+    RackInfo* getRackByPath(const ChainNodePath& rackPath);
+    const RackInfo* getRackByPath(const ChainNodePath& rackPath) const;
+
+    // Chain management (within racks) - works for nested racks via path
+    ChainId addChainToRack(const ChainNodePath& rackPath, const juce::String& name = "Chain");
     void removeChainFromRack(TrackId trackId, RackId rackId, ChainId chainId);
+    void removeChainByPath(const ChainNodePath& chainPath);  // Path-based removal for nested chains
     ChainInfo* getChain(TrackId trackId, RackId rackId, ChainId chainId);
     const ChainInfo* getChain(TrackId trackId, RackId rackId, ChainId chainId) const;
     void setChainOutput(TrackId trackId, RackId rackId, ChainId chainId, int outputIndex);
@@ -142,13 +148,56 @@ class TrackManager {
     // Device management within chains
     DeviceId addDeviceToChain(TrackId trackId, RackId rackId, ChainId chainId,
                               const DeviceInfo& device);
+    DeviceId addDeviceToChainByPath(const ChainNodePath& chainPath, const DeviceInfo& device);
     void removeDeviceFromChain(TrackId trackId, RackId rackId, ChainId chainId, DeviceId deviceId);
+    void removeDeviceFromChainByPath(const ChainNodePath& devicePath);
     void moveDeviceInChain(TrackId trackId, RackId rackId, ChainId chainId, DeviceId deviceId,
                            int newIndex);
     DeviceInfo* getDeviceInChain(TrackId trackId, RackId rackId, ChainId chainId,
                                  DeviceId deviceId);
+    DeviceInfo* getDeviceInChainByPath(const ChainNodePath& devicePath);
     void setDeviceInChainBypassed(TrackId trackId, RackId rackId, ChainId chainId,
                                   DeviceId deviceId, bool bypassed);
+    void setDeviceInChainBypassedByPath(const ChainNodePath& devicePath, bool bypassed);
+
+    // Nested rack management within chains
+    RackId addRackToChain(TrackId trackId, RackId parentRackId, ChainId chainId,
+                          const juce::String& name = "Rack");
+    RackId addRackToChainByPath(const ChainNodePath& chainPath, const juce::String& name = "Rack");
+    void removeRackFromChain(TrackId trackId, RackId parentRackId, ChainId chainId,
+                             RackId nestedRackId);
+    void removeRackFromChainByPath(const ChainNodePath& rackPath);
+
+    // ========================================================================
+    // Path Resolution - Centralized tree traversal
+    // ========================================================================
+
+    /**
+     * @brief Result of resolving a ChainNodePath
+     *
+     * Contains pointers to the actual data elements along the path,
+     * plus a human-readable path string for display.
+     */
+    struct ResolvedPath {
+        bool valid = false;
+        juce::String displayPath;  // "Rack > Chain > Device" format
+
+        // Pointers to actual elements (null if not applicable)
+        const RackInfo* rack = nullptr;
+        const ChainInfo* chain = nullptr;
+        const DeviceInfo* device = nullptr;
+
+        // For nested structures, these point to the final element
+        // The path traversal history is in displayPath
+    };
+
+    /**
+     * @brief Resolve a ChainNodePath to actual data elements
+     *
+     * Walks the recursive tree structure following the path steps,
+     * returning pointers to the actual elements and a display string.
+     */
+    ResolvedPath resolvePath(const ChainNodePath& path) const;
 
     // Query tracks by view
     std::vector<TrackId> getVisibleTracks(ViewMode mode) const;

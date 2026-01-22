@@ -689,9 +689,7 @@ void InspectorContent::selectionTypeChanged(magda::SelectionType newType) {
 }
 
 void InspectorContent::chainNodeSelectionChanged(const magda::ChainNodePath& path) {
-    DBG("InspectorContent::chainNodeSelectionChanged - trackId=" + juce::String(path.trackId) +
-        " rackId=" + juce::String(path.rackId) + " chainId=" + juce::String(path.chainId) +
-        " deviceId=" + juce::String(path.deviceId) +
+    DBG("InspectorContent::chainNodeSelectionChanged - " + path.toString() +
         " valid=" + juce::String(path.isValid() ? 1 : 0));
     // Store the selected chain node and update display
     selectedChainNode_ = path;
@@ -939,88 +937,48 @@ void InspectorContent::updateFromSelectedChainNode() {
         return;
     }
 
-    // Get the name based on node type
     juce::String typeName;
     juce::String nodeName;
 
-    const auto* track = magda::TrackManager::getInstance().getTrack(selectedChainNode_.trackId);
-    if (!track) {
-        showChainNodeControls(false);
-        noSelectionLabel_.setVisible(true);
-        return;
-    }
-
-    switch (selectedChainNode_.getType()) {
-        case magda::ChainNodeType::TopLevelDevice: {
-            typeName = "Device";
-            DBG("  -> Looking for device id=" + juce::String(selectedChainNode_.deviceId) +
-                " in track with " + juce::String(track->devices.size()) + " devices");
-            // Find device name from track's devices
+    // Handle top-level device (legacy path format)
+    if (selectedChainNode_.getType() == magda::ChainNodeType::TopLevelDevice) {
+        typeName = "Device";
+        const auto* track = magda::TrackManager::getInstance().getTrack(selectedChainNode_.trackId);
+        if (track) {
             for (const auto& device : track->devices) {
-                DBG("    -> checking device id=" + juce::String(device.id) +
-                    " name=" + device.name);
-                if (device.id == selectedChainNode_.deviceId) {
+                if (device.id == selectedChainNode_.topLevelDeviceId) {
                     nodeName = device.name;
-                    DBG("    -> FOUND!");
                     break;
                 }
             }
-            if (nodeName.isEmpty()) {
-                DBG("  -> Device NOT FOUND in track->devices");
-            }
-            break;
         }
-        case magda::ChainNodeType::Rack: {
-            typeName = "Rack";
-            // Find rack name from track's racks
-            for (const auto& rack : track->racks) {
-                if (rack.id == selectedChainNode_.rackId) {
-                    nodeName = rack.name;
-                    break;
-                }
-            }
-            break;
+    } else {
+        // Use centralized path resolver for all recursive paths
+        auto resolved = magda::TrackManager::getInstance().resolvePath(selectedChainNode_);
+
+        if (!resolved.valid) {
+            showChainNodeControls(false);
+            noSelectionLabel_.setVisible(true);
+            return;
         }
-        case magda::ChainNodeType::Chain: {
-            typeName = "Chain";
-            // Find chain name from track's racks
-            for (const auto& rack : track->racks) {
-                if (rack.id == selectedChainNode_.rackId) {
-                    for (const auto& chain : rack.chains) {
-                        if (chain.id == selectedChainNode_.chainId) {
-                            nodeName = chain.name;
-                            break;
-                        }
-                    }
-                    break;
-                }
-            }
-            break;
+
+        // Set type name based on final step
+        switch (selectedChainNode_.getType()) {
+            case magda::ChainNodeType::Rack:
+                typeName = "Rack";
+                break;
+            case magda::ChainNodeType::Chain:
+                typeName = "Chain";
+                break;
+            case magda::ChainNodeType::Device:
+                typeName = "Device";
+                break;
+            default:
+                typeName = "Unknown";
+                break;
         }
-        case magda::ChainNodeType::ChainDevice: {
-            typeName = "Chain Device";
-            // Find device name from chain
-            for (const auto& rack : track->racks) {
-                if (rack.id == selectedChainNode_.rackId) {
-                    for (const auto& chain : rack.chains) {
-                        if (chain.id == selectedChainNode_.chainId) {
-                            for (const auto& device : chain.devices) {
-                                if (device.id == selectedChainNode_.deviceId) {
-                                    nodeName = device.name;
-                                    break;
-                                }
-                            }
-                            break;
-                        }
-                    }
-                    break;
-                }
-            }
-            break;
-        }
-        default:
-            typeName = "Unknown";
-            break;
+
+        nodeName = resolved.displayPath;
     }
 
     DBG("  -> typeName=" + typeName + " nodeName=" + nodeName);

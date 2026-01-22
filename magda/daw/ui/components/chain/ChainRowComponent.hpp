@@ -31,6 +31,7 @@ class ChainRowComponent : public juce::Component, public magda::SelectionManager
     void paint(juce::Graphics& g) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent& event) override;
+    void mouseUp(const juce::MouseEvent& event) override;
 
     int getPreferredHeight() const;
     magda::ChainId getChainId() const {
@@ -48,6 +49,11 @@ class ChainRowComponent : public juce::Component, public magda::SelectionManager
     void setSelected(bool selected);
     bool isSelected() const {
         return selected_;
+    }
+
+    // Set the full node path for nested chains (includes parent rack/chain context)
+    void setNodePath(const magda::ChainNodePath& path) {
+        nodePath_ = path;
     }
 
     // SelectionManagerListener

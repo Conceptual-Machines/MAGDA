@@ -10,18 +10,38 @@
 
 namespace magda::daw::ui {
 
+// Constructor for top-level rack (in track)
 RackComponent::RackComponent(magda::TrackId trackId, const magda::RackInfo& rack)
-    : trackId_(trackId), rackId_(rack.id) {
+    : rackPath_(magda::ChainNodePath::rack(trackId, rack.id)), trackId_(trackId), rackId_(rack.id) {
+    onDeleteClicked = [this]() {
+        magda::TrackManager::getInstance().removeRackFromTrack(trackId_, rackId_);
+    };
+    initializeCommon(rack);
+}
+
+// Constructor for nested rack (in chain) - with full path context
+RackComponent::RackComponent(const magda::ChainNodePath& rackPath, const magda::RackInfo& rack)
+    : rackPath_(rackPath), trackId_(rackPath.trackId), rackId_(rack.id) {
+    DBG("RackComponent (nested) created with rackPath steps="
+        << rackPath_.steps.size() << ", trackId=" << rackPath_.trackId << ", rackId=" << rack.id);
+    for (size_t i = 0; i < rackPath_.steps.size(); ++i) {
+        DBG("  step[" << i << "]: type=" << static_cast<int>(rackPath_.steps[i].type)
+                      << ", id=" << rackPath_.steps[i].id);
+    }
+    onDeleteClicked = [this]() {
+        DBG("RackComponent::onDeleteClicked (nested) - using path-based removal");
+        magda::TrackManager::getInstance().removeRackFromChainByPath(rackPath_);
+    };
+    initializeCommon(rack);
+}
+
+void RackComponent::initializeCommon(const magda::RackInfo& rack) {
     // Set up base class callbacks
     setNodeName(rack.name);
     setBypassed(rack.bypassed);
 
     onBypassChanged = [this](bool bypassed) {
         magda::TrackManager::getInstance().setRackBypassed(trackId_, rackId_, bypassed);
-    };
-
-    onDeleteClicked = [this]() {
-        magda::TrackManager::getInstance().removeRackFromTrack(trackId_, rackId_);
     };
 
     onLayoutChanged = [this]() { childLayoutChanged(); };
@@ -95,6 +115,10 @@ RackComponent::RackComponent(magda::TrackId trackId, const magda::RackInfo& rack
             onDeviceSelected(deviceId);
         }
     };
+    // IMPORTANT: Hook into ChainPanel's layout changes to propagate size changes upward.
+    // When nested racks expand, this ensures the size request propagates all the way
+    // up to TrackChainContent rather than just calling resized() on this RackComponent.
+    chainPanel_->onLayoutChanged = [this]() { childLayoutChanged(); };
     addChildComponent(*chainPanel_);
 
     // Build chain rows
@@ -125,7 +149,18 @@ void RackComponent::resizedContent(juce::Rectangle<int> contentArea) {
             chainPanelWidth = juce::jmin(contentWidth, maxChainPanelWidth);
         }
 
-        chainPanelArea = contentArea.removeFromRight(chainPanelWidth);
+        // Never consume more than available, always leave minimum for chain rows
+        int minChainRowsWidth = 100;  // Minimum width for chain rows to stay visible
+        int maxPanelWidth = contentArea.getWidth() - minChainRowsWidth;
+        if (maxPanelWidth > 0) {
+            chainPanelWidth = juce::jmin(chainPanelWidth, maxPanelWidth);
+        } else {
+            chainPanelWidth = 0;  // Not enough space for panel
+        }
+
+        if (chainPanelWidth > 0) {
+            chainPanelArea = contentArea.removeFromRight(chainPanelWidth);
+        }
     }
 
     // "Chains:" label row with [+] button next to it
@@ -183,14 +218,19 @@ int RackComponent::getPreferredWidth() const {
     // Add chain panel width if visible
     if (chainPanel_ && chainPanel_->isVisible()) {
         int contentWidth = chainPanel_->getContentWidth();
+        DBG("RackComponent::getPreferredWidth - rackId="
+            << rackId_ << " baseWidth=" << baseWidth << " chainPanelContentWidth=" << contentWidth
+            << " availableWidth=" << availableWidth_);
 
         if (availableWidth_ > 0) {
             // Constrain to available width
             int maxChainPanelWidth = availableWidth_ - baseWidth;
             int chainPanelWidth = juce::jmin(contentWidth, juce::jmax(300, maxChainPanelWidth));
+            DBG("  -> returning " << (baseWidth + chainPanelWidth) << " (constrained)");
             return baseWidth + chainPanelWidth;
         } else {
             // No limit - expand to fit content
+            DBG("  -> returning " << (baseWidth + contentWidth) << " (unconstrained)");
             return baseWidth + contentWidth;
         }
     }
@@ -220,10 +260,16 @@ void RackComponent::updateFromRack(const magda::RackInfo& rack) {
 
     // Also refresh the chain panel if it's showing a chain
     if (chainPanel_ && chainPanel_->isVisible() && selectedChainId_ != magda::INVALID_CHAIN_ID) {
-        // Check if the selected chain still exists
-        const auto* chain =
-            magda::TrackManager::getInstance().getChain(trackId_, rackId_, selectedChainId_);
-        if (chain) {
+        // Check if the selected chain still exists in this rack
+        bool chainExists = false;
+        for (const auto& chain : rack.chains) {
+            if (chain.id == selectedChainId_) {
+                chainExists = true;
+                break;
+            }
+        }
+
+        if (chainExists) {
             chainPanel_->refresh();
         } else {
             // Chain was deleted, hide the panel
@@ -233,14 +279,17 @@ void RackComponent::updateFromRack(const magda::RackInfo& rack) {
 }
 
 void RackComponent::rebuildChainRows() {
-    const auto* rack = magda::TrackManager::getInstance().getRack(trackId_, rackId_);
+    // Use path-based lookup to support nested racks at any depth
+    const auto* rack = magda::TrackManager::getInstance().getRackByPath(rackPath_);
     if (!rack) {
+        DBG("RackComponent::rebuildChainRows - rack not found via path!");
         unfocusAllComponents();
         chainRows_.clear();
         resized();
         repaint();
         return;
     }
+    DBG("RackComponent::rebuildChainRows - found rack with " << rack->chains.size() << " chains");
 
     // Smart rebuild: preserve existing rows, only add/remove as needed
     std::vector<std::unique_ptr<ChainRowComponent>> newRows;
@@ -259,10 +308,14 @@ void RackComponent::rebuildChainRows() {
         }
 
         if (existingRow) {
+            // Update the path in case hierarchy changed
+            existingRow->setNodePath(rackPath_.withChain(chain.id));
             newRows.push_back(std::move(existingRow));
         } else {
             // Create new row for new chain
             auto row = std::make_unique<ChainRowComponent>(*this, trackId_, rackId_, chain);
+            // Set the full nested path (includes parent rack/chain context)
+            row->setNodePath(rackPath_.withChain(chain.id));
             row->onSelected = [this](ChainRowComponent& selectedRow) {
                 onChainRowSelected(selectedRow);
             };
@@ -319,8 +372,14 @@ void RackComponent::clearDeviceSelection() {
 }
 
 void RackComponent::onChainRowSelected(ChainRowComponent& row) {
+    DBG("RackComponent::onChainRowSelected - rackId="
+        << rackId_ << " chainId=" << row.getChainId() << " isNested=" << (isNested() ? "yes" : "no")
+        << " rowSelected=" << (row.isSelected() ? "yes" : "no")
+        << " panelVisible=" << (isChainPanelVisible() ? "yes" : "no"));
+
     // Toggle behavior: if clicking already-selected chain, collapse/hide the panel
     if (row.isSelected() && isChainPanelVisible()) {
+        DBG("  -> hiding chain panel (toggle off)");
         hideChainPanel();
         return;
     }
@@ -330,31 +389,52 @@ void RackComponent::onChainRowSelected(ChainRowComponent& row) {
     // Select the clicked row
     row.setSelected(true);
     // Show chain panel within this rack
+    DBG("  -> showing chain panel for chainId=" << row.getChainId());
     showChainPanel(row.getChainId());
     // Notify parent (for clearing selections in other racks)
     if (onChainSelected) {
+        DBG("  -> calling onChainSelected callback (rackId=" << row.getRackId() << ")");
         onChainSelected(row.getTrackId(), row.getRackId(), row.getChainId());
+    } else {
+        DBG("  -> onChainSelected callback NOT set (nested rack)");
     }
 }
 
 void RackComponent::onAddChainClicked() {
-    magda::TrackManager::getInstance().addChainToRack(trackId_, rackId_);
+    DBG("RackComponent::onAddChainClicked - rackPath_ has "
+        << rackPath_.steps.size() << " steps, trackId=" << rackPath_.trackId);
+    for (size_t i = 0; i < rackPath_.steps.size(); ++i) {
+        DBG("  step[" << i << "]: type=" << static_cast<int>(rackPath_.steps[i].type)
+                      << ", id=" << rackPath_.steps[i].id);
+    }
+    magda::TrackManager::getInstance().addChainToRack(rackPath_);
 }
 
 void RackComponent::showChainPanel(magda::ChainId chainId) {
     selectedChainId_ = chainId;
     if (chainPanel_) {
-        chainPanel_->showChain(trackId_, rackId_, chainId);
-        childLayoutChanged();  // Notify parent that our width changed
+        auto chainPath = rackPath_.withChain(chainId);
+        DBG("RackComponent::showChainPanel - rackId=" << rackId_ << " chainId=" << chainId);
+        DBG("  chainPath has " << chainPath.steps.size() << " steps");
+        for (size_t i = 0; i < chainPath.steps.size(); ++i) {
+            DBG("  step[" << i << "]: type=" << static_cast<int>(chainPath.steps[i].type)
+                          << ", id=" << chainPath.steps[i].id);
+        }
+        chainPanel_->showChain(chainPath);
+        childLayoutChanged();
     }
 }
 
 void RackComponent::hideChainPanel() {
+    DBG("RackComponent::hideChainPanel called - rackId=" << rackId_ << " isNested="
+                                                         << (isNested() ? "yes" : "no"));
+    // Print stack trace hint
+    DBG("  (check call stack to see who called hideChainPanel)");
     selectedChainId_ = magda::INVALID_CHAIN_ID;
     clearChainSelection();
     if (chainPanel_) {
         chainPanel_->clear();
-        childLayoutChanged();  // Notify parent that our width changed
+        childLayoutChanged();
     }
 }
 

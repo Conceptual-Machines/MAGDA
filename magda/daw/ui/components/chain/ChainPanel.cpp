@@ -3,6 +3,7 @@
 #include <BinaryData.h>
 
 #include "NodeComponent.hpp"
+#include "RackComponent.hpp"
 #include "ui/components/common/SvgButton.hpp"
 #include "ui/components/common/TextSlider.hpp"
 #include "ui/debug/DebugSettings.hpp"
@@ -21,24 +22,17 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
     static constexpr int NUM_PARAMS = 16;
     static constexpr int PARAMS_PER_ROW = 4;
 
-    DeviceSlotComponent(ChainPanel& owner, magda::TrackId trackId, magda::RackId rackId,
-                        magda::ChainId chainId, const magda::DeviceInfo& device)
-        : owner_(owner),
-          trackId_(trackId),
-          rackId_(rackId),
-          chainId_(chainId),
-          device_(device),
-          gainSlider_(TextSlider::Format::Decibels) {
+    DeviceSlotComponent(ChainPanel& owner, const magda::DeviceInfo& device)
+        : owner_(owner), device_(device), gainSlider_(TextSlider::Format::Decibels) {
         setNodeName(device.name);
         setBypassed(device.bypassed);
 
         // Hide built-in bypass button - we'll add our own in the header
         setBypassButtonVisible(false);
 
-        // Set up callbacks
+        // Set up callbacks - use path-based methods for proper nesting support
         onDeleteClicked = [this]() {
-            magda::TrackManager::getInstance().removeDeviceFromChain(trackId_, rackId_, chainId_,
-                                                                     device_.id);
+            magda::TrackManager::getInstance().removeDeviceFromChainByPath(nodePath_);
         };
 
         // Mod panel toggle updates layout
@@ -73,8 +67,8 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
         gainSlider_.setRange(-60.0, 12.0, 0.1);
         gainSlider_.setValue(device_.gainDb, juce::dontSendNotification);
         gainSlider_.onValueChanged = [this](double value) {
-            if (auto* dev = magda::TrackManager::getInstance().getDeviceInChain(
-                    trackId_, rackId_, chainId_, device_.id)) {
+            // Use path-based lookup for proper nesting support
+            if (auto* dev = magda::TrackManager::getInstance().getDeviceInChainByPath(nodePath_)) {
                 dev->gainDb = static_cast<float>(value);
             }
         };
@@ -102,8 +96,8 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
             bool active = onButton_->getToggleState();
             onButton_->setActive(active);
             setBypassed(!active);  // Active = not bypassed
-            magda::TrackManager::getInstance().setDeviceInChainBypassed(trackId_, rackId_, chainId_,
-                                                                        device_.id, !active);
+            // Use path-based method for proper nesting support
+            magda::TrackManager::getInstance().setDeviceInChainBypassedByPath(nodePath_, !active);
         };
         addAndMakeVisible(*onButton_);
 
@@ -140,7 +134,7 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
         return device_.id;
     }
 
-    int getPreferredWidth() const {
+    int getPreferredWidth() const override {
         return getTotalWidth(BASE_SLOT_WIDTH);
     }
 
@@ -239,9 +233,6 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
 
   private:
     ChainPanel& owner_;
-    magda::TrackId trackId_;
-    magda::RackId rackId_;
-    magda::ChainId chainId_;
     magda::DeviceInfo device_;
 
     // Header controls
@@ -257,28 +248,28 @@ class ChainPanel::DeviceSlotComponent : public NodeComponent {
 };
 
 //==============================================================================
-// DeviceSlotsContainer - Custom container that paints arrows between devices
+// ElementSlotsContainer - Custom container that paints arrows between chain elements
 //==============================================================================
-class ChainPanel::DeviceSlotsContainer : public juce::Component {
+class ChainPanel::ElementSlotsContainer : public juce::Component {
   public:
-    explicit DeviceSlotsContainer(ChainPanel& owner) : owner_(owner) {}
+    explicit ElementSlotsContainer(ChainPanel& owner) : owner_(owner) {}
 
-    void setDeviceSlots(const std::vector<std::unique_ptr<DeviceSlotComponent>>* slots) {
-        deviceSlots_ = slots;
+    void setElementSlots(const std::vector<std::unique_ptr<NodeComponent>>* slots) {
+        elementSlots_ = slots;
     }
 
     void paint(juce::Graphics& g) override {
-        if (!deviceSlots_)
+        if (!elementSlots_)
             return;
 
-        // Draw arrows between devices
+        // Draw arrows between elements
         int arrowY = getHeight() / 2;
 
-        for (size_t i = 0; i < deviceSlots_->size(); ++i) {
-            auto& slot = (*deviceSlots_)[i];
+        for (size_t i = 0; i < elementSlots_->size(); ++i) {
+            auto& slot = (*elementSlots_)[i];
             int x = slot->getRight();  // Arrow starts after the slot
 
-            // Draw arrow after each device
+            // Draw arrow after each element
             g.setColour(DarkTheme::getSecondaryTextColour());
             int arrowStart = x + 4;
             int arrowEnd = x + 12;
@@ -299,20 +290,20 @@ class ChainPanel::DeviceSlotsContainer : public juce::Component {
 
   private:
     ChainPanel& owner_;
-    const std::vector<std::unique_ptr<DeviceSlotComponent>>* deviceSlots_ = nullptr;
+    const std::vector<std::unique_ptr<NodeComponent>>* elementSlots_ = nullptr;
 };
 
 //==============================================================================
 // ChainPanel
 //==============================================================================
 
-ChainPanel::ChainPanel() : deviceSlotsContainer_(std::make_unique<DeviceSlotsContainer>(*this)) {
+ChainPanel::ChainPanel() : elementSlotsContainer_(std::make_unique<ElementSlotsContainer>(*this)) {
     // No header - controls are on the chain row
 
     // Listen for debug settings changes
     DebugSettings::getInstance().addListener([this]() {
-        // Force all device slots to update their fonts
-        for (auto& slot : deviceSlots_) {
+        // Force all element slots to update their fonts
+        for (auto& slot : elementSlots_) {
             slot->resized();
             slot->repaint();
         }
@@ -330,10 +321,10 @@ ChainPanel::ChainPanel() : deviceSlotsContainer_(std::make_unique<DeviceSlotsCon
         }
     };
 
-    // Viewport for horizontal scrolling of device slots
-    deviceViewport_.setViewedComponent(deviceSlotsContainer_.get(), false);
-    deviceViewport_.setScrollBarsShown(false, true);  // Horizontal only
-    addAndMakeVisible(deviceViewport_);
+    // Viewport for horizontal scrolling of element slots
+    elementViewport_.setViewedComponent(elementSlotsContainer_.get(), false);
+    elementViewport_.setScrollBarsShown(false, true);  // Horizontal only
+    addAndMakeVisible(elementViewport_);
 
     // Add device button (inside the container, after all slots)
     addDeviceButton_.setButtonText("+");
@@ -343,7 +334,7 @@ ChainPanel::ChainPanel() : deviceSlotsContainer_(std::make_unique<DeviceSlotsCon
                                DarkTheme::getSecondaryTextColour());
     addDeviceButton_.onClick = [this]() { onAddDeviceClicked(); };
     addDeviceButton_.setLookAndFeel(&SmallButtonLookAndFeel::getInstance());
-    deviceSlotsContainer_->addAndMakeVisible(addDeviceButton_);
+    elementSlotsContainer_->addAndMakeVisible(addDeviceButton_);
 
     setVisible(false);
 }
@@ -404,9 +395,9 @@ void ChainPanel::resizedContent(juce::Rectangle<int> contentArea) {
     }
 
     // Viewport fills the remaining content area
-    deviceViewport_.setBounds(contentArea);
+    elementViewport_.setBounds(contentArea);
 
-    // Calculate total width needed for all device slots
+    // Calculate total width needed for all element slots
     int totalWidth = calculateTotalContentWidth();
     int containerHeight = contentArea.getHeight();
 
@@ -415,13 +406,13 @@ void ChainPanel::resizedContent(juce::Rectangle<int> contentArea) {
         containerHeight = contentArea.getHeight() - 8;  // Space for scrollbar
     }
 
-    // Set container size and update device slots reference for arrow painting
-    deviceSlotsContainer_->setSize(totalWidth, containerHeight);
-    deviceSlotsContainer_->setDeviceSlots(&deviceSlots_);
+    // Set container size and update element slots reference for arrow painting
+    elementSlotsContainer_->setSize(totalWidth, containerHeight);
+    elementSlotsContainer_->setElementSlots(&elementSlots_);
 
-    // Layout device slots inside the container
+    // Layout element slots inside the container
     int x = 0;
-    for (auto& slot : deviceSlots_) {
+    for (auto& slot : elementSlots_) {
         int slotWidth = slot->getPreferredWidth();
         slot->setBounds(x, 0, slotWidth, containerHeight);
         x += slotWidth + ARROW_WIDTH;
@@ -433,7 +424,7 @@ void ChainPanel::resizedContent(juce::Rectangle<int> contentArea) {
 
 int ChainPanel::calculateTotalContentWidth() const {
     int totalWidth = 0;
-    for (const auto& slot : deviceSlots_) {
+    for (const auto& slot : elementSlots_) {
         totalWidth += slot->getPreferredWidth() + ARROW_WIDTH;
     }
     totalWidth += 30;  // Space for add device button
@@ -459,103 +450,178 @@ void ChainPanel::onDeviceLayoutChanged() {
     }
 }
 
-void ChainPanel::showChain(magda::TrackId trackId, magda::RackId rackId, magda::ChainId chainId) {
-    trackId_ = trackId;
-    rackId_ = rackId;
-    chainId_ = chainId;
+// Show a chain with full path context (for proper nesting)
+void ChainPanel::showChain(const magda::ChainNodePath& chainPath) {
+    DBG("ChainPanel::showChain - received path with " << chainPath.steps.size() << " steps");
+    for (size_t i = 0; i < chainPath.steps.size(); ++i) {
+        DBG("  step[" << i << "]: type=" << static_cast<int>(chainPath.steps[i].type)
+                      << ", id=" << chainPath.steps[i].id);
+    }
+
+    chainPath_ = chainPath;
+    trackId_ = chainPath.trackId;
+
+    // Extract rackId and chainId from the path
+    // The path should end with a Chain step
+    if (!chainPath.steps.empty()) {
+        for (const auto& step : chainPath.steps) {
+            if (step.type == magda::ChainStepType::Rack) {
+                rackId_ = step.id;
+            } else if (step.type == magda::ChainStepType::Chain) {
+                chainId_ = step.id;
+            }
+        }
+    }
+
     hasChain_ = true;
 
-    // Update name from chain data
-    const auto* chain = magda::TrackManager::getInstance().getChain(trackId, rackId, chainId);
-    if (chain) {
-        setNodeName(chain->name);
+    // Update name from chain data (using the top-level rack ID for now)
+    // For deeply nested chains, we'd need to walk the path
+    auto resolved = magda::TrackManager::getInstance().resolvePath(chainPath);
+    DBG("  resolved.valid=" << (resolved.valid ? "yes" : "no")
+                            << " resolved.chain=" << (resolved.chain ? "found" : "nullptr"));
+    if (resolved.valid && resolved.chain) {
+        setNodeName(resolved.chain->name);
         setBypassed(false);  // Chains don't have bypass yet
     }
 
-    rebuildDeviceSlots();
+    rebuildElementSlots();
     setVisible(true);
     resized();
     repaint();
+}
+
+// Legacy: show a chain by IDs (computes path internally)
+void ChainPanel::showChain(magda::TrackId trackId, magda::RackId rackId, magda::ChainId chainId) {
+    // Build the path from IDs and call the path-based version
+    auto chainPath = magda::ChainNodePath::chain(trackId, rackId, chainId);
+    showChain(chainPath);
 }
 
 void ChainPanel::refresh() {
     if (!hasChain_)
         return;
 
-    // Update name from chain data
-    const auto* chain = magda::TrackManager::getInstance().getChain(trackId_, rackId_, chainId_);
-    if (chain) {
-        setNodeName(chain->name);
+    // Update name from chain data using path-based resolution
+    auto resolved = magda::TrackManager::getInstance().resolvePath(chainPath_);
+    if (resolved.valid && resolved.chain) {
+        setNodeName(resolved.chain->name);
     }
 
-    rebuildDeviceSlots();
+    rebuildElementSlots();
     resized();
     repaint();
 }
 
 void ChainPanel::clear() {
+    DBG("ChainPanel::clear() called - chainId=" << chainId_ << " rackId=" << rackId_);
     // Unfocus any child components before destroying them to prevent use-after-free
     unfocusAllComponents();
 
     hasChain_ = false;
-    deviceSlots_.clear();
+    elementSlots_.clear();
     setVisible(false);
 }
 
-void ChainPanel::rebuildDeviceSlots() {
+void ChainPanel::rebuildElementSlots() {
     if (!hasChain_) {
         unfocusAllComponents();
-        deviceSlots_.clear();
+        elementSlots_.clear();
         return;
     }
 
-    const auto* chain = magda::TrackManager::getInstance().getChain(trackId_, rackId_, chainId_);
-    if (!chain) {
+    // Use path-based resolution to support nested chains at any depth
+    auto resolved = magda::TrackManager::getInstance().resolvePath(chainPath_);
+    if (!resolved.valid || !resolved.chain) {
+        DBG("ChainPanel::rebuildElementSlots - chain not found via path!");
         unfocusAllComponents();
-        deviceSlots_.clear();
+        elementSlots_.clear();
         return;
     }
+    const auto* chain = resolved.chain;
 
     // Smart rebuild: preserve existing slots, only add/remove as needed
-    std::vector<std::unique_ptr<DeviceSlotComponent>> newSlots;
+    std::vector<std::unique_ptr<NodeComponent>> newSlots;
 
-    for (const auto& device : chain->devices) {
-        // Check if we already have a slot for this device
-        std::unique_ptr<DeviceSlotComponent> existingSlot;
-        for (auto it = deviceSlots_.begin(); it != deviceSlots_.end(); ++it) {
-            if ((*it)->getDeviceId() == device.id) {
-                // Found existing slot - preserve it and update its data
-                existingSlot = std::move(*it);
-                deviceSlots_.erase(it);
-                existingSlot->updateFromDevice(device);
-                break;
+    for (const auto& element : chain->elements) {
+        if (magda::isDevice(element)) {
+            const auto& device = magda::getDevice(element);
+
+            // Check if we already have a slot for this device
+            DeviceSlotComponent* existingDeviceSlot = nullptr;
+            size_t existingIndex = 0;
+            for (size_t i = 0; i < elementSlots_.size(); ++i) {
+                if (auto* deviceSlot = dynamic_cast<DeviceSlotComponent*>(elementSlots_[i].get())) {
+                    if (deviceSlot->getDeviceId() == device.id) {
+                        existingDeviceSlot = deviceSlot;
+                        existingIndex = i;
+                        break;
+                    }
+                }
             }
-        }
 
-        if (existingSlot) {
-            // Set node path for centralized selection (no legacy callback needed)
-            existingSlot->setNodePath(
-                magda::ChainNodePath::chainDevice(trackId_, rackId_, chainId_, device.id));
-            newSlots.push_back(std::move(existingSlot));
-        } else {
-            // Create new slot for new device - add to container
-            auto slot =
-                std::make_unique<DeviceSlotComponent>(*this, trackId_, rackId_, chainId_, device);
-            // Set node path for centralized selection (no legacy callback needed)
-            slot->setNodePath(
-                magda::ChainNodePath::chainDevice(trackId_, rackId_, chainId_, device.id));
-            deviceSlotsContainer_->addAndMakeVisible(*slot);
-            newSlots.push_back(std::move(slot));
+            if (existingDeviceSlot) {
+                // Found existing slot - preserve it and update its data
+                existingDeviceSlot->updateFromDevice(device);
+                existingDeviceSlot->setNodePath(chainPath_.withDevice(device.id));
+                newSlots.push_back(std::move(elementSlots_[existingIndex]));
+                elementSlots_.erase(elementSlots_.begin() + static_cast<long>(existingIndex));
+            } else {
+                // Create new slot for new device
+                auto slot = std::make_unique<DeviceSlotComponent>(*this, device);
+                // Set the full path - this is used by all path-based operations
+                slot->setNodePath(chainPath_.withDevice(device.id));
+                elementSlotsContainer_->addAndMakeVisible(*slot);
+                newSlots.push_back(std::move(slot));
+            }
+        } else if (magda::isRack(element)) {
+            const auto& rack = magda::getRack(element);
+
+            // Build the path for this nested rack
+            auto nestedRackPath = chainPath_.withRack(rack.id);
+            DBG("ChainPanel::rebuildElementSlots - creating nestedRackPath for rack id="
+                << rack.id);
+            DBG("  chainPath_ has " << chainPath_.steps.size()
+                                    << " steps, trackId=" << chainPath_.trackId);
+            DBG("  nestedRackPath has " << nestedRackPath.steps.size() << " steps");
+
+            // Check if we already have a RackComponent for this rack
+            RackComponent* existingRackComp = nullptr;
+            size_t existingIndex = 0;
+            for (size_t i = 0; i < elementSlots_.size(); ++i) {
+                if (auto* rackComp = dynamic_cast<RackComponent*>(elementSlots_[i].get())) {
+                    if (rackComp->getRackId() == rack.id) {
+                        existingRackComp = rackComp;
+                        existingIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            if (existingRackComp) {
+                // Found existing RackComponent - preserve it and update its data
+                existingRackComp->updateFromRack(rack);
+                existingRackComp->setNodePath(nestedRackPath);
+                newSlots.push_back(std::move(elementSlots_[existingIndex]));
+                elementSlots_.erase(elementSlots_.begin() + static_cast<long>(existingIndex));
+            } else {
+                // Create new RackComponent for nested rack (with path context)
+                auto rackComp = std::make_unique<RackComponent>(nestedRackPath, rack);
+                rackComp->setNodePath(nestedRackPath);
+                rackComp->onLayoutChanged = [this]() { onDeviceLayoutChanged(); };
+                elementSlotsContainer_->addAndMakeVisible(*rackComp);
+                newSlots.push_back(std::move(rackComp));
+            }
         }
     }
 
-    // Unfocus before destroying remaining old slots (devices that were removed)
-    if (!deviceSlots_.empty()) {
+    // Unfocus before destroying remaining old slots (elements that were removed)
+    if (!elementSlots_.empty()) {
         unfocusAllComponents();
     }
 
     // Move new slots to member variable (old slots are destroyed here)
-    deviceSlots_ = std::move(newSlots);
+    elementSlots_ = std::move(newSlots);
 }
 
 void ChainPanel::onAddDeviceClicked() {
@@ -563,14 +629,27 @@ void ChainPanel::onAddDeviceClicked() {
         return;
 
     juce::PopupMenu menu;
-    menu.addItem(1, "Pro-Q 3");
-    menu.addItem(2, "Pro-C 2");
-    menu.addItem(3, "Saturn 2");
-    menu.addItem(4, "Valhalla Room");
-    menu.addItem(5, "Serum");
+
+    // Devices submenu
+    juce::PopupMenu devicesMenu;
+    devicesMenu.addItem(1, "Pro-Q 3");
+    devicesMenu.addItem(2, "Pro-C 2");
+    devicesMenu.addItem(3, "Saturn 2");
+    devicesMenu.addItem(4, "Valhalla Room");
+    devicesMenu.addItem(5, "Serum");
+    menu.addSubMenu("Add Device", devicesMenu);
+
+    menu.addSeparator();
+    menu.addItem(100, "Create Rack");
 
     menu.showMenuAsync(juce::PopupMenu::Options(), [this](int result) {
-        if (result > 0) {
+        if (result == 100) {
+            // Create nested rack using path-based method for proper nesting support
+            magda::TrackManager::getInstance().addRackToChainByPath(chainPath_);
+            rebuildElementSlots();
+            resized();
+            repaint();
+        } else if (result > 0 && result < 100) {
             magda::DeviceInfo device;
             switch (result) {
                 case 1:
@@ -595,9 +674,8 @@ void ChainPanel::onAddDeviceClicked() {
                     break;
             }
             device.format = magda::PluginFormat::VST3;
-            magda::TrackManager::getInstance().addDeviceToChain(trackId_, rackId_, chainId_,
-                                                                device);
-            rebuildDeviceSlots();
+            magda::TrackManager::getInstance().addDeviceToChainByPath(chainPath_, device);
+            rebuildElementSlots();
             resized();
             repaint();
         }
@@ -628,7 +706,7 @@ void ChainPanel::setMacroPanelVisible(bool visible) {
 
 void ChainPanel::clearDeviceSelection() {
     selectedDeviceId_ = magda::INVALID_DEVICE_ID;
-    for (auto& slot : deviceSlots_) {
+    for (auto& slot : elementSlots_) {
         slot->setSelected(false);
     }
     if (onDeviceSelected) {
@@ -639,8 +717,12 @@ void ChainPanel::clearDeviceSelection() {
 void ChainPanel::onDeviceSlotSelected(magda::DeviceId deviceId) {
     // Exclusive selection - deselect all others
     selectedDeviceId_ = deviceId;
-    for (auto& slot : deviceSlots_) {
-        slot->setSelected(slot->getDeviceId() == deviceId);
+    for (auto& slot : elementSlots_) {
+        if (auto* deviceSlot = dynamic_cast<DeviceSlotComponent*>(slot.get())) {
+            deviceSlot->setSelected(deviceSlot->getDeviceId() == deviceId);
+        } else {
+            slot->setSelected(false);
+        }
     }
     if (onDeviceSelected) {
         onDeviceSelected(deviceId);

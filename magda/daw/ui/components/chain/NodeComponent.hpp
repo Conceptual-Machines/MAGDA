@@ -90,6 +90,11 @@ class NodeComponent : public juce::Component, public magda::SelectionManagerList
     // Get total preferred width given a base content width
     int getTotalWidth(int baseContentWidth) const;
 
+    // Virtual method for subclasses to report their preferred width
+    virtual int getPreferredWidth() const {
+        return getTotalWidth(200);  // Default base width
+    }
+
   protected:
     // Override these to customize content
     virtual void paintContent(juce::Graphics& g, juce::Rectangle<int> contentArea);

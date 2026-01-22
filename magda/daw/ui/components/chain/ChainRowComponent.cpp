@@ -159,6 +159,18 @@ void ChainRowComponent::paint(juce::Graphics& g) {
 }
 
 void ChainRowComponent::mouseDown(const juce::MouseEvent& /*event*/) {
+    // Just visual feedback - actual selection happens on mouseUp to avoid
+    // issues with multiple mouseDown events during layout changes
+}
+
+void ChainRowComponent::mouseUp(const juce::MouseEvent& event) {
+    // Only handle if mouse is still over this component (user didn't drag away)
+    if (!contains(event.getPosition())) {
+        return;
+    }
+
+    DBG("ChainRowComponent::mouseUp - chainId=" << chainId_ << " rackId=" << rackId_);
+
     // Use centralized selection
     magda::SelectionManager::getInstance().selectChainNode(nodePath_);
 
@@ -175,6 +187,9 @@ void ChainRowComponent::selectionTypeChanged(magda::SelectionType /*newType*/) {
 void ChainRowComponent::chainNodeSelectionChanged(const magda::ChainNodePath& path) {
     // Update our selection state based on whether we match the selected path
     bool shouldBeSelected = nodePath_.isValid() && nodePath_ == path;
+    DBG("ChainRowComponent::chainNodeSelectionChanged - chainId="
+        << chainId_ << " shouldBeSelected=" << (shouldBeSelected ? "yes" : "no")
+        << " currentSelected=" << (selected_ ? "yes" : "no"));
     setSelected(shouldBeSelected);
 }
 
@@ -255,7 +270,13 @@ void ChainRowComponent::onBypassClicked() {
 }
 
 void ChainRowComponent::onDeleteClicked() {
-    magda::TrackManager::getInstance().removeChainFromRack(trackId_, rackId_, chainId_);
+    // Use path-based removal to support nested chains
+    if (nodePath_.isValid()) {
+        magda::TrackManager::getInstance().removeChainByPath(nodePath_);
+    } else {
+        // Fallback to flat ID removal for top-level chains
+        magda::TrackManager::getInstance().removeChainFromRack(trackId_, rackId_, chainId_);
+    }
 }
 
 bool ChainRowComponent::isModActive() const {
