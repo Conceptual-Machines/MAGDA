@@ -658,12 +658,17 @@ void NodeComponent::chainNodeSelectionChanged(const magda::ChainNodePath& path) 
     setSelected(shouldBeSelected);
 }
 
+void NodeComponent::chainNodeReselected(const magda::ChainNodePath& path) {
+    // Called when clicking an already-selected node - toggle collapse
+    if (nodePath_.isValid() && nodePath_ == path) {
+        setCollapsed(!collapsed_);
+    }
+}
+
 void NodeComponent::mouseDown(const juce::MouseEvent& e) {
     // Only handle left clicks for selection
     if (e.mods.isLeftButtonDown()) {
         mouseDownForSelection_ = true;
-        // Capture selection state NOW, before any callbacks can change it
-        wasSelectedOnMouseDown_ = selected_;
     }
 }
 
@@ -674,20 +679,16 @@ void NodeComponent::mouseUp(const juce::MouseEvent& e) {
 
         // Check if mouse is still within bounds (not a drag-away)
         if (getLocalBounds().contains(e.getPosition())) {
-            // Use the selection state captured at mouseDown (before any callbacks)
-            if (wasSelectedOnMouseDown_) {
-                // Was already selected when click started - toggle collapsed state
-                setCollapsed(!collapsed_);
-            } else {
-                // Was not selected - select it now
-                if (nodePath_.isValid()) {
-                    magda::SelectionManager::getInstance().selectChainNode(nodePath_);
-                }
+            // Always tell SelectionManager about the click
+            // It will either notify chainNodeSelectionChanged (new selection)
+            // or chainNodeReselected (same node clicked again)
+            if (nodePath_.isValid()) {
+                magda::SelectionManager::getInstance().selectChainNode(nodePath_);
+            }
 
-                // Also call legacy callback for backward compatibility during transition
-                if (onSelected) {
-                    onSelected();
-                }
+            // Also call legacy callback for backward compatibility
+            if (onSelected) {
+                onSelected();
             }
         }
     }

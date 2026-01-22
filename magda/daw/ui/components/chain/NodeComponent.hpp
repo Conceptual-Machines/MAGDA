@@ -43,6 +43,7 @@ class NodeComponent : public juce::Component, public magda::SelectionManagerList
     // SelectionManagerListener
     void selectionTypeChanged(magda::SelectionType newType) override;
     void chainNodeSelectionChanged(const magda::ChainNodePath& path) override;
+    void chainNodeReselected(const magda::ChainNodePath& path) override;
 
     void paint(juce::Graphics& g) override;
     void resized() override;
@@ -169,7 +170,6 @@ class NodeComponent : public juce::Component, public magda::SelectionManagerList
     // Selection state
     bool selected_ = false;
     bool mouseDownForSelection_ = false;
-    bool wasSelectedOnMouseDown_ = false;  // Captured at mouseDown to handle click behavior
 
     // Collapsed state (show header only)
     bool collapsed_ = false;

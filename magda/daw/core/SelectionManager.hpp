@@ -296,6 +296,8 @@ class SelectionManagerListener {
     virtual void noteSelectionChanged([[maybe_unused]] const NoteSelection& selection) {}
     virtual void deviceSelectionChanged([[maybe_unused]] const DeviceSelection& selection) {}
     virtual void chainNodeSelectionChanged([[maybe_unused]] const ChainNodePath& path) {}
+    // Called when clicking an already-selected node (for collapse toggle)
+    virtual void chainNodeReselected([[maybe_unused]] const ChainNodePath& path) {}
 };
 
 /**
@@ -585,6 +587,7 @@ class SelectionManager {
     void notifyNoteSelectionChanged(const NoteSelection& selection);
     void notifyDeviceSelectionChanged(const DeviceSelection& selection);
     void notifyChainNodeSelectionChanged(const ChainNodePath& path);
+    void notifyChainNodeReselected(const ChainNodePath& path);
 };
 
 }  // namespace magda

@@ -530,15 +530,13 @@ void SelectionManager::notifyDeviceSelectionChanged(const DeviceSelection& selec
 // ============================================================================
 
 void SelectionManager::selectChainNode(const ChainNodePath& path) {
-    DBG("SelectionManager::selectChainNode - " + path.toString() +
-        " valid=" + juce::String(path.isValid() ? 1 : 0));
-
     bool typeChanged = selectionType_ != SelectionType::ChainNode;
     bool pathChanged = selectedChainNode_ != path;
 
+    // If same node is already selected, notify reselection (for collapse toggle)
     if (!pathChanged && !typeChanged) {
-        DBG("  -> Already selected, skipping");
-        return;  // Already selected
+        notifyChainNodeReselected(path);
+        return;
     }
 
     // Clear other selection types (but keep track selection for context)
@@ -581,10 +579,14 @@ void SelectionManager::clearChainNodeSelection() {
 }
 
 void SelectionManager::notifyChainNodeSelectionChanged(const ChainNodePath& path) {
-    DBG("SelectionManager::notifyChainNodeSelectionChanged - " + juce::String(listeners_.size()) +
-        " listeners");
     for (auto* listener : listeners_) {
         listener->chainNodeSelectionChanged(path);
+    }
+}
+
+void SelectionManager::notifyChainNodeReselected(const ChainNodePath& path) {
+    for (auto* listener : listeners_) {
+        listener->chainNodeReselected(path);
     }
 }
 
