@@ -232,11 +232,15 @@ TEST_CASE("TrackManager: Add Rack to Track", "[trackmanager][rack]") {
 
         REQUIRE(rackId != INVALID_RACK_ID);
 
-        const auto* racks = fixture.tm().getRacks(trackId);
-        REQUIRE(racks != nullptr);
-        REQUIRE(racks->size() == 1);
-        REQUIRE((*racks)[0].id == rackId);
-        REQUIRE((*racks)[0].name == "Test Rack");
+        auto* rack = fixture.tm().getRack(trackId, rackId);
+        REQUIRE(rack != nullptr);
+        REQUIRE(rack->id == rackId);
+        REQUIRE(rack->name == "Test Rack");
+
+        // Verify it's in the chain elements
+        const auto& elements = fixture.tm().getChainElements(trackId);
+        REQUIRE(elements.size() == 1);
+        REQUIRE(isRack(elements[0]));
     }
 
     SECTION("Add multiple racks to track") {
@@ -244,8 +248,8 @@ TEST_CASE("TrackManager: Add Rack to Track", "[trackmanager][rack]") {
         auto rack1 = fixture.tm().addRackToTrack(trackId, "Rack 1");
         auto rack2 = fixture.tm().addRackToTrack(trackId, "Rack 2");
 
-        const auto* racks = fixture.tm().getRacks(trackId);
-        REQUIRE(racks->size() == 2);
+        const auto& elements = fixture.tm().getChainElements(trackId);
+        REQUIRE(elements.size() == 2);
         REQUIRE(rack1 != rack2);
     }
 
