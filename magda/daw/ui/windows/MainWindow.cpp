@@ -18,6 +18,7 @@
 #include "../views/SessionView.hpp"
 #include "core/Config.hpp"
 #include "core/LinkModeManager.hpp"
+#include "core/ModulatorEngine.hpp"
 #include "core/TrackCommands.hpp"
 #include "core/TrackManager.hpp"
 #include "core/UndoManager.hpp"
@@ -78,6 +79,9 @@ MainWindow::MainWindow()
     setSize(1200, 800);
     centreWithSize(getWidth(), getHeight());
     setVisible(true);
+
+    // Start modulation engine at 60 FPS (updates LFO values in background)
+    magda::ModulatorEngine::getInstance().startTimer(16);
 }
 
 MainWindow::~MainWindow() {

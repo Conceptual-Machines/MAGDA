@@ -204,6 +204,9 @@ class TrackManager {
     void addDeviceModPage(const ChainNodePath& devicePath);
     void removeDeviceModPage(const ChainNodePath& devicePath);
 
+    // Modulation engine integration - updates LFO values silently (no UI notifications)
+    void updateAllMods(double deltaTime);
+
     // Macro management for devices (path-based for nested device support)
     void setDeviceMacroValue(const ChainNodePath& devicePath, int macroIndex, float value);
     void setDeviceMacroTarget(const ChainNodePath& devicePath, int macroIndex, MacroTarget target);

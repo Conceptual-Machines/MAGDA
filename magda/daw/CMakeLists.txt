@@ -88,6 +88,7 @@ set(DAW_CORE_SOURCES
     core/Config.cpp
     core/ViewModeController.cpp
     core/TrackManager.cpp
+    core/ModulatorEngine.cpp
     core/ClipManager.cpp
     core/SelectionManager.cpp
     core/LinkModeManager.cpp

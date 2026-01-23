@@ -2,6 +2,9 @@
 
 #include <algorithm>
 
+#include "ModulatorEngine.hpp"
+#include "RackInfo.hpp"
+
 namespace magda {
 
 TrackManager& TrackManager::getInstance() {
@@ -1573,6 +1576,55 @@ void TrackManager::removeDeviceModPage(const ChainNodePath& devicePath) {
             notifyTrackDevicesChanged(devicePath.trackId);
         }
     }
+}
+
+void TrackManager::updateAllMods(double deltaTime) {
+    // Lambda to update a single mod's phase and value
+    auto updateMod = [deltaTime](ModInfo& mod) {
+        if (mod.type == ModType::LFO) {
+            // Update phase (wraps at 1.0)
+            mod.phase += static_cast<float>(mod.rate * deltaTime);
+            while (mod.phase >= 1.0f) {
+                mod.phase -= 1.0f;
+            }
+            // Generate waveform output using ModulatorEngine
+            mod.value = ModulatorEngine::generateWaveform(mod.waveform, mod.phase);
+        }
+    };
+
+    // Recursive lambda to update mods in chain elements
+    std::function<void(ChainElement&)> updateElementMods = [&](ChainElement& element) {
+        if (isDevice(element)) {
+            // Update device mods
+            DeviceInfo& device = magda::getDevice(element);
+            for (auto& mod : device.mods) {
+                updateMod(mod);
+            }
+        } else if (isRack(element)) {
+            // Update rack mods
+            RackInfo& rack = magda::getRack(element);
+            for (auto& mod : rack.mods) {
+                updateMod(mod);
+            }
+            // Recursively update mods in nested chains
+            for (auto& chain : rack.chains) {
+                for (auto& chainElement : chain.elements) {
+                    updateElementMods(chainElement);
+                }
+            }
+        }
+    };
+
+    // Update mods in all tracks
+    for (auto& track : tracks_) {
+        // Update mods in all chain elements
+        for (auto& element : track.chainElements) {
+            updateElementMods(element);
+        }
+    }
+
+    // DO NOT call notifyModulationChanged() here - that causes 60 FPS UI rebuilds
+    // ParamSlotComponent will read mod.value directly during its paint cycle
 }
 
 // ============================================================================
