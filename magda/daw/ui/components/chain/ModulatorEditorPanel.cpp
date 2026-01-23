@@ -2,6 +2,7 @@
 
 #include "ui/themes/DarkTheme.hpp"
 #include "ui/themes/FontManager.hpp"
+#include "ui/themes/SmallButtonLookAndFeel.hpp"
 
 namespace magda::daw::ui {
 
@@ -74,11 +75,17 @@ ModulatorEditorPanel::ModulatorEditorPanel() {
     };
     addAndMakeVisible(phaseSlider_);
 
-    // Sync toggle button
+    // Sync toggle button (small square button style)
     syncToggle_.setButtonText("Sync");
-    syncToggle_.setColour(juce::ToggleButton::textColourId, DarkTheme::getTextColour());
-    syncToggle_.setColour(juce::ToggleButton::tickColourId,
+    syncToggle_.setColour(juce::TextButton::buttonColourId,
+                          DarkTheme::getColour(DarkTheme::SURFACE));
+    syncToggle_.setColour(juce::TextButton::buttonOnColourId,
                           DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
+    syncToggle_.setColour(juce::TextButton::textColourOffId, DarkTheme::getSecondaryTextColour());
+    syncToggle_.setColour(juce::TextButton::textColourOnId,
+                          DarkTheme::getColour(DarkTheme::BACKGROUND));
+    syncToggle_.setClickingTogglesState(true);
+    syncToggle_.setLookAndFeel(&SmallButtonLookAndFeel::getInstance());
     syncToggle_.onClick = [this]() {
         bool synced = syncToggle_.getToggleState();
         currentMod_.tempoSync = synced;
@@ -162,6 +169,18 @@ ModulatorEditorPanel::ModulatorEditorPanel() {
     };
     addAndMakeVisible(triggerModeCombo_);
 
+    // Advanced settings button
+    advancedButton_.setButtonText("...");
+    advancedButton_.setColour(juce::TextButton::buttonColourId,
+                              DarkTheme::getColour(DarkTheme::SURFACE));
+    advancedButton_.setColour(juce::TextButton::textColourOffId,
+                              DarkTheme::getSecondaryTextColour());
+    advancedButton_.setLookAndFeel(&SmallButtonLookAndFeel::getInstance());
+    advancedButton_.onClick = [this]() {
+        // TODO: Show advanced trigger settings popup
+    };
+    addAndMakeVisible(advancedButton_);
+
     // Target label
     targetLabel_.setFont(FontManager::getInstance().getUIFont(8.0f));
     targetLabel_.setColour(juce::Label::textColourId, DarkTheme::getSecondaryTextColour());
@@ -189,6 +208,7 @@ void ModulatorEditorPanel::setSelectedModIndex(int index) {
         syncDivisionCombo_.setEnabled(false);
         rateSlider_.setEnabled(false);
         triggerModeCombo_.setEnabled(false);
+        advancedButton_.setEnabled(false);
         targetLabel_.setText("No Target", juce::dontSendNotification);
     } else {
         typeSelector_.setEnabled(true);
@@ -198,6 +218,7 @@ void ModulatorEditorPanel::setSelectedModIndex(int index) {
         syncDivisionCombo_.setEnabled(true);
         rateSlider_.setEnabled(true);
         triggerModeCombo_.setEnabled(true);
+        advancedButton_.setEnabled(true);
     }
 }
 
@@ -262,11 +283,7 @@ void ModulatorEditorPanel::paint(juce::Graphics& g) {
     g.drawText("Phase", bounds.removeFromTop(10), juce::Justification::centredLeft);
 
     bounds.removeFromTop(18 + 6);  // Skip phase slider + gap
-
-    // "Rate" label (with sync toggle)
-    g.drawText("Rate", bounds.removeFromTop(10), juce::Justification::centredLeft);
-
-    bounds.removeFromTop(18 + 6);  // Skip sync toggle + rate/division control + gap
+    bounds.removeFromTop(18 + 6);  // Skip rate row + gap
 
     // "Trigger" label
     g.drawText("Trigger", bounds.removeFromTop(10), juce::Justification::centredLeft);
@@ -298,12 +315,11 @@ void ModulatorEditorPanel::resized() {
     phaseSlider_.setBounds(bounds.removeFromTop(18));
     bounds.removeFromTop(6);
 
-    // Rate label area (painted) + sync toggle + rate/division control
-    bounds.removeFromTop(10);  // "Rate" label
+    // Rate row: [Sync button] [Rate slider/division combo]
     auto rateRow = bounds.removeFromTop(18);
 
-    // Sync toggle takes left portion
-    int syncToggleWidth = 40;
+    // Sync toggle (small square button)
+    int syncToggleWidth = 32;
     syncToggle_.setBounds(rateRow.removeFromLeft(syncToggleWidth));
     rateRow.removeFromLeft(4);  // Small gap
 
@@ -312,9 +328,17 @@ void ModulatorEditorPanel::resized() {
     syncDivisionCombo_.setBounds(rateRow);
     bounds.removeFromTop(6);
 
-    // Trigger label area (painted) + combo
+    // Trigger row: [label painted] [combo] [... button]
     bounds.removeFromTop(10);  // "Trigger" label
-    triggerModeCombo_.setBounds(bounds.removeFromTop(18));
+    auto triggerRow = bounds.removeFromTop(18);
+
+    // Advanced button on the right
+    int advButtonWidth = 20;
+    advancedButton_.setBounds(triggerRow.removeFromRight(advButtonWidth));
+    triggerRow.removeFromRight(4);  // Small gap
+
+    // Trigger combo takes remaining space
+    triggerModeCombo_.setBounds(triggerRow);
     bounds.removeFromTop(8);
 
     // Target info at bottom

@@ -165,10 +165,11 @@ class ModulatorEditorPanel : public juce::Component {
     juce::ComboBox waveformCombo_;
     WaveformDisplay waveformDisplay_;
     TextSlider phaseSlider_{TextSlider::Format::Decimal};
-    juce::ToggleButton syncToggle_;
+    juce::TextButton syncToggle_;
     juce::ComboBox syncDivisionCombo_;
     TextSlider rateSlider_{TextSlider::Format::Decimal};
     juce::ComboBox triggerModeCombo_;
+    juce::TextButton advancedButton_;
     juce::Label targetLabel_;
 
     void updateFromMod();
