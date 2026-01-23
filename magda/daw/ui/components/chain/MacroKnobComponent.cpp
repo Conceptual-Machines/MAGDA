@@ -121,12 +121,12 @@ void MacroKnobComponent::paint(juce::Graphics& g) {
     g.setColour(DarkTheme::getColour(DarkTheme::BORDER).brighter(0.2f));
     g.drawEllipse(knobRect.reduced(0.5f), 1.0f);
 
-    // Value arc - draw from 7 o'clock to current value position
-    // Range: 225° (7 o'clock) to -45° (5 o'clock) = 270° total sweep
-    const float startAngle = juce::MathConstants<float>::pi * 1.25f;  // 225° = 7 o'clock
-    const float endAngle = juce::MathConstants<float>::pi * -0.25f;   // -45° = 5 o'clock
-    const float angleRange = startAngle - endAngle;                   // 270°
-    float valueAngle = startAngle - (currentMacro_.value * angleRange);
+    // Value arc - JUCE uses clockwise-positive angles with 0 at 3 o'clock
+    // 7 o'clock = 3π/4 (135°), 5 o'clock = π/4 (45°)
+    // Sweep clockwise from 7 through 9, 12, 3 to 5 = 270°
+    const float startAngle = juce::MathConstants<float>::pi * 0.75f;  // 3π/4 = 7 o'clock
+    const float sweepRange = juce::MathConstants<float>::pi * 1.5f;   // 270° sweep
+    float valueAngle = startAngle + (currentMacro_.value * sweepRange);
 
     // Draw value arc
     juce::Path arcPath;
@@ -136,10 +136,10 @@ void MacroKnobComponent::paint(juce::Graphics& g) {
     g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_PURPLE));
     g.strokePath(arcPath, juce::PathStrokeType(2.0f));
 
-    // Draw pointer line from center towards value angle
+    // Draw pointer line from center towards value angle (JUCE y-down coords)
     float pointerLength = knobDiameter / 2.0f - 5.0f;
     float pointerX = knobRect.getCentreX() + std::cos(valueAngle) * pointerLength;
-    float pointerY = knobRect.getCentreY() - std::sin(valueAngle) * pointerLength;
+    float pointerY = knobRect.getCentreY() + std::sin(valueAngle) * pointerLength;
 
     g.setColour(DarkTheme::getTextColour());
     g.drawLine(knobRect.getCentreX(), knobRect.getCentreY(), pointerX, pointerY, 1.5f);
