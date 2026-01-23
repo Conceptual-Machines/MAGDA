@@ -453,15 +453,15 @@ void DeviceSlotComponent::resizedContent(juce::Rectangle<int> contentArea) {
 }
 
 void DeviceSlotComponent::resizedHeaderExtra(juce::Rectangle<int>& headerArea) {
-    // Header layout: [M] [Macro] [Name...] [gain slider] [UI] [on]
+    // Header layout: [Macro] [M] [Name...] [gain slider] [UI] [on]
     // Note: delete (X) is handled by NodeComponent on the right
 
-    // Mod button on the left (before name)
-    modButton_->setBounds(headerArea.removeFromLeft(BUTTON_SIZE));
+    // Macro button on the left (before name) - matches panel order
+    macroButton_->setBounds(headerArea.removeFromLeft(BUTTON_SIZE));
     headerArea.removeFromLeft(4);
 
-    // Macro button
-    macroButton_->setBounds(headerArea.removeFromLeft(BUTTON_SIZE));
+    // Mod button
+    modButton_->setBounds(headerArea.removeFromLeft(BUTTON_SIZE));
     headerArea.removeFromLeft(4);
 
     // Power button on the right (before delete which is handled by parent)
@@ -481,7 +481,7 @@ void DeviceSlotComponent::resizedHeaderExtra(juce::Rectangle<int>& headerArea) {
 
 void DeviceSlotComponent::resizedCollapsed(juce::Rectangle<int>& area) {
     // Add device-specific buttons vertically when collapsed
-    // Order: X (from base), ON, UI, Mod, Macro
+    // Order: X (from base), ON, UI, Macro, Mod - matches panel order
     int buttonSize = juce::jmin(16, area.getWidth() - 4);
 
     // On/power button (right after X)
@@ -496,16 +496,16 @@ void DeviceSlotComponent::resizedCollapsed(juce::Rectangle<int>& area) {
     uiButton_->setVisible(true);
     area.removeFromTop(4);
 
-    // Mod button
-    modButton_->setBounds(
-        area.removeFromTop(buttonSize).withSizeKeepingCentre(buttonSize, buttonSize));
-    modButton_->setVisible(true);
-    area.removeFromTop(4);
-
     // Macro button
     macroButton_->setBounds(
         area.removeFromTop(buttonSize).withSizeKeepingCentre(buttonSize, buttonSize));
     macroButton_->setVisible(true);
+    area.removeFromTop(4);
+
+    // Mod button
+    modButton_->setBounds(
+        area.removeFromTop(buttonSize).withSizeKeepingCentre(buttonSize, buttonSize));
+    modButton_->setVisible(true);
 }
 
 int DeviceSlotComponent::getModPanelWidth() const {

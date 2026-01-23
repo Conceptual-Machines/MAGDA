@@ -250,10 +250,10 @@ void RackComponent::resizedContent(juce::Rectangle<int> contentArea) {
 }
 
 void RackComponent::resizedHeaderExtra(juce::Rectangle<int>& headerArea) {
-    // MOD and MACRO buttons in header (before name)
-    modButton_->setBounds(headerArea.removeFromLeft(20));
-    headerArea.removeFromLeft(4);
+    // MACRO and MOD buttons in header (before name) - matches panel order
     macroButton_->setBounds(headerArea.removeFromLeft(20));
+    headerArea.removeFromLeft(4);
+    modButton_->setBounds(headerArea.removeFromLeft(20));
     headerArea.removeFromLeft(4);
 
     // Volume slider on the right side of header
@@ -262,17 +262,17 @@ void RackComponent::resizedHeaderExtra(juce::Rectangle<int>& headerArea) {
 }
 
 void RackComponent::resizedCollapsed(juce::Rectangle<int>& area) {
-    // Add mod and macro buttons vertically when collapsed
+    // Add macro and mod buttons vertically when collapsed - matches panel order
     int buttonSize = juce::jmin(16, area.getWidth() - 4);
-
-    modButton_->setBounds(
-        area.removeFromTop(buttonSize).withSizeKeepingCentre(buttonSize, buttonSize));
-    modButton_->setVisible(true);
-    area.removeFromTop(4);
 
     macroButton_->setBounds(
         area.removeFromTop(buttonSize).withSizeKeepingCentre(buttonSize, buttonSize));
     macroButton_->setVisible(true);
+    area.removeFromTop(4);
+
+    modButton_->setBounds(
+        area.removeFromTop(buttonSize).withSizeKeepingCentre(buttonSize, buttonSize));
+    modButton_->setVisible(true);
 }
 
 int RackComponent::getPreferredHeight() const {
