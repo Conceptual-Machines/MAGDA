@@ -84,7 +84,7 @@ void ModKnobComponent::setSelected(bool selected) {
 }
 
 void ModKnobComponent::paint(juce::Graphics& g) {
-    auto bounds = getLocalBounds();
+    auto bounds = getLocalBounds().reduced(KNOB_PADDING);
 
     // Guard against invalid bounds
     if (bounds.getWidth() <= 0 || bounds.getHeight() <= 0) {
@@ -116,8 +116,8 @@ void ModKnobComponent::paint(juce::Graphics& g) {
     // Draw indicator dot above link button if mod is linked to any parameters
     if (currentMod_.isLinked()) {
         float dotSize = 5.0f;
-        float centerX = bounds.getWidth() * 0.5f;
-        float dotY = bounds.getHeight() - LINK_BUTTON_HEIGHT - dotSize - 2.0f;
+        float centerX = getLocalBounds().getCentreX();
+        float dotY = bounds.getBottom() - LINK_BUTTON_HEIGHT - dotSize - 2.0f;
 
         g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
         g.fillEllipse(centerX - dotSize * 0.5f, dotY, dotSize, dotSize);
@@ -131,7 +131,7 @@ void ModKnobComponent::paint(juce::Graphics& g) {
 }
 
 void ModKnobComponent::resized() {
-    auto bounds = getLocalBounds().reduced(1);
+    auto bounds = getLocalBounds().reduced(KNOB_PADDING);
 
     // Name label at top
     nameLabel_.setBounds(bounds.removeFromTop(NAME_LABEL_HEIGHT));

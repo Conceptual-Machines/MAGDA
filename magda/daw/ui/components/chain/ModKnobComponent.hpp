@@ -163,6 +163,7 @@ class ModKnobComponent : public juce::Component, public magda::LinkModeManagerLi
     bool isDragging_ = false;
     static constexpr int DRAG_THRESHOLD = 5;
 
+    static constexpr int KNOB_PADDING = 4;
     static constexpr int NAME_LABEL_HEIGHT = 11;
     static constexpr int AMOUNT_SLIDER_HEIGHT = 14;
     static constexpr int LINK_BUTTON_HEIGHT = 12;
