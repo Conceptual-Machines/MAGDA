@@ -286,6 +286,10 @@ class TrackManager {
     void addListener(TrackManagerListener* listener);
     void removeListener(TrackManagerListener* listener);
 
+    // Modulation management
+    void updateAllMods(double deltaTime);  // Update all mod values (called by ModulatorEngine)
+    void notifyModulationChanged();        // Called when mod values change (for UI refresh)
+
     // Initialize with default tracks
     void createDefaultTracks(int count = 8);
     void clearAllTracks();
@@ -311,6 +315,9 @@ class TrackManager {
     void notifyMasterChannelChanged();
     void notifyTrackSelectionChanged(TrackId trackId);
     void notifyTrackDevicesChanged(TrackId trackId);
+
+    // Helper for recursive mod updates
+    void updateRackMods(RackInfo& rack, double deltaTime);
 
     juce::String generateTrackName() const;
 };

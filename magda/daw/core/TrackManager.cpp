@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "ModulatorEngine.hpp"
+
 namespace magda {
 
 TrackManager& TrackManager::getInstance() {
@@ -1952,6 +1954,26 @@ void TrackManager::notifyTrackSelectionChanged(TrackId trackId) {
 void TrackManager::notifyTrackDevicesChanged(TrackId trackId) {
     for (auto* listener : listeners_) {
         listener->trackDevicesChanged(trackId);
+    }
+}
+
+void TrackManager::updateAllMods(double deltaTime) {
+    // TODO: Implement recursive mod updates across track/rack/chain hierarchy
+    // For now, this is a stub - ModulatorEngine will call this
+    (void)deltaTime;  // Suppress unused parameter warning
+}
+
+void TrackManager::updateRackMods(RackInfo& rack, double deltaTime) {
+    // TODO: Recursively update mods in rack, chains, and nested racks
+    (void)rack;
+    (void)deltaTime;
+}
+
+void TrackManager::notifyModulationChanged() {
+    // Notify all listeners that modulation values have changed
+    // This triggers parameter indicator repaints
+    for (auto* listener : listeners_) {
+        listener->tracksChanged();
     }
 }
 

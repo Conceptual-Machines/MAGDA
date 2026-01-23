@@ -30,7 +30,8 @@
       "Bash(open:*)",
       "Bash(make run-console:*)",
       "Bash(gh label list:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(./tests/magda_tests \"[modulation]\")"
     ]
   },
   "enableAllProjectMcpServers": true,
