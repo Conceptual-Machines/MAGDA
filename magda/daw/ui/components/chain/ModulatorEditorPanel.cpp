@@ -35,6 +35,26 @@ ModulatorEditorPanel::ModulatorEditorPanel() {
     };
     addAndMakeVisible(typeSelector_);
 
+    // Waveform selector (for LFO type)
+    waveformSelector_.addItem("Sine", static_cast<int>(magda::LFOWaveform::Sine) + 1);
+    waveformSelector_.addItem("Triangle", static_cast<int>(magda::LFOWaveform::Triangle) + 1);
+    waveformSelector_.addItem("Square", static_cast<int>(magda::LFOWaveform::Square) + 1);
+    waveformSelector_.addItem("Saw", static_cast<int>(magda::LFOWaveform::Saw) + 1);
+    waveformSelector_.addItem("Rev Saw", static_cast<int>(magda::LFOWaveform::ReverseSaw) + 1);
+    waveformSelector_.setSelectedId(1, juce::dontSendNotification);
+    waveformSelector_.setColour(juce::ComboBox::backgroundColourId,
+                                DarkTheme::getColour(DarkTheme::SURFACE));
+    waveformSelector_.setColour(juce::ComboBox::textColourId, DarkTheme::getTextColour());
+    waveformSelector_.setColour(juce::ComboBox::outlineColourId,
+                                DarkTheme::getColour(DarkTheme::BORDER));
+    waveformSelector_.onChange = [this]() {
+        int id = waveformSelector_.getSelectedId();
+        if (id > 0 && onWaveformChanged) {
+            onWaveformChanged(static_cast<magda::LFOWaveform>(id - 1));
+        }
+    };
+    addAndMakeVisible(waveformSelector_);
+
     // Rate slider
     rateSlider_.setRange(0.01, 20.0, 0.01);
     rateSlider_.setValue(1.0, juce::dontSendNotification);
@@ -65,10 +85,12 @@ void ModulatorEditorPanel::setSelectedModIndex(int index) {
     if (index < 0) {
         nameLabel_.setText("No Mod Selected", juce::dontSendNotification);
         typeSelector_.setEnabled(false);
+        waveformSelector_.setEnabled(false);
         rateSlider_.setEnabled(false);
         targetLabel_.setText("No Target", juce::dontSendNotification);
     } else {
         typeSelector_.setEnabled(true);
+        waveformSelector_.setEnabled(true);
         rateSlider_.setEnabled(true);
     }
 }
@@ -76,6 +98,8 @@ void ModulatorEditorPanel::setSelectedModIndex(int index) {
 void ModulatorEditorPanel::updateFromMod() {
     nameLabel_.setText(currentMod_.name, juce::dontSendNotification);
     typeSelector_.setSelectedId(static_cast<int>(currentMod_.type) + 1, juce::dontSendNotification);
+    waveformSelector_.setSelectedId(static_cast<int>(currentMod_.waveform) + 1,
+                                    juce::dontSendNotification);
     rateSlider_.setValue(currentMod_.rate, juce::dontSendNotification);
 
     if (currentMod_.isLinked()) {
@@ -107,6 +131,11 @@ void ModulatorEditorPanel::paint(juce::Graphics& g) {
 
     bounds.removeFromTop(22);  // Skip type selector
 
+    // "Waveform" label
+    g.drawText("Waveform", bounds.removeFromTop(12), juce::Justification::centredLeft);
+
+    bounds.removeFromTop(22);  // Skip waveform selector
+
     // "Rate" label
     g.drawText("Rate", bounds.removeFromTop(12), juce::Justification::centredLeft);
 }
@@ -121,6 +150,11 @@ void ModulatorEditorPanel::resized() {
     // Type label area (painted) + selector
     bounds.removeFromTop(12);  // "Type" label
     typeSelector_.setBounds(bounds.removeFromTop(20));
+    bounds.removeFromTop(4);
+
+    // Waveform label area (painted) + selector
+    bounds.removeFromTop(12);  // "Waveform" label
+    waveformSelector_.setBounds(bounds.removeFromTop(20));
     bounds.removeFromTop(4);
 
     // Rate label area (painted) + slider

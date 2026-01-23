@@ -518,15 +518,8 @@ void TrackManager::setRackExpanded(TrackId trackId, RackId rackId, bool expanded
 // ============================================================================
 
 RackInfo* TrackManager::getRackByPath(const ChainNodePath& rackPath) {
-    DBG("getRackByPath: trackId=" << rackPath.trackId << ", steps=" << rackPath.steps.size());
-    for (size_t i = 0; i < rackPath.steps.size(); ++i) {
-        const auto& step = rackPath.steps[i];
-        DBG("  step[" << i << "]: type=" << static_cast<int>(step.type) << ", id=" << step.id);
-    }
-
     auto* track = getTrack(rackPath.trackId);
     if (!track) {
-        DBG("  -> track not found!");
         return nullptr;
     }
 
@@ -538,31 +531,21 @@ RackInfo* TrackManager::getRackByPath(const ChainNodePath& rackPath) {
             case ChainStepType::Rack: {
                 if (currentChain == nullptr) {
                     // Top-level rack in track's chainElements
-                    DBG("  Looking for top-level rack id=" << step.id << " in track with "
-                                                           << track->chainElements.size()
-                                                           << " elements");
                     for (auto& element : track->chainElements) {
                         if (magda::isRack(element)) {
-                            DBG("    checking rack id=" << magda::getRack(element).id);
                             if (magda::getRack(element).id == step.id) {
                                 currentRack = &magda::getRack(element);
-                                DBG("    -> FOUND top-level rack");
                                 break;
                             }
                         }
                     }
                 } else {
                     // Nested rack within a chain
-                    DBG("  Looking for nested rack id=" << step.id << " in chain with "
-                                                        << currentChain->elements.size()
-                                                        << " elements");
                     for (auto& element : currentChain->elements) {
                         if (magda::isRack(element)) {
-                            DBG("    checking nested rack id=" << magda::getRack(element).id);
                             if (magda::getRack(element).id == step.id) {
                                 currentRack = &magda::getRack(element);
                                 currentChain = nullptr;  // Reset chain context
-                                DBG("    -> FOUND nested rack");
                                 break;
                             }
                         }
@@ -572,18 +555,12 @@ RackInfo* TrackManager::getRackByPath(const ChainNodePath& rackPath) {
             }
             case ChainStepType::Chain: {
                 if (currentRack != nullptr) {
-                    DBG("  Looking for chain id=" << step.id << " in rack with "
-                                                  << currentRack->chains.size() << " chains");
                     for (auto& chain : currentRack->chains) {
-                        DBG("    checking chain id=" << chain.id);
                         if (chain.id == step.id) {
                             currentChain = &chain;
-                            DBG("    -> FOUND chain");
                             break;
                         }
                     }
-                } else {
-                    DBG("  Chain step but no currentRack!");
                 }
                 break;
             }
@@ -593,7 +570,6 @@ RackInfo* TrackManager::getRackByPath(const ChainNodePath& rackPath) {
         }
     }
 
-    DBG("  -> returning rack: " << (currentRack ? "found" : "NULL"));
     return currentRack;
 }
 
@@ -603,7 +579,6 @@ const RackInfo* TrackManager::getRackByPath(const ChainNodePath& rackPath) const
 }
 
 ChainId TrackManager::addChainToRack(const ChainNodePath& rackPath, const juce::String& name) {
-    DBG("addChainToRack called with path:");
     if (auto* rack = getRackByPath(rackPath)) {
         ChainInfo chain;
         chain.id = nextChainId_++;
@@ -612,10 +587,8 @@ ChainId TrackManager::addChainToRack(const ChainNodePath& rackPath, const juce::
                          : name;
         rack->chains.push_back(chain);
         notifyTrackDevicesChanged(rackPath.trackId);
-        DBG("Added chain: " << chain.name << " (id=" << chain.id << ") to rack via path");
         return chain.id;
     }
-    DBG("addChainToRack FAILED - rack not found via path!");
     return INVALID_CHAIN_ID;
 }
 

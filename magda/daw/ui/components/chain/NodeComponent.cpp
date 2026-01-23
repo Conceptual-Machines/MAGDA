@@ -907,12 +907,6 @@ void NodeComponent::initializeModsMacrosPanels() {
             showModulatorEditor(modIndex);
         }
     };
-    modsPanel_->onModWaveformChanged = [this](int modIndex, magda::LFOWaveform waveform) {
-        onModWaveformChangedInternal(modIndex, waveform);
-    };
-    modsPanel_->onModRateChanged = [this](int modIndex, float rate) {
-        onModRateChangedInternal(modIndex, rate);
-    };
     modsPanel_->onAddPageRequested = [this](int itemsToAdd) { onModPageAddRequested(itemsToAdd); };
     modsPanel_->onRemovePageRequested = [this](int itemsToRemove) {
         onModPageRemoveRequested(itemsToRemove);
@@ -958,6 +952,11 @@ void NodeComponent::initializeModsMacrosPanels() {
     modulatorEditorPanel_->onTypeChanged = [this](magda::ModType type) {
         if (selectedModIndex_ >= 0) {
             onModTypeChangedInternal(selectedModIndex_, type);
+        }
+    };
+    modulatorEditorPanel_->onWaveformChanged = [this](magda::LFOWaveform waveform) {
+        if (selectedModIndex_ >= 0) {
+            onModWaveformChangedInternal(selectedModIndex_, waveform);
         }
     };
     modulatorEditorPanel_->onRateChanged = [this](float rate) {
