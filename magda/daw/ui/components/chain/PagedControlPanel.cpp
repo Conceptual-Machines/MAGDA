@@ -223,7 +223,7 @@ void PagedControlPanel::resized() {
     updateNavButtons();
 
     // Grid area for items (with padding)
-    bounds = bounds.reduced(CELL_PADDING, 0);  // Horizontal padding only
+    bounds = bounds.reduced(CELL_PADDING, CELL_PADDING / 2);
     int visibleCount = getVisibleItemCount();
     if (visibleCount <= 0)
         return;

@@ -98,7 +98,7 @@ class PagedControlPanel : public juce::Component {
     // Navigation area height (only shown if multiple pages)
     static constexpr int NAV_HEIGHT = 16;
     static constexpr int GRID_SPACING = 2;
-    static constexpr int CELL_PADDING = 4;  // Padding inside grid area
+    static constexpr int CELL_PADDING = 8;  // Padding inside grid area
 
   private:
     void updateNavButtons();
