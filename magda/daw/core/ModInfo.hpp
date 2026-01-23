@@ -180,7 +180,7 @@ inline void addModPage(ModArray& mods) {
  * @brief Remove a page of mods (8 mods) from an existing array
  * @return true if page was removed, false if at minimum size
  */
-inline bool removeModPage(ModArray& mods, int minMods = NUM_MODS) {
+inline bool removeModPage(ModArray& mods, int minMods = 0) {
     if (static_cast<int>(mods.size()) <= minMods) {
         return false;  // At minimum size
     }

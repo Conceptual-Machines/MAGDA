@@ -9,10 +9,7 @@ ModsPanelComponent::ModsPanelComponent() : PagedControlPanel(magda::MODS_PER_PAG
     // Enable adding/removing mod pages
     setCanAddPage(true);
     setCanRemovePage(true);
-    setMinPages(2);  // Minimum 2 pages (16 mods)
-
-    // Default mods - will be updated when setMods is called
-    ensureKnobCount(magda::NUM_MODS);
+    setMinPages(0);  // Allow starting with 0 mods - user adds via + button
 }
 
 void ModsPanelComponent::ensureKnobCount(int count) {
