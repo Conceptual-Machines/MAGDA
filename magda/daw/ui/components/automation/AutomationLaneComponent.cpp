@@ -21,12 +21,7 @@ AutomationLaneComponent::~AutomationLaneComponent() {
 }
 
 void AutomationLaneComponent::setupHeader() {
-    // Name label
-    nameLabel_.setColour(juce::Label::textColourId, juce::Colour(0xFFCCCCCC));
-    nameLabel_.setJustificationType(juce::Justification::centredLeft);
-    addAndMakeVisible(nameLabel_);
-
-    // Update name
+    // Name label is now painted by TrackHeadersPanel, but we keep the state for potential use
     if (const auto* lane = getLaneInfo()) {
         nameLabel_.setText(lane->getDisplayName(), juce::dontSendNotification);
     }
@@ -44,7 +39,7 @@ void AutomationLaneComponent::paint(juce::Graphics& g) {
     juce::Colour bgColour = isSelected_ ? juce::Colour(0xFF2A2A2A) : juce::Colour(0xFF1E1E1E);
     g.fillAll(bgColour);
 
-    // Header background
+    // Header background (painted by TrackHeadersPanel, but we still need a background here)
     auto headerBounds = bounds.removeFromTop(HEADER_HEIGHT);
     g.setColour(juce::Colour(0xFF252525));
     g.fillRect(headerBounds);
@@ -67,28 +62,21 @@ void AutomationLaneComponent::paint(juce::Graphics& g) {
         g.fillRect(0, 0, 3, HEADER_HEIGHT);
     }
 
-    // Scale labels in the left padding area (matches TrackContentPanel::LEFT_PADDING)
-    auto scaleBounds = getLocalBounds();
-    scaleBounds.removeFromTop(HEADER_HEIGHT);
-    scaleBounds.removeFromBottom(RESIZE_HANDLE_HEIGHT);
-    scaleBounds.setWidth(SCALE_LABEL_WIDTH);
-    paintScaleLabels(g, scaleBounds);
+    // Scale labels are now painted by TrackHeadersPanel extending into the content area
 }
 
 void AutomationLaneComponent::resized() {
     auto bounds = getLocalBounds();
 
-    // Header layout
-    auto headerBounds = bounds.removeFromTop(HEADER_HEIGHT);
-    nameLabel_.setBounds(headerBounds.reduced(4, 2));
+    // Header layout - name label no longer shown here (painted by TrackHeadersPanel)
+    bounds.removeFromTop(HEADER_HEIGHT);
 
     // Content area (leave room for resize handle at bottom)
     auto contentBounds = bounds;
     contentBounds.removeFromBottom(RESIZE_HANDLE_HEIGHT);
 
-    // Curve editor starts after the scale label area to align with timeline
-    contentBounds.removeFromLeft(SCALE_LABEL_WIDTH);
-
+    // Curve editor fills content area - scale labels are painted by TrackHeadersPanel
+    // extending into the left padding area
     if (curveEditor_) {
         curveEditor_->setBounds(contentBounds);
     }
