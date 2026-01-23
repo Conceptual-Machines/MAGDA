@@ -55,6 +55,9 @@ ModulatorEditorPanel::ModulatorEditorPanel() {
     };
     addAndMakeVisible(waveformCombo_);
 
+    // Waveform display
+    addAndMakeVisible(waveformDisplay_);
+
     // Rate slider
     rateSlider_.setRange(0.01, 20.0, 0.01);
     rateSlider_.setValue(1.0, juce::dontSendNotification);
@@ -75,8 +78,11 @@ ModulatorEditorPanel::ModulatorEditorPanel() {
     addAndMakeVisible(targetLabel_);
 }
 
-void ModulatorEditorPanel::setModInfo(const magda::ModInfo& mod) {
+void ModulatorEditorPanel::setModInfo(const magda::ModInfo& mod, const magda::ModInfo* liveMod) {
     currentMod_ = mod;
+    liveModPtr_ = liveMod;
+    // Use live mod pointer if available (for animation), otherwise use local copy
+    waveformDisplay_.setModInfo(liveMod ? liveMod : &currentMod_);
     updateFromMod();
 }
 
@@ -135,6 +141,7 @@ void ModulatorEditorPanel::paint(juce::Graphics& g) {
     g.drawText("Waveform", bounds.removeFromTop(12), juce::Justification::centredLeft);
 
     bounds.removeFromTop(22);  // Skip waveform selector
+    bounds.removeFromTop(50);  // Skip waveform display
 
     // "Rate" label
     g.drawText("Rate", bounds.removeFromTop(12), juce::Justification::centredLeft);
@@ -155,6 +162,10 @@ void ModulatorEditorPanel::resized() {
     // Waveform label area (painted) + selector
     bounds.removeFromTop(12);  // "Waveform" label
     waveformCombo_.setBounds(bounds.removeFromTop(20));
+    bounds.removeFromTop(4);
+
+    // Waveform display (animated visualization)
+    waveformDisplay_.setBounds(bounds.removeFromTop(50));
     bounds.removeFromTop(4);
 
     // Rate label area (painted) + slider

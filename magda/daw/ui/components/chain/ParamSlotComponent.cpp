@@ -702,10 +702,17 @@ void ParamSlotComponent::paintModulationIndicators(juce::Graphics& g) {
         // If we're dragging in MOD link mode, show mod amount preview at BOTTOM
         if (isLinkModeDrag_ && activeMod_.isValid()) {
             int y = sliderBounds.getBottom() - 6;  // Near bottom of slider
+
+            // Get current parameter value (0.0 to 1.0)
+            float currentParamValue = static_cast<float>(valueSlider_.getValue());
+
+            // Bar starts from current param value and extends by drag amount (unipolar mode)
+            int startX = leftX + static_cast<int>(maxWidth * currentParamValue);
             int barWidth = juce::jmax(1, static_cast<int>(maxWidth * linkModeDragCurrentAmount_));
+
             // Brighter orange for link mode drag
             g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE).withAlpha(0.9f));
-            g.fillRoundedRectangle(static_cast<float>(leftX), static_cast<float>(y - barHeight),
+            g.fillRoundedRectangle(static_cast<float>(startX), static_cast<float>(y - barHeight),
                                    static_cast<float>(barWidth), static_cast<float>(barHeight),
                                    1.0f);
             return;  // Don't draw other amount indicators while dragging
@@ -757,12 +764,19 @@ void ParamSlotComponent::paintModulationIndicators(juce::Graphics& g) {
 
             if (const auto* link = mod.getLink(thisTarget)) {
                 float linkAmount = link->amount;
+
+                // Get current parameter value (0.0 to 1.0)
+                float currentParamValue = static_cast<float>(valueSlider_.getValue());
+
+                // Bar starts from current param value and extends by amount (unipolar mode)
+                int startX = leftX + static_cast<int>(maxWidth * currentParamValue);
                 int barWidth = juce::jmax(1, static_cast<int>(maxWidth * linkAmount));
+
                 // Brighter orange for link mode (editing amount)
                 g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE).withAlpha(0.9f));
-                g.fillRoundedRectangle(static_cast<float>(leftX), static_cast<float>(y - barHeight),
-                                       static_cast<float>(barWidth), static_cast<float>(barHeight),
-                                       1.0f);
+                g.fillRoundedRectangle(
+                    static_cast<float>(startX), static_cast<float>(y - barHeight),
+                    static_cast<float>(barWidth), static_cast<float>(barHeight), 1.0f);
             }
         }
     } else {
@@ -832,10 +846,17 @@ void ParamSlotComponent::paintModulationIndicators(juce::Graphics& g) {
         // Draw MOD movement line (orange) at BOTTOM if any mod modulation exists
         if (totalModModulation > 0.0f) {
             int y = sliderBounds.getBottom() - 6;
+
+            // Get current parameter value (0.0 to 1.0)
+            float currentParamValue = static_cast<float>(valueSlider_.getValue());
+
+            // Bar starts from current param value and extends by modulation amount (unipolar mode)
+            int startX = leftX + static_cast<int>(maxWidth * currentParamValue);
             int barWidth = juce::jmax(1, static_cast<int>(maxWidth * totalModModulation));
+
             // Slightly dimmer orange for normal mode (showing movement)
             g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE).withAlpha(0.6f));
-            g.fillRoundedRectangle(static_cast<float>(leftX), static_cast<float>(y - barHeight),
+            g.fillRoundedRectangle(static_cast<float>(startX), static_cast<float>(y - barHeight),
                                    static_cast<float>(barWidth), static_cast<float>(barHeight),
                                    1.0f);
         }

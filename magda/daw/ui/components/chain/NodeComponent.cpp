@@ -1047,7 +1047,8 @@ void NodeComponent::updateModulatorEditor() {
         return;
 
     if (selectedModIndex_ < static_cast<int>(mods->size())) {
-        modulatorEditorPanel_->setModInfo((*mods)[selectedModIndex_]);
+        // Pass pointer to live mod for animated waveform display
+        modulatorEditorPanel_->setModInfo((*mods)[selectedModIndex_], &(*mods)[selectedModIndex_]);
         modulatorEditorPanel_->setSelectedModIndex(selectedModIndex_);
     }
 }
