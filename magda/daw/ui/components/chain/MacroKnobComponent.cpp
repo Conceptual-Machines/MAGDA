@@ -121,10 +121,10 @@ void MacroKnobComponent::paint(juce::Graphics& g) {
     g.setColour(DarkTheme::getColour(DarkTheme::BORDER).brighter(0.2f));
     g.drawEllipse(knobRect.reduced(0.5f), 1.0f);
 
-    // Value arc - JUCE uses clockwise-positive angles with 0 at 3 o'clock
-    // 7 o'clock = 2π/3 (120°), 5 o'clock = π/3 (60°)
+    // Value arc - JUCE addCentredArc uses 0 at TOP (12 o'clock), clockwise positive
+    // 7 o'clock = 210° = 7π/6, 5 o'clock = 150° = 5π/6
     // Sweep clockwise from 7 through 9, 12, 3 to 5 = 300°
-    const float startAngle = juce::MathConstants<float>::pi * (2.0f / 3.0f);  // 2π/3 = 7 o'clock
+    const float startAngle = juce::MathConstants<float>::pi * (7.0f / 6.0f);  // 7π/6 = 7 o'clock
     const float sweepRange = juce::MathConstants<float>::pi * (5.0f / 3.0f);  // 300° sweep
     float valueAngle = startAngle + (currentMacro_.value * sweepRange);
 
@@ -136,10 +136,11 @@ void MacroKnobComponent::paint(juce::Graphics& g) {
     g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_PURPLE));
     g.strokePath(arcPath, juce::PathStrokeType(2.0f));
 
-    // Draw pointer line from center towards value angle (JUCE y-down coords)
+    // Draw pointer line - JUCE angles: 0 at top, clockwise positive
+    // x = sin(angle), y = -cos(angle) for screen coords
     float pointerLength = knobDiameter / 2.0f - 5.0f;
-    float pointerX = knobRect.getCentreX() + std::cos(valueAngle) * pointerLength;
-    float pointerY = knobRect.getCentreY() + std::sin(valueAngle) * pointerLength;
+    float pointerX = knobRect.getCentreX() + std::sin(valueAngle) * pointerLength;
+    float pointerY = knobRect.getCentreY() - std::cos(valueAngle) * pointerLength;
 
     g.setColour(DarkTheme::getTextColour());
     g.drawLine(knobRect.getCentreX(), knobRect.getCentreY(), pointerX, pointerY, 1.5f);
