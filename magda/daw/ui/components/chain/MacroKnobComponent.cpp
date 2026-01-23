@@ -157,15 +157,11 @@ void MacroKnobComponent::resized() {
     // Skip knob area (drawn in paint())
     bounds.removeFromTop(KNOB_SIZE);
 
-    // Value slider below knob
-    valueSlider_.setBounds(bounds.removeFromTop(VALUE_SLIDER_HEIGHT));
+    // Position link button at the very bottom
+    linkButton_->setBounds(bounds.removeFromBottom(LINK_BUTTON_HEIGHT));
 
-    // Skip remaining space and position link button at the very bottom
-    auto remainingHeight = bounds.getHeight();
-    if (remainingHeight > LINK_BUTTON_HEIGHT) {
-        bounds.removeFromTop(remainingHeight - LINK_BUTTON_HEIGHT);
-    }
-    linkButton_->setBounds(bounds.removeFromTop(LINK_BUTTON_HEIGHT));
+    // Value slider right above link button
+    valueSlider_.setBounds(bounds.removeFromBottom(VALUE_SLIDER_HEIGHT));
 }
 
 juce::Rectangle<int> MacroKnobComponent::getKnobBounds() const {
