@@ -373,7 +373,6 @@ void RackComponent::rebuildChainRows() {
         repaint();
         return;
     }
-    DBG("RackComponent::rebuildChainRows - found rack with " << rack->chains.size() << " chains");
 
     // Smart rebuild: preserve existing rows, only add/remove as needed
     std::vector<std::unique_ptr<ChainRowComponent>> newRows;

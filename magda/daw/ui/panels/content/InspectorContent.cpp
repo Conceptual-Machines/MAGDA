@@ -882,19 +882,14 @@ void InspectorContent::updateSelectionDisplay() {
 }
 
 void InspectorContent::updateFromSelectedTrack() {
-    DBG("InspectorContent::updateFromSelectedTrack - selectedTrackId_=" +
-        juce::String(selectedTrackId_));
     if (selectedTrackId_ == magda::INVALID_TRACK_ID) {
-        DBG("  -> INVALID_TRACK_ID, hiding controls");
         showTrackControls(false);
         noSelectionLabel_.setVisible(true);
         return;
     }
 
     const auto* track = magda::TrackManager::getInstance().getTrack(selectedTrackId_);
-    DBG("  -> track ptr = " + juce::String(track ? "valid" : "null"));
     if (track) {
-        DBG("  -> track name = " + track->name);
         trackNameValue_.setText(track->name, juce::dontSendNotification);
         muteButton_.setToggleState(track->muted, juce::dontSendNotification);
         soloButton_.setToggleState(track->soloed, juce::dontSendNotification);
@@ -968,7 +963,6 @@ void InspectorContent::updateFromSelectedClip() {
 }
 
 void InspectorContent::showTrackControls(bool show) {
-    DBG("InspectorContent::showTrackControls - show=" + juce::String(show ? "true" : "false"));
     trackNameLabel_.setVisible(show);
     trackNameValue_.setVisible(show);
     muteButton_.setVisible(show);
