@@ -122,10 +122,10 @@ void MacroKnobComponent::paint(juce::Graphics& g) {
     g.drawEllipse(knobRect.reduced(0.5f), 1.0f);
 
     // Value arc - JUCE uses clockwise-positive angles with 0 at 3 o'clock
-    // 7 o'clock = 3π/4 (135°), 5 o'clock = π/4 (45°)
-    // Sweep clockwise from 7 through 9, 12, 3 to 5 = 270°
-    const float startAngle = juce::MathConstants<float>::pi * 0.75f;  // 3π/4 = 7 o'clock
-    const float sweepRange = juce::MathConstants<float>::pi * 1.5f;   // 270° sweep
+    // 7 o'clock = 2π/3 (120°), 5 o'clock = π/3 (60°)
+    // Sweep clockwise from 7 through 9, 12, 3 to 5 = 300°
+    const float startAngle = juce::MathConstants<float>::pi * (2.0f / 3.0f);  // 2π/3 = 7 o'clock
+    const float sweepRange = juce::MathConstants<float>::pi * (5.0f / 3.0f);  // 300° sweep
     float valueAngle = startAngle + (currentMacro_.value * sweepRange);
 
     // Draw value arc
