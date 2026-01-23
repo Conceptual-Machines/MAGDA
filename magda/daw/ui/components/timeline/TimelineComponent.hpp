@@ -136,8 +136,7 @@ class TimelineComponent : public juce::Component, public TimelineStateListener {
     TimelineController* timelineController = nullptr;
 
     // Layout constants
-    // Small content margin so first bar label/triangle are visible
-    static constexpr int LEFT_PADDING = 10;
+    static constexpr int LEFT_PADDING = 18;  // Left padding to ensure first time label is visible
 
     // Local state (cached from controller for quick access during rendering)
     // These are updated via TimelineStateListener callbacks

@@ -9,7 +9,6 @@
 #include "../components/common/SvgButton.hpp"
 #include "../components/timeline/TimelineComponent.hpp"
 #include "../components/timeline/ZoomScrollBar.hpp"
-#include "../components/tracks/TrackContentPaddingComponent.hpp"
 #include "../components/tracks/TrackContentPanel.hpp"
 #include "../components/tracks/TrackHeadersPanel.hpp"
 #include "../layout/LayoutConfig.hpp"
@@ -118,9 +117,6 @@ class MainView : public juce::Component,
     // Track content viewport (both horizontal and vertical scroll)
     std::unique_ptr<juce::Viewport> trackContentViewport;
     std::unique_ptr<TrackContentPanel> trackContentPanel;
-
-    // Y-axis scale labels (sibling to track headers and content)
-    std::unique_ptr<TrackContentPaddingComponent> trackContentPadding;
 
     // Playhead component (always on top)
     class PlayheadComponent;

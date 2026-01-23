@@ -129,24 +129,7 @@ class TrackHeadersPanel : public juce::Component,
         ~TrackHeader() = default;
     };
 
-    // Automation lane header for left panel
-    struct AutomationLaneHeader {
-        AutomationLaneId laneId = INVALID_AUTOMATION_LANE_ID;
-        TrackId trackId = INVALID_TRACK_ID;
-        juce::String name;
-        bool armed = false;
-
-        // UI components
-        std::unique_ptr<juce::Label> nameLabel;
-        std::unique_ptr<juce::TextButton> armButton;
-        std::unique_ptr<juce::Label> valueLabel;  // Current value display
-
-        AutomationLaneHeader(AutomationLaneId id, TrackId track, const juce::String& laneName);
-        ~AutomationLaneHeader() = default;
-    };
-
     std::vector<std::unique_ptr<TrackHeader>> trackHeaders;
-    std::vector<std::unique_ptr<AutomationLaneHeader>> automationLaneHeaders_;
     std::vector<TrackId> visibleTrackIds_;  // Track IDs in display order
     std::unordered_map<TrackId, std::vector<AutomationLaneId>> visibleAutomationLanes_;
     int selectedTrackIndex = -1;
@@ -189,15 +172,6 @@ class TrackHeadersPanel : public juce::Component,
     int getTrackTotalHeight(int trackIndex) const;
     int getVisibleAutomationLanesHeight(TrackId trackId) const;
     void syncAutomationLaneVisibility();
-
-    // Automation lane header helpers
-    void rebuildAutomationLaneHeaders();
-    void setupAutomationLaneHeader(AutomationLaneHeader& header, const AutomationLaneInfo& lane);
-    void paintAutomationLaneHeader(juce::Graphics& g, const AutomationLaneHeader& header,
-                                   juce::Rectangle<int> area);
-    void updateAutomationLaneHeaderLayout();
-    juce::Rectangle<int> getAutomationLaneHeaderArea(TrackId trackId,
-                                                     AutomationLaneId laneId) const;
 
     // Mouse handling
     void mouseDown(const juce::MouseEvent& event) override;
