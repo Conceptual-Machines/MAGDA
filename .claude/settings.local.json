@@ -30,7 +30,10 @@
       "Bash(open:*)",
       "Bash(make run-console:*)",
       "Bash(gh label list:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(make build:*)",
+      "Bash(gh issue close:*)",
+      "Bash(./cmake-build-debug/tests/magda_tests:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

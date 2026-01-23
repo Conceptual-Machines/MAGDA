@@ -3,11 +3,14 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 #include "../../themes/MixerLookAndFeel.hpp"
 #include "../common/DraggableValueLabel.hpp"
+#include "../common/SvgButton.hpp"
 #include "../mixer/RoutingSelector.hpp"
+#include "core/AutomationManager.hpp"
 #include "core/TrackManager.hpp"
 #include "core/ViewModeController.hpp"
 
@@ -15,7 +18,8 @@ namespace magda {
 
 class TrackHeadersPanel : public juce::Component,
                           public TrackManagerListener,
-                          public ViewModeListener {
+                          public ViewModeListener,
+                          public AutomationManagerListener {
   public:
     static constexpr int TRACK_HEADER_WIDTH = 200;
     static constexpr int DEFAULT_TRACK_HEIGHT = 80;
@@ -31,6 +35,10 @@ class TrackHeadersPanel : public juce::Component,
 
     // ViewModeListener
     void viewModeChanged(ViewMode mode, const AudioEngineProfile& profile) override;
+
+    // AutomationManagerListener
+    void automationLanesChanged() override;
+    void automationLanePropertyChanged(AutomationLaneId laneId) override;
 
     void paint(juce::Graphics& g) override;
     void resized() override;
@@ -70,6 +78,7 @@ class TrackHeadersPanel : public juce::Component,
     std::function<void(int, bool)> onTrackSoloChanged;
     std::function<void(int, float)> onTrackVolumeChanged;
     std::function<void(int, float)> onTrackPanChanged;
+    std::function<void(TrackId, AutomationLaneId)> onShowAutomationLane;
 
     // Routing toggle types
     enum class RoutingType { AudioIn, AudioOut, MidiIn, MidiOut };
@@ -102,6 +111,7 @@ class TrackHeadersPanel : public juce::Component,
         std::unique_ptr<DraggableValueLabel> volumeLabel;   // Volume as draggable dB label
         std::unique_ptr<DraggableValueLabel> panLabel;      // Pan as draggable L/C/R label
         std::unique_ptr<juce::TextButton> collapseButton;   // For groups
+        std::unique_ptr<SvgButton> automationButton;        // Show automation lanes
         std::unique_ptr<RoutingSelector> audioInSelector;   // Audio input routing
         std::unique_ptr<RoutingSelector> audioOutSelector;  // Audio output routing
         std::unique_ptr<RoutingSelector> midiInSelector;    // MIDI input routing
@@ -121,6 +131,7 @@ class TrackHeadersPanel : public juce::Component,
 
     std::vector<std::unique_ptr<TrackHeader>> trackHeaders;
     std::vector<TrackId> visibleTrackIds_;  // Track IDs in display order
+    std::unordered_map<TrackId, std::vector<AutomationLaneId>> visibleAutomationLanes_;
     int selectedTrackIndex = -1;
     double verticalZoom = 1.0;  // Track height multiplier
     ViewMode currentViewMode_ = ViewMode::Arrange;
@@ -157,6 +168,11 @@ class TrackHeadersPanel : public juce::Component,
     bool isResizeHandleArea(const juce::Point<int>& point, int& trackIndex) const;
     void updateTrackHeaderLayout();
 
+    // Automation lane height helpers
+    int getTrackTotalHeight(int trackIndex) const;
+    int getVisibleAutomationLanesHeight(TrackId trackId) const;
+    void syncAutomationLaneVisibility();
+
     // Mouse handling
     void mouseDown(const juce::MouseEvent& event) override;
     void mouseDrag(const juce::MouseEvent& event) override;
@@ -165,6 +181,7 @@ class TrackHeadersPanel : public juce::Component,
 
     // Context menu
     void showContextMenu(int trackIndex, juce::Point<int> position);
+    void showAutomationMenu(TrackId trackId, juce::Component* relativeTo);
     void handleCollapseToggle(TrackId trackId);
     void toggleRouting(int trackIndex, RoutingType type);
 

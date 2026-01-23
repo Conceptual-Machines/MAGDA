@@ -26,4 +26,14 @@ constexpr RackId INVALID_RACK_ID = -1;
 using ChainId = int;
 constexpr ChainId INVALID_CHAIN_ID = -1;
 
+// Automation identifiers
+using AutomationLaneId = int;
+constexpr AutomationLaneId INVALID_AUTOMATION_LANE_ID = -1;
+
+using AutomationClipId = int;
+constexpr AutomationClipId INVALID_AUTOMATION_CLIP_ID = -1;
+
+using AutomationPointId = int;
+constexpr AutomationPointId INVALID_AUTOMATION_POINT_ID = -1;
+
 }  // namespace magda

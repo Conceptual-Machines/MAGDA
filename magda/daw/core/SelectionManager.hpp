@@ -9,6 +9,7 @@
 #include "ModInfo.hpp"
 #include "RackInfo.hpp"
 #include "TrackTypes.hpp"
+#include "TypeIds.hpp"
 
 namespace magda {
 
@@ -76,19 +77,22 @@ namespace magda {
  * @brief Selection types in the DAW
  */
 enum class SelectionType {
-    None,         // Nothing selected
-    Track,        // Track selected (for mixer/inspector)
-    Clip,         // Single clip selected (backward compat)
-    MultiClip,    // Multiple clips selected
-    TimeRange,    // Time range selected (for operations)
-    Note,         // MIDI note(s) selected in piano roll
-    Device,       // Device selected in track chain
-    ChainNode,    // Any node in the chain view (rack, chain, device)
-    Mod,          // Individual modulator selected → show mod editor
-    Macro,        // Individual macro selected → show macro editor
-    ModsPanel,    // Mods panel selected → show mods panel settings
-    MacrosPanel,  // Macros panel selected → show macros panel settings
-    Param         // Parameter selected on a device
+    None,            // Nothing selected
+    Track,           // Track selected (for mixer/inspector)
+    Clip,            // Single clip selected (backward compat)
+    MultiClip,       // Multiple clips selected
+    TimeRange,       // Time range selected (for operations)
+    Note,            // MIDI note(s) selected in piano roll
+    Device,          // Device selected in track chain
+    ChainNode,       // Any node in the chain view (rack, chain, device)
+    Mod,             // Individual modulator selected → show mod editor
+    Macro,           // Individual macro selected → show macro editor
+    ModsPanel,       // Mods panel selected → show mods panel settings
+    MacrosPanel,     // Macros panel selected → show macros panel settings
+    Param,           // Parameter selected on a device
+    AutomationLane,  // Automation lane selected → show lane settings
+    AutomationClip,  // Automation clip selected → show clip settings
+    AutomationPoint  // Automation point(s) selected → show point editor
 };
 
 /**
@@ -446,6 +450,74 @@ struct MacrosPanelSelection {
 };
 
 /**
+ * @brief Automation lane selection data
+ */
+struct AutomationLaneSelection {
+    AutomationLaneId laneId = INVALID_AUTOMATION_LANE_ID;
+
+    bool isValid() const {
+        return laneId != INVALID_AUTOMATION_LANE_ID;
+    }
+
+    bool operator==(const AutomationLaneSelection& other) const {
+        return laneId == other.laneId;
+    }
+
+    bool operator!=(const AutomationLaneSelection& other) const {
+        return !(*this == other);
+    }
+};
+
+/**
+ * @brief Automation clip selection data
+ */
+struct AutomationClipSelection {
+    AutomationClipId clipId = INVALID_AUTOMATION_CLIP_ID;
+    AutomationLaneId laneId = INVALID_AUTOMATION_LANE_ID;
+
+    bool isValid() const {
+        return clipId != INVALID_AUTOMATION_CLIP_ID && laneId != INVALID_AUTOMATION_LANE_ID;
+    }
+
+    bool operator==(const AutomationClipSelection& other) const {
+        return clipId == other.clipId && laneId == other.laneId;
+    }
+
+    bool operator!=(const AutomationClipSelection& other) const {
+        return !(*this == other);
+    }
+};
+
+/**
+ * @brief Automation point selection data (supports multi-select)
+ */
+struct AutomationPointSelection {
+    AutomationLaneId laneId = INVALID_AUTOMATION_LANE_ID;
+    AutomationClipId clipId = INVALID_AUTOMATION_CLIP_ID;  // INVALID for absolute lanes
+    std::vector<AutomationPointId> pointIds;
+
+    bool isValid() const {
+        return laneId != INVALID_AUTOMATION_LANE_ID && !pointIds.empty();
+    }
+
+    bool isSinglePoint() const {
+        return pointIds.size() == 1;
+    }
+
+    size_t getCount() const {
+        return pointIds.size();
+    }
+
+    bool operator==(const AutomationPointSelection& other) const {
+        return laneId == other.laneId && clipId == other.clipId && pointIds == other.pointIds;
+    }
+
+    bool operator!=(const AutomationPointSelection& other) const {
+        return !(*this == other);
+    }
+};
+
+/**
  * @brief Listener interface for selection changes
  */
 class SelectionManagerListener {
@@ -469,6 +541,14 @@ class SelectionManagerListener {
     virtual void macrosPanelSelectionChanged(
         [[maybe_unused]] const MacrosPanelSelection& selection) {}
     virtual void paramSelectionChanged([[maybe_unused]] const ParamSelection& selection) {}
+
+    // Automation selection callbacks
+    virtual void automationLaneSelectionChanged(
+        [[maybe_unused]] const AutomationLaneSelection& selection) {}
+    virtual void automationClipSelectionChanged(
+        [[maybe_unused]] const AutomationClipSelection& selection) {}
+    virtual void automationPointSelectionChanged(
+        [[maybe_unused]] const AutomationPointSelection& selection) {}
 };
 
 /**
@@ -867,6 +947,129 @@ class SelectionManager {
     }
 
     // ========================================================================
+    // Automation Lane Selection
+    // ========================================================================
+
+    /**
+     * @brief Select an automation lane
+     * @param laneId The lane to select
+     */
+    void selectAutomationLane(AutomationLaneId laneId);
+
+    /**
+     * @brief Clear automation lane selection
+     */
+    void clearAutomationLaneSelection();
+
+    /**
+     * @brief Get the current automation lane selection
+     */
+    const AutomationLaneSelection& getAutomationLaneSelection() const {
+        return automationLaneSelection_;
+    }
+
+    /**
+     * @brief Check if there's a valid automation lane selection
+     */
+    bool hasAutomationLaneSelection() const {
+        return selectionType_ == SelectionType::AutomationLane &&
+               automationLaneSelection_.isValid();
+    }
+
+    // ========================================================================
+    // Automation Clip Selection
+    // ========================================================================
+
+    /**
+     * @brief Select an automation clip
+     * @param clipId The clip to select
+     * @param laneId The lane containing the clip
+     */
+    void selectAutomationClip(AutomationClipId clipId, AutomationLaneId laneId);
+
+    /**
+     * @brief Clear automation clip selection
+     */
+    void clearAutomationClipSelection();
+
+    /**
+     * @brief Get the current automation clip selection
+     */
+    const AutomationClipSelection& getAutomationClipSelection() const {
+        return automationClipSelection_;
+    }
+
+    /**
+     * @brief Check if there's a valid automation clip selection
+     */
+    bool hasAutomationClipSelection() const {
+        return selectionType_ == SelectionType::AutomationClip &&
+               automationClipSelection_.isValid();
+    }
+
+    // ========================================================================
+    // Automation Point Selection
+    // ========================================================================
+
+    /**
+     * @brief Select a single automation point
+     * @param laneId The lane containing the point
+     * @param pointId The point to select
+     * @param clipId The clip containing the point (INVALID for absolute lanes)
+     */
+    void selectAutomationPoint(AutomationLaneId laneId, AutomationPointId pointId,
+                               AutomationClipId clipId = INVALID_AUTOMATION_CLIP_ID);
+
+    /**
+     * @brief Select multiple automation points
+     */
+    void selectAutomationPoints(AutomationLaneId laneId,
+                                const std::vector<AutomationPointId>& pointIds,
+                                AutomationClipId clipId = INVALID_AUTOMATION_CLIP_ID);
+
+    /**
+     * @brief Add a point to the current selection
+     */
+    void addAutomationPointToSelection(AutomationLaneId laneId, AutomationPointId pointId,
+                                       AutomationClipId clipId = INVALID_AUTOMATION_CLIP_ID);
+
+    /**
+     * @brief Remove a point from the current selection
+     */
+    void removeAutomationPointFromSelection(AutomationPointId pointId);
+
+    /**
+     * @brief Toggle a point's selection state
+     */
+    void toggleAutomationPointSelection(AutomationLaneId laneId, AutomationPointId pointId,
+                                        AutomationClipId clipId = INVALID_AUTOMATION_CLIP_ID);
+
+    /**
+     * @brief Clear automation point selection
+     */
+    void clearAutomationPointSelection();
+
+    /**
+     * @brief Get the current automation point selection
+     */
+    const AutomationPointSelection& getAutomationPointSelection() const {
+        return automationPointSelection_;
+    }
+
+    /**
+     * @brief Check if a specific point is selected
+     */
+    bool isAutomationPointSelected(AutomationPointId pointId) const;
+
+    /**
+     * @brief Check if there's a valid automation point selection
+     */
+    bool hasAutomationPointSelection() const {
+        return selectionType_ == SelectionType::AutomationPoint &&
+               automationPointSelection_.isValid();
+    }
+
+    // ========================================================================
     // Clear
     // ========================================================================
 
@@ -900,6 +1103,9 @@ class SelectionManager {
     ModsPanelSelection modsPanelSelection_;
     MacrosPanelSelection macrosPanelSelection_;
     ParamSelection paramSelection_;
+    AutomationLaneSelection automationLaneSelection_;
+    AutomationClipSelection automationClipSelection_;
+    AutomationPointSelection automationPointSelection_;
 
     std::vector<SelectionManagerListener*> listeners_;
 
@@ -917,6 +1123,9 @@ class SelectionManager {
     void notifyModsPanelSelectionChanged(const ModsPanelSelection& selection);
     void notifyMacrosPanelSelectionChanged(const MacrosPanelSelection& selection);
     void notifyParamSelectionChanged(const ParamSelection& selection);
+    void notifyAutomationLaneSelectionChanged(const AutomationLaneSelection& selection);
+    void notifyAutomationClipSelectionChanged(const AutomationClipSelection& selection);
+    void notifyAutomationPointSelectionChanged(const AutomationPointSelection& selection);
 };
 
 }  // namespace magda

@@ -463,6 +463,9 @@ void SelectionManager::clearSelection() {
     modsPanelSelection_ = ModsPanelSelection{};
     macrosPanelSelection_ = MacrosPanelSelection{};
     paramSelection_ = ParamSelection{};
+    automationLaneSelection_ = AutomationLaneSelection{};
+    automationClipSelection_ = AutomationClipSelection{};
+    automationPointSelection_ = AutomationPointSelection{};
 
     // Sync with managers
     TrackManager::getInstance().setSelectedTrack(INVALID_TRACK_ID);
@@ -924,6 +927,308 @@ void SelectionManager::notifyMacrosPanelSelectionChanged(const MacrosPanelSelect
     for (auto* listener : listeners_) {
         if (listener != nullptr)
             listener->macrosPanelSelectionChanged(selection);
+    }
+}
+
+// ============================================================================
+// Automation Lane Selection
+// ============================================================================
+
+void SelectionManager::selectAutomationLane(AutomationLaneId laneId) {
+    bool typeChanged = selectionType_ != SelectionType::AutomationLane;
+    bool selectionChanged = automationLaneSelection_.laneId != laneId;
+
+    if (!typeChanged && !selectionChanged) {
+        return;  // Already selected
+    }
+
+    // Clear other selection types (but keep track selection for context)
+    selectedClipId_ = INVALID_CLIP_ID;
+    selectedClipIds_.clear();
+    timeRangeSelection_ = TimeRangeSelection{};
+    noteSelection_ = NoteSelection{};
+    deviceSelection_ = DeviceSelection{};
+    selectedChainNode_ = ChainNodePath{};
+    modSelection_ = ModSelection{};
+    macroSelection_ = MacroSelection{};
+    modsPanelSelection_ = ModsPanelSelection{};
+    macrosPanelSelection_ = MacrosPanelSelection{};
+    paramSelection_ = ParamSelection{};
+    automationClipSelection_ = AutomationClipSelection{};
+    automationPointSelection_ = AutomationPointSelection{};
+
+    selectionType_ = SelectionType::AutomationLane;
+    automationLaneSelection_.laneId = laneId;
+
+    // Sync with managers
+    ClipManager::getInstance().clearClipSelection();
+
+    if (typeChanged) {
+        notifySelectionTypeChanged(SelectionType::AutomationLane);
+    }
+    notifyAutomationLaneSelectionChanged(automationLaneSelection_);
+}
+
+void SelectionManager::clearAutomationLaneSelection() {
+    if (selectionType_ != SelectionType::AutomationLane) {
+        return;
+    }
+
+    automationLaneSelection_ = AutomationLaneSelection{};
+
+    // Return to track selection if we have a track
+    if (selectedTrackId_ != INVALID_TRACK_ID) {
+        selectionType_ = SelectionType::Track;
+        notifySelectionTypeChanged(SelectionType::Track);
+    } else {
+        selectionType_ = SelectionType::None;
+        notifySelectionTypeChanged(SelectionType::None);
+    }
+
+    notifyAutomationLaneSelectionChanged(automationLaneSelection_);
+}
+
+void SelectionManager::notifyAutomationLaneSelectionChanged(
+    const AutomationLaneSelection& selection) {
+    for (auto* listener : listeners_) {
+        if (listener != nullptr)
+            listener->automationLaneSelectionChanged(selection);
+    }
+}
+
+// ============================================================================
+// Automation Clip Selection
+// ============================================================================
+
+void SelectionManager::selectAutomationClip(AutomationClipId clipId, AutomationLaneId laneId) {
+    bool typeChanged = selectionType_ != SelectionType::AutomationClip;
+    bool selectionChanged =
+        automationClipSelection_.clipId != clipId || automationClipSelection_.laneId != laneId;
+
+    if (!typeChanged && !selectionChanged) {
+        return;  // Already selected
+    }
+
+    // Clear other selection types (but keep track selection for context)
+    selectedClipId_ = INVALID_CLIP_ID;
+    selectedClipIds_.clear();
+    timeRangeSelection_ = TimeRangeSelection{};
+    noteSelection_ = NoteSelection{};
+    deviceSelection_ = DeviceSelection{};
+    selectedChainNode_ = ChainNodePath{};
+    modSelection_ = ModSelection{};
+    macroSelection_ = MacroSelection{};
+    modsPanelSelection_ = ModsPanelSelection{};
+    macrosPanelSelection_ = MacrosPanelSelection{};
+    paramSelection_ = ParamSelection{};
+    automationLaneSelection_ = AutomationLaneSelection{};
+    automationPointSelection_ = AutomationPointSelection{};
+
+    selectionType_ = SelectionType::AutomationClip;
+    automationClipSelection_.clipId = clipId;
+    automationClipSelection_.laneId = laneId;
+
+    // Sync with managers
+    ClipManager::getInstance().clearClipSelection();
+
+    if (typeChanged) {
+        notifySelectionTypeChanged(SelectionType::AutomationClip);
+    }
+    notifyAutomationClipSelectionChanged(automationClipSelection_);
+}
+
+void SelectionManager::clearAutomationClipSelection() {
+    if (selectionType_ != SelectionType::AutomationClip) {
+        return;
+    }
+
+    automationClipSelection_ = AutomationClipSelection{};
+
+    // Return to track selection if we have a track
+    if (selectedTrackId_ != INVALID_TRACK_ID) {
+        selectionType_ = SelectionType::Track;
+        notifySelectionTypeChanged(SelectionType::Track);
+    } else {
+        selectionType_ = SelectionType::None;
+        notifySelectionTypeChanged(SelectionType::None);
+    }
+
+    notifyAutomationClipSelectionChanged(automationClipSelection_);
+}
+
+void SelectionManager::notifyAutomationClipSelectionChanged(
+    const AutomationClipSelection& selection) {
+    for (auto* listener : listeners_) {
+        if (listener != nullptr)
+            listener->automationClipSelectionChanged(selection);
+    }
+}
+
+// ============================================================================
+// Automation Point Selection
+// ============================================================================
+
+void SelectionManager::selectAutomationPoint(AutomationLaneId laneId, AutomationPointId pointId,
+                                             AutomationClipId clipId) {
+    bool typeChanged = selectionType_ != SelectionType::AutomationPoint;
+
+    // Clear other selection types (but keep track selection for context)
+    selectedClipId_ = INVALID_CLIP_ID;
+    selectedClipIds_.clear();
+    timeRangeSelection_ = TimeRangeSelection{};
+    noteSelection_ = NoteSelection{};
+    deviceSelection_ = DeviceSelection{};
+    selectedChainNode_ = ChainNodePath{};
+    modSelection_ = ModSelection{};
+    macroSelection_ = MacroSelection{};
+    modsPanelSelection_ = ModsPanelSelection{};
+    macrosPanelSelection_ = MacrosPanelSelection{};
+    paramSelection_ = ParamSelection{};
+    automationLaneSelection_ = AutomationLaneSelection{};
+    automationClipSelection_ = AutomationClipSelection{};
+
+    selectionType_ = SelectionType::AutomationPoint;
+    automationPointSelection_.laneId = laneId;
+    automationPointSelection_.clipId = clipId;
+    automationPointSelection_.pointIds.clear();
+    automationPointSelection_.pointIds.push_back(pointId);
+
+    // Sync with managers
+    ClipManager::getInstance().clearClipSelection();
+
+    if (typeChanged) {
+        notifySelectionTypeChanged(SelectionType::AutomationPoint);
+    }
+    notifyAutomationPointSelectionChanged(automationPointSelection_);
+}
+
+void SelectionManager::selectAutomationPoints(AutomationLaneId laneId,
+                                              const std::vector<AutomationPointId>& pointIds,
+                                              AutomationClipId clipId) {
+    if (pointIds.empty()) {
+        clearAutomationPointSelection();
+        return;
+    }
+
+    if (pointIds.size() == 1) {
+        selectAutomationPoint(laneId, pointIds[0], clipId);
+        return;
+    }
+
+    bool typeChanged = selectionType_ != SelectionType::AutomationPoint;
+
+    // Clear other selection types (but keep track selection for context)
+    selectedClipId_ = INVALID_CLIP_ID;
+    selectedClipIds_.clear();
+    timeRangeSelection_ = TimeRangeSelection{};
+    noteSelection_ = NoteSelection{};
+    deviceSelection_ = DeviceSelection{};
+    selectedChainNode_ = ChainNodePath{};
+    modSelection_ = ModSelection{};
+    macroSelection_ = MacroSelection{};
+    modsPanelSelection_ = ModsPanelSelection{};
+    macrosPanelSelection_ = MacrosPanelSelection{};
+    paramSelection_ = ParamSelection{};
+    automationLaneSelection_ = AutomationLaneSelection{};
+    automationClipSelection_ = AutomationClipSelection{};
+
+    selectionType_ = SelectionType::AutomationPoint;
+    automationPointSelection_.laneId = laneId;
+    automationPointSelection_.clipId = clipId;
+    automationPointSelection_.pointIds = pointIds;
+
+    // Sync with managers
+    ClipManager::getInstance().clearClipSelection();
+
+    if (typeChanged) {
+        notifySelectionTypeChanged(SelectionType::AutomationPoint);
+    }
+    notifyAutomationPointSelectionChanged(automationPointSelection_);
+}
+
+void SelectionManager::addAutomationPointToSelection(AutomationLaneId laneId,
+                                                     AutomationPointId pointId,
+                                                     AutomationClipId clipId) {
+    // If selecting a point from a different lane/clip, start fresh
+    if (automationPointSelection_.laneId != laneId || automationPointSelection_.clipId != clipId) {
+        selectAutomationPoint(laneId, pointId, clipId);
+        return;
+    }
+
+    // Check if already selected
+    auto it = std::find(automationPointSelection_.pointIds.begin(),
+                        automationPointSelection_.pointIds.end(), pointId);
+    if (it != automationPointSelection_.pointIds.end()) {
+        return;  // Already selected
+    }
+
+    // Ensure we're in point selection mode
+    if (selectionType_ != SelectionType::AutomationPoint) {
+        selectAutomationPoint(laneId, pointId, clipId);
+        return;
+    }
+
+    automationPointSelection_.pointIds.push_back(pointId);
+    notifyAutomationPointSelectionChanged(automationPointSelection_);
+}
+
+void SelectionManager::removeAutomationPointFromSelection(AutomationPointId pointId) {
+    auto it = std::find(automationPointSelection_.pointIds.begin(),
+                        automationPointSelection_.pointIds.end(), pointId);
+    if (it != automationPointSelection_.pointIds.end()) {
+        automationPointSelection_.pointIds.erase(it);
+
+        if (automationPointSelection_.pointIds.empty()) {
+            clearAutomationPointSelection();
+        } else {
+            notifyAutomationPointSelectionChanged(automationPointSelection_);
+        }
+    }
+}
+
+void SelectionManager::toggleAutomationPointSelection(AutomationLaneId laneId,
+                                                      AutomationPointId pointId,
+                                                      AutomationClipId clipId) {
+    if (isAutomationPointSelected(pointId)) {
+        removeAutomationPointFromSelection(pointId);
+    } else {
+        addAutomationPointToSelection(laneId, pointId, clipId);
+    }
+}
+
+void SelectionManager::clearAutomationPointSelection() {
+    if (selectionType_ != SelectionType::AutomationPoint) {
+        return;
+    }
+
+    automationPointSelection_ = AutomationPointSelection{};
+
+    // Return to track selection if we have a track
+    if (selectedTrackId_ != INVALID_TRACK_ID) {
+        selectionType_ = SelectionType::Track;
+        notifySelectionTypeChanged(SelectionType::Track);
+    } else {
+        selectionType_ = SelectionType::None;
+        notifySelectionTypeChanged(SelectionType::None);
+    }
+
+    notifyAutomationPointSelectionChanged(automationPointSelection_);
+}
+
+bool SelectionManager::isAutomationPointSelected(AutomationPointId pointId) const {
+    if (selectionType_ != SelectionType::AutomationPoint) {
+        return false;
+    }
+    return std::find(automationPointSelection_.pointIds.begin(),
+                     automationPointSelection_.pointIds.end(),
+                     pointId) != automationPointSelection_.pointIds.end();
+}
+
+void SelectionManager::notifyAutomationPointSelectionChanged(
+    const AutomationPointSelection& selection) {
+    for (auto* listener : listeners_) {
+        if (listener != nullptr)
+            listener->automationPointSelectionChanged(selection);
     }
 }
 

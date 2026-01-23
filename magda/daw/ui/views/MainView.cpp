@@ -839,6 +839,12 @@ void MainView::setupTrackSynchronization() {
         }
     };
 
+    // Wire up automation lane visibility toggle
+    trackHeadersPanel->onShowAutomationLane = [this](TrackId trackId, AutomationLaneId laneId) {
+        trackContentPanel->toggleAutomationLane(trackId, laneId);
+        updateContentSizes();
+    };
+
     trackContentPanel->onTrackSelected = [this](int trackIndex) {
         if (!isUpdatingTrackSelection) {
             isUpdatingTrackSelection = true;

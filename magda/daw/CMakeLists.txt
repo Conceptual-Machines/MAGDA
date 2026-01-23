@@ -58,6 +58,7 @@ juce_add_binary_data(MagdaAssets
     ../../assets/icons/power_on.svg
     ../../assets/icons/rack.svg
     ../../assets/icons/tree.svg
+    ../../assets/icons/bezier.svg
     # Mouse cursors
     ../../assets/icons/mouse_zoom/search.svg
     ../../assets/icons/mouse_zoom/zoom_in.svg
@@ -92,6 +93,7 @@ set(DAW_CORE_SOURCES
     core/ModulatorEngine.cpp
     core/ClipManager.cpp
     core/SelectionManager.cpp
+    core/AutomationManager.cpp
     core/LinkModeManager.cpp
     core/UndoManager.cpp
     core/ClipCommands.cpp
@@ -177,6 +179,12 @@ set(DAW_UI_SOURCES
     ui/components/pianoroll/PianoRollGridComponent.cpp
     ui/components/pianoroll/PianoRollKeyboard.cpp
     ui/components/pianoroll/VelocityLaneComponent.cpp
+    # Components - Automation
+    ui/components/automation/AutomationPointComponent.cpp
+    ui/components/automation/BezierHandleComponent.cpp
+    ui/components/automation/AutomationCurveEditor.cpp
+    ui/components/automation/AutomationLaneComponent.cpp
+    ui/components/automation/AutomationClipComponent.cpp
     # Components - Mixer
     ui/components/mixer/MasterChannelStrip.cpp
     ui/components/mixer/RoutingSelector.cpp
@@ -326,6 +334,16 @@ set(DAW_HEADERS
     # Core - Parameter
     core/ParameterInfo.hpp
     core/ParameterUtils.hpp
+    # Core - Automation
+    core/AutomationTypes.hpp
+    core/AutomationInfo.hpp
+    core/AutomationManager.hpp
+    # Components - Automation
+    ui/components/automation/AutomationPointComponent.hpp
+    ui/components/automation/BezierHandleComponent.hpp
+    ui/components/automation/AutomationCurveEditor.hpp
+    ui/components/automation/AutomationLaneComponent.hpp
+    ui/components/automation/AutomationClipComponent.hpp
 )
 
 # Create DAW library (core functionality)
@@ -399,6 +417,7 @@ target_include_directories(magda_daw_app
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/components/clips
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/components/pianoroll
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/components/chain
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/components/automation
     ${CMAKE_SOURCE_DIR}
 )
 

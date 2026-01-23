@@ -4,10 +4,12 @@
 
 #include <memory>
 #include <set>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 #include "../../state/TimelineController.hpp"
+#include "core/AutomationManager.hpp"
 #include "core/ClipManager.hpp"
 #include "core/ClipTypes.hpp"
 #include "core/TrackManager.hpp"
@@ -18,11 +20,13 @@ namespace magda {
 // Forward declarations
 class TimelineController;
 class ClipComponent;
+class AutomationLaneComponent;
 
 class TrackContentPanel : public juce::Component,
                           public TimelineStateListener,
                           public TrackManagerListener,
                           public ClipManagerListener,
+                          public AutomationManagerListener,
                           public ViewModeListener,
                           private juce::Timer {
   public:
@@ -51,6 +55,10 @@ class TrackContentPanel : public juce::Component,
 
     // ViewModeListener implementation
     void viewModeChanged(ViewMode mode, const AudioEngineProfile& profile) override;
+
+    // AutomationManagerListener implementation
+    void automationLanesChanged() override;
+    void automationLanePropertyChanged(AutomationLaneId laneId) override;
 
     // Set the controller reference (called by MainView after construction)
     void setController(TimelineController* controller);
@@ -95,6 +103,13 @@ class TrackContentPanel : public juce::Component,
 
     // Get track index at Y position (for drag-drop)
     int getTrackIndexAtY(int y) const;
+
+    // Automation lane management
+    void showAutomationLane(TrackId trackId, AutomationLaneId laneId);
+    void hideAutomationLane(TrackId trackId, AutomationLaneId laneId);
+    void toggleAutomationLane(TrackId trackId, AutomationLaneId laneId);
+    bool isAutomationLaneVisible(TrackId trackId, AutomationLaneId laneId) const;
+    int getTrackTotalHeight(int trackIndex) const;  // Track + visible automation lanes
 
     // Time/pixel conversion (accounts for left padding)
     double pixelToTime(int pixel) const;
@@ -211,6 +226,19 @@ class TrackContentPanel : public juce::Component,
     void updateClipComponentPositions();
     void createClipFromTimeSelection();  // Called on double-click with selection
     ClipComponent* getClipComponentAt(int x, int y) const;
+
+    // Automation lane management
+    struct AutomationLaneEntry {
+        TrackId trackId = INVALID_TRACK_ID;
+        AutomationLaneId laneId = INVALID_AUTOMATION_LANE_ID;
+        std::unique_ptr<AutomationLaneComponent> component;
+    };
+    std::vector<AutomationLaneEntry> automationLaneComponents_;
+    std::unordered_map<TrackId, std::vector<AutomationLaneId>> visibleAutomationLanes_;
+
+    void rebuildAutomationLaneComponents();
+    void updateAutomationLanePositions();
+    int getVisibleAutomationLanesHeight(TrackId trackId) const;
 
     // ========================================================================
     // Marquee Selection State
