@@ -97,7 +97,7 @@ class TimeRuler : public juce::Component, private juce::Timer {
     double clipLength = 0.0;    // seconds - length of clip (0 = no boundary marker)
 
     // Layout
-    int leftPadding = 18;  // Configurable padding (default 18 for main timeline)
+    int leftPadding = 10;                      // Small content margin for label visibility
     juce::Viewport* linkedViewport = nullptr;  // For real-time scroll sync
     static constexpr int TICK_HEIGHT_MAJOR = 12;
     static constexpr int TICK_HEIGHT_MINOR = 6;

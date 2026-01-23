@@ -139,6 +139,10 @@ void MainView::setupComponents() {
     trackContentViewport->setScrollBarsShown(true, true);
     addAndMakeVisible(*trackContentViewport);
 
+    // Create Y-axis scale labels padding component
+    trackContentPadding = std::make_unique<TrackContentPaddingComponent>(trackContentPanel.get());
+    addAndMakeVisible(*trackContentPadding);
+
     // Create grid overlay component (vertical time grid lines - below selection and playhead)
     gridOverlay = std::make_unique<GridOverlayComponent>();
     gridOverlay->setController(timelineController.get());
@@ -482,6 +486,9 @@ void MainView::resized() {
     // Add padding space for the resize handle
     headerColumn.removeSpacing(timelineArea, layout.componentSpacing);
 
+    // Remove padding width from timeline so it aligns with track content
+    headerColumn.removeFrom(timelineArea, TrackContentPaddingComponent::PADDING_WIDTH);
+
     // Timeline takes the remaining width
     timelineViewport->setBounds(timelineArea);
 
@@ -491,6 +498,11 @@ void MainView::resized() {
 
     // Remove padding space between headers and content
     headerColumn.removeSpacing(bounds, layout.componentSpacing);
+
+    // Y-axis scale labels padding (between headers and content)
+    static constexpr int PADDING_WIDTH = TrackContentPaddingComponent::PADDING_WIDTH;
+    auto paddingArea = headerColumn.removeFrom(bounds, PADDING_WIDTH);
+    trackContentPadding->setBounds(paddingArea);
 
     // Track content viewport gets the remaining space
     trackContentViewport->setBounds(bounds);
@@ -528,7 +540,7 @@ void MainView::resized() {
 
         // Set initial zoom to show configurable duration on first resize
         if (!initialZoomSet) {
-            int availableWidth = viewportWidth - 18;  // Account for LEFT_PADDING
+            int availableWidth = viewportWidth - TimelineState::LEFT_PADDING;
 
             if (availableWidth > 0) {
                 auto& config = magda::Config::getInstance();
@@ -966,11 +978,11 @@ void MainView::PlayheadComponent::paint(juce::Graphics& g) {
     bool isPlaying = state.playhead.isPlaying;
 
     // Calculate edit cursor position in pixels (triangle position)
-    int editX = static_cast<int>(editPos * owner.horizontalZoom) + 18;
+    int editX = static_cast<int>(editPos * owner.horizontalZoom) + TimelineState::LEFT_PADDING;
     editX -= scrollOffset;
 
     // Calculate play cursor position in pixels (vertical line position)
-    int playX = static_cast<int>(playbackPos * owner.horizontalZoom) + 18;
+    int playX = static_cast<int>(playbackPos * owner.horizontalZoom) + TimelineState::LEFT_PADDING;
     playX -= scrollOffset;
 
     // Draw edit cursor (triangle) - always visible
@@ -1008,7 +1020,7 @@ void MainView::PlayheadComponent::mouseDown(const juce::MouseEvent& e) {
     double editPos = state.playhead.editPosition;
 
     // Calculate edit cursor (triangle) position in pixels
-    int editX = static_cast<int>(editPos * owner.horizontalZoom) + 18;
+    int editX = static_cast<int>(editPos * owner.horizontalZoom) + TimelineState::LEFT_PADDING;
 
     // Adjust for horizontal scroll offset
     int scrollOffset = owner.trackContentViewport->getViewPositionX();
@@ -1055,7 +1067,7 @@ void MainView::PlayheadComponent::mouseMove(const juce::MouseEvent& event) {
     double editPos = state.playhead.editPosition;
 
     // Calculate edit cursor (triangle) position in pixels
-    int editX = static_cast<int>(editPos * owner.horizontalZoom) + 18;
+    int editX = static_cast<int>(editPos * owner.horizontalZoom) + TimelineState::LEFT_PADDING;
 
     // Adjust for horizontal scroll offset
     int scrollOffset = owner.trackContentViewport->getViewPositionX();
@@ -1319,10 +1331,11 @@ void MainView::SelectionOverlayComponent::drawTimeSelection(juce::Graphics& g) {
         return;
     }
 
-    // Calculate pixel positions
-    // Add LEFT_PADDING (18) to align with timeline markers
-    int startX = static_cast<int>(state.selection.startTime * state.zoom.horizontalZoom) + 18;
-    int endX = static_cast<int>(state.selection.endTime * state.zoom.horizontalZoom) + 18;
+    // Calculate pixel positions using shared padding constant
+    int startX = static_cast<int>(state.selection.startTime * state.zoom.horizontalZoom) +
+                 TimelineState::LEFT_PADDING;
+    int endX = static_cast<int>(state.selection.endTime * state.zoom.horizontalZoom) +
+               TimelineState::LEFT_PADDING;
 
     // Adjust for scroll offset
     int scrollOffset = owner.trackContentViewport->getViewPositionX();
@@ -1401,9 +1414,11 @@ void MainView::SelectionOverlayComponent::drawLoopRegion(juce::Graphics& g) {
         return;
     }
 
-    // Calculate pixel positions
-    int startX = static_cast<int>(state.loop.startTime * state.zoom.horizontalZoom) + 18;
-    int endX = static_cast<int>(state.loop.endTime * state.zoom.horizontalZoom) + 18;
+    // Calculate pixel positions using shared padding constant
+    int startX = static_cast<int>(state.loop.startTime * state.zoom.horizontalZoom) +
+                 TimelineState::LEFT_PADDING;
+    int endX = static_cast<int>(state.loop.endTime * state.zoom.horizontalZoom) +
+               TimelineState::LEFT_PADDING;
 
     // Adjust for scroll offset
     int scrollOffset = owner.trackContentViewport->getViewPositionX();

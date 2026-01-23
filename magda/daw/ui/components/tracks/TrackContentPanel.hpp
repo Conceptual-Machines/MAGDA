@@ -104,6 +104,11 @@ class TrackContentPanel : public juce::Component,
     // Get track index at Y position (for drag-drop)
     int getTrackIndexAtY(int y) const;
 
+    // Get visible track IDs in display order
+    const std::vector<TrackId>& getVisibleTrackIds() const {
+        return visibleTrackIds_;
+    }
+
     // Automation lane management
     void showAutomationLane(TrackId trackId, AutomationLaneId laneId);
     void hideAutomationLane(TrackId trackId, AutomationLaneId laneId);
@@ -139,8 +144,8 @@ class TrackContentPanel : public juce::Component,
     // Controller reference (not owned)
     TimelineController* timelineController = nullptr;
 
-    // Layout constants
-    static constexpr int LEFT_PADDING = 18;  // Left padding to align with timeline
+    // Small content margin for label visibility
+    static constexpr int LEFT_PADDING = 10;
 
     struct TrackLane {
         bool selected = false;

@@ -192,8 +192,8 @@ struct TimelineState {
     std::vector<ArrangementSection> sections;
     int selectedSectionIndex = -1;
 
-    // Layout constant (shared across components)
-    static constexpr int LEFT_PADDING = 18;
+    // Layout constant (shared across components) - small content margin for label visibility
+    static constexpr int LEFT_PADDING = 10;
 
     // ===== Coordinate conversion helpers =====
 

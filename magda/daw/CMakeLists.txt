@@ -172,6 +172,7 @@ set(DAW_UI_SOURCES
     # Components - Tracks
     ui/components/tracks/TrackHeadersPanel.cpp
     ui/components/tracks/TrackContentPanel.cpp
+    ui/components/tracks/TrackContentPaddingComponent.cpp
     # Components - Clips
     ui/components/clips/ClipComponent.cpp
     # Components - Piano Roll
@@ -306,6 +307,7 @@ set(DAW_HEADERS
     # Components - Tracks
     ui/components/tracks/TrackHeadersPanel.hpp
     ui/components/tracks/TrackContentPanel.hpp
+    ui/components/tracks/TrackContentPaddingComponent.hpp
     # Components - Clips
     ui/components/clips/ClipComponent.hpp
     # Components - Piano Roll
