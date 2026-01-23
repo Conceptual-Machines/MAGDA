@@ -632,11 +632,13 @@ void RackComponent::onMacroClickedInternal(int macroIndex) {
 // === Virtual callbacks for page management ===
 
 void RackComponent::onModPageAddRequested(int /*itemsToAdd*/) {
-    magda::TrackManager::getInstance().addRackModPage(rackPath_);
+    // Page management is now handled entirely in ModsPanelComponent UI
+    // No need to modify data model - pages are just UI slots for adding mods
 }
 
 void RackComponent::onModPageRemoveRequested(int /*itemsToRemove*/) {
-    magda::TrackManager::getInstance().removeRackModPage(rackPath_);
+    // Page management is now handled entirely in ModsPanelComponent UI
+    // No need to modify data model - pages are just UI slots for adding mods
 }
 
 void RackComponent::onMacroPageAddRequested(int /*itemsToAdd*/) {

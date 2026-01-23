@@ -638,11 +638,13 @@ void DeviceSlotComponent::onAddModRequestedInternal(int slotIndex, magda::ModTyp
 }
 
 void DeviceSlotComponent::onModPageAddRequested(int /*itemsToAdd*/) {
-    magda::TrackManager::getInstance().addDeviceModPage(nodePath_);
+    // Page management is now handled entirely in ModsPanelComponent UI
+    // No need to modify data model - pages are just UI slots for adding mods
 }
 
 void DeviceSlotComponent::onModPageRemoveRequested(int /*itemsToRemove*/) {
-    magda::TrackManager::getInstance().removeDeviceModPage(nodePath_);
+    // Page management is now handled entirely in ModsPanelComponent UI
+    // No need to modify data model - pages are just UI slots for adding mods
 }
 
 void DeviceSlotComponent::onMacroPageAddRequested(int /*itemsToAdd*/) {
