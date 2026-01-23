@@ -1335,6 +1335,26 @@ void TrackManager::setRackMacroName(const ChainNodePath& rackPath, int macroInde
     }
 }
 
+void TrackManager::setRackMacroLinkAmount(const ChainNodePath& rackPath, int macroIndex,
+                                          MacroTarget target, float amount) {
+    if (auto* rack = getRackByPath(rackPath)) {
+        if (macroIndex < 0 || macroIndex >= static_cast<int>(rack->macros.size())) {
+            return;
+        }
+        // Update amount in links vector (or create link if it doesn't exist)
+        if (auto* link = rack->macros[macroIndex].getLink(target)) {
+            link->amount = amount;
+        } else {
+            // Link doesn't exist - create it
+            MacroLink newLink;
+            newLink.target = target;
+            newLink.amount = amount;
+            rack->macros[macroIndex].links.push_back(newLink);
+        }
+        // Don't notify - simple value change doesn't need UI rebuild
+    }
+}
+
 void TrackManager::addRackMacroPage(const ChainNodePath& rackPath) {
     if (auto* rack = getRackByPath(rackPath)) {
         addMacroPage(rack->macros);

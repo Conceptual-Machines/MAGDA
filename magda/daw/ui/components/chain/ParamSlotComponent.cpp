@@ -712,26 +712,39 @@ void ParamSlotComponent::paintModulationIndicators(juce::Graphics& g) {
         }
 
         // Draw MACRO amount line at TOP+4 - only for the ACTIVE macro in link mode
-        if (activeMacro_.isValid() && availableMacros_ && activeMacro_.macroIndex >= 0 &&
-            activeMacro_.macroIndex < static_cast<int>(availableMacros_->size())) {
+        if (activeMacro_.isValid() && activeMacro_.macroIndex >= 0) {
             int y = sliderBounds.getY() + 6;  // Offset below movement line
-            const auto& macro = (*availableMacros_)[static_cast<size_t>(activeMacro_.macroIndex)];
             magda::MacroTarget thisTarget{deviceId_, paramIndex_};
+            const magda::MacroInfo* macro = nullptr;
 
-            if (const auto* link = macro.getLink(thisTarget)) {
-                float linkAmount = link->amount;  // Max modulation range (amount)
-                int barWidth = juce::jmax(1, static_cast<int>(maxWidth * linkAmount));
+            // Check if active macro is from device-level or rack-level
+            // Compare the active macro's parent path with this device's path
+            if (activeMacro_.parentPath == devicePath_ && availableMacros_ &&
+                activeMacro_.macroIndex < static_cast<int>(availableMacros_->size())) {
+                // Device-level macro
+                macro = &(*availableMacros_)[static_cast<size_t>(activeMacro_.macroIndex)];
+            } else if (availableRackMacros_ &&
+                       activeMacro_.macroIndex < static_cast<int>(availableRackMacros_->size())) {
+                // Rack-level macro
+                macro = &(*availableRackMacros_)[static_cast<size_t>(activeMacro_.macroIndex)];
+            }
 
-                DBG("MACRO AMOUNT BAR: linkAmount=" << linkAmount << " maxWidth=" << maxWidth
-                                                    << " barWidth=" << barWidth);
-                DBG("  Drawing rect: x=" << leftX << " y=" << y << " width=" << barWidth
-                                         << " height=" << barHeight);
+            if (macro) {
+                if (const auto* link = macro->getLink(thisTarget)) {
+                    float linkAmount = link->amount;  // Max modulation range (amount)
+                    int barWidth = juce::jmax(1, static_cast<int>(maxWidth * linkAmount));
 
-                // Brighter purple for link mode (editing amount)
-                g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_PURPLE).withAlpha(0.9f));
-                g.fillRoundedRectangle(static_cast<float>(leftX), static_cast<float>(y),
-                                       static_cast<float>(barWidth), static_cast<float>(barHeight),
-                                       1.0f);
+                    DBG("MACRO AMOUNT BAR: linkAmount=" << linkAmount << " maxWidth=" << maxWidth
+                                                        << " barWidth=" << barWidth);
+                    DBG("  Drawing rect: x=" << leftX << " y=" << y << " width=" << barWidth
+                                             << " height=" << barHeight);
+
+                    // Brighter purple for link mode (editing amount)
+                    g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_PURPLE).withAlpha(0.9f));
+                    g.fillRoundedRectangle(static_cast<float>(leftX), static_cast<float>(y),
+                                           static_cast<float>(barWidth),
+                                           static_cast<float>(barHeight), 1.0f);
+                }
             }
         }
 
@@ -757,15 +770,37 @@ void ParamSlotComponent::paintModulationIndicators(juce::Graphics& g) {
 
         // Calculate TOTAL macro modulation output (sum of all linked macros)
         float totalMacroModulation = 0.0f;
+        magda::MacroTarget thisTarget{deviceId_, paramIndex_};
+
+        DBG("paintModulationIndicators param=" << paramIndex_ << " deviceId=" << deviceId_);
+        DBG("  availableMacros_=" << (availableMacros_ ? "yes" : "null") << " availableRackMacros_="
+                                  << (availableRackMacros_ ? "yes" : "null"));
+
+        // Check device-level macros
         if (availableMacros_ && deviceId_ != magda::INVALID_DEVICE_ID) {
-            magda::MacroTarget thisTarget{deviceId_, paramIndex_};
             for (size_t i = 0; i < availableMacros_->size(); ++i) {
                 const auto& macro = (*availableMacros_)[i];
                 if (const auto* link = macro.getLink(thisTarget)) {
+                    DBG("  Device macro " << i << ": value=" << macro.value
+                                          << " amount=" << link->amount);
                     totalMacroModulation += macro.value * link->amount;
                 }
             }
         }
+
+        // Check rack-level macros
+        if (availableRackMacros_ && deviceId_ != magda::INVALID_DEVICE_ID) {
+            for (size_t i = 0; i < availableRackMacros_->size(); ++i) {
+                const auto& macro = (*availableRackMacros_)[i];
+                if (const auto* link = macro.getLink(thisTarget)) {
+                    DBG("  Rack macro " << i << ": value=" << macro.value
+                                        << " amount=" << link->amount);
+                    totalMacroModulation += macro.value * link->amount;
+                }
+            }
+        }
+
+        DBG("  totalMacroModulation=" << totalMacroModulation);
 
         // Draw MACRO movement line (purple) at TOP if any macro modulation exists
         if (totalMacroModulation > 0.0f) {

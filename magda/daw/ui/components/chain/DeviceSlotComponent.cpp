@@ -224,30 +224,47 @@ DeviceSlotComponent::DeviceSlotComponent(const magda::DeviceInfo& device) : devi
         };
         paramSlots_[i]->onMacroLinkedWithAmount = [this](int macroIndex, magda::MacroTarget target,
                                                          float amount) {
-            magda::TrackManager::getInstance().setDeviceMacroTarget(nodePath_, macroIndex, target);
-            magda::TrackManager::getInstance().setDeviceMacroLinkAmount(nodePath_, macroIndex,
-                                                                        target, amount);
-            updateParamModulation();
-            updateMacroPanel();  // Refresh macro knobs with new link data
-
-            // Auto-expand macros panel and select the linked macro
-            // BUT only if this device's macro is in link mode (not a parent rack's macro)
+            // Check if the active macro is from this device or a parent rack
             auto activeMacroSelection = magda::LinkModeManager::getInstance().getMacroInLinkMode();
             if (activeMacroSelection.isValid() && activeMacroSelection.parentPath == nodePath_) {
+                // Device-level macro
+                magda::TrackManager::getInstance().setDeviceMacroTarget(nodePath_, macroIndex,
+                                                                        target);
+                magda::TrackManager::getInstance().setDeviceMacroLinkAmount(nodePath_, macroIndex,
+                                                                            target, amount);
+                updateMacroPanel();  // Refresh macro knobs with new link data
+
+                // Auto-expand macros panel and select the linked macro
                 if (!paramPanelVisible_) {
                     macroButton_->setToggleState(true, juce::dontSendNotification);
                     macroButton_->setActive(true);
                     setParamPanelVisible(true);
                 }
                 magda::SelectionManager::getInstance().selectMacro(nodePath_, macroIndex);
+            } else if (activeMacroSelection.isValid()) {
+                // Rack-level macro (use the parent path from the active selection)
+                magda::TrackManager::getInstance().setRackMacroTarget(
+                    activeMacroSelection.parentPath, macroIndex, target);
+                magda::TrackManager::getInstance().setRackMacroLinkAmount(
+                    activeMacroSelection.parentPath, macroIndex, target, amount);
             }
+            updateParamModulation();
         };
         paramSlots_[i]->onMacroAmountChanged = [this](int macroIndex, magda::MacroTarget target,
                                                       float amount) {
-            magda::TrackManager::getInstance().setDeviceMacroLinkAmount(nodePath_, macroIndex,
-                                                                        target, amount);
+            // Check if the active macro is from this device or a parent rack
+            auto activeMacroSelection = magda::LinkModeManager::getInstance().getMacroInLinkMode();
+            if (activeMacroSelection.isValid() && activeMacroSelection.parentPath == nodePath_) {
+                // Device-level macro
+                magda::TrackManager::getInstance().setDeviceMacroLinkAmount(nodePath_, macroIndex,
+                                                                            target, amount);
+                updateMacroPanel();  // Refresh macro knob to show new amount
+            } else if (activeMacroSelection.isValid()) {
+                // Rack-level macro (use the parent path from the active selection)
+                magda::TrackManager::getInstance().setRackMacroLinkAmount(
+                    activeMacroSelection.parentPath, macroIndex, target, amount);
+            }
             updateParamModulation();
-            updateMacroPanel();  // Refresh macro knob to show new amount
         };
         paramSlots_[i]->onMacroValueChanged = [this](int macroIndex, float value) {
             // Update macro's global value (shown on macro knob)
@@ -298,6 +315,18 @@ void DeviceSlotComponent::updateParamModulation() {
     const auto* mods = getModsData();
     const auto* macros = getMacrosData();
 
+    // Get rack-level macros from parent rack
+    const magda::MacroArray* rackMacros = nullptr;
+    // Build rack path by taking only the rack step (first step should be the rack)
+    if (!nodePath_.steps.empty() && nodePath_.steps[0].type == magda::ChainStepType::Rack) {
+        magda::ChainNodePath rackPath;
+        rackPath.trackId = nodePath_.trackId;
+        rackPath.steps.push_back(nodePath_.steps[0]);  // Just the rack step
+        if (auto* rack = magda::TrackManager::getInstance().getRackByPath(rackPath)) {
+            rackMacros = &rack->macros;
+        }
+    }
+
     // Check if a mod is selected in SelectionManager for contextual display
     auto& selMgr = magda::SelectionManager::getInstance();
     int selectedModIndex = -1;
@@ -325,6 +354,7 @@ void DeviceSlotComponent::updateParamModulation() {
         paramSlots_[i]->setDevicePath(nodePath_);  // For param selection
         paramSlots_[i]->setAvailableMods(mods);
         paramSlots_[i]->setAvailableMacros(macros);
+        paramSlots_[i]->setAvailableRackMacros(rackMacros);  // Pass rack-level macros
         paramSlots_[i]->setSelectedModIndex(selectedModIndex);
         paramSlots_[i]->setSelectedMacroIndex(selectedMacroIndex);
         paramSlots_[i]->repaint();
@@ -514,7 +544,19 @@ void DeviceSlotComponent::onMacroValueChangedInternal(int macroIndex, float valu
 }
 
 void DeviceSlotComponent::onMacroTargetChangedInternal(int macroIndex, magda::MacroTarget target) {
-    magda::TrackManager::getInstance().setDeviceMacroTarget(nodePath_, macroIndex, target);
+    // Check if the active macro is from this device or a parent rack
+    auto activeMacroSelection = magda::LinkModeManager::getInstance().getMacroInLinkMode();
+    if (activeMacroSelection.isValid() && activeMacroSelection.parentPath == nodePath_) {
+        // Device-level macro
+        magda::TrackManager::getInstance().setDeviceMacroTarget(nodePath_, macroIndex, target);
+    } else if (activeMacroSelection.isValid()) {
+        // Rack-level macro
+        magda::TrackManager::getInstance().setRackMacroTarget(activeMacroSelection.parentPath,
+                                                              macroIndex, target);
+    } else {
+        // No active link mode - default to device level (for menu-based linking)
+        magda::TrackManager::getInstance().setDeviceMacroTarget(nodePath_, macroIndex, target);
+    }
     updateParamModulation();  // Refresh param indicators
 }
 

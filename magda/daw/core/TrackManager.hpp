@@ -176,6 +176,8 @@ class TrackManager {
     // Macro management for racks (path-based for nested rack support)
     void setRackMacroValue(const ChainNodePath& rackPath, int macroIndex, float value);
     void setRackMacroTarget(const ChainNodePath& rackPath, int macroIndex, MacroTarget target);
+    void setRackMacroLinkAmount(const ChainNodePath& rackPath, int macroIndex, MacroTarget target,
+                                float amount);
     void setRackMacroName(const ChainNodePath& rackPath, int macroIndex, const juce::String& name);
     void addRackMacroPage(const ChainNodePath& rackPath);
     void removeRackMacroPage(const ChainNodePath& rackPath);
