@@ -170,6 +170,17 @@ bool AutomationLaneComponent::isInResizeArea(int y) const {
     return y >= getHeight() - RESIZE_HANDLE_HEIGHT;
 }
 
+bool AutomationLaneComponent::hitTest(int x, int y) {
+    juce::ignoreUnused(x);
+    // Always handle resize area at the bottom - prevent child components from receiving these
+    // clicks
+    if (isInResizeArea(y)) {
+        return true;
+    }
+    // For other areas, use default behavior (let children handle if they're there)
+    return Component::hitTest(x, y);
+}
+
 juce::Rectangle<int> AutomationLaneComponent::getResizeHandleArea() const {
     return juce::Rectangle<int>(0, getHeight() - RESIZE_HANDLE_HEIGHT, getWidth(),
                                 RESIZE_HANDLE_HEIGHT);
@@ -292,7 +303,7 @@ void AutomationLaneComponent::rebuildClipComponents() {
 void AutomationLaneComponent::updateClipPositions() {
     auto& manager = AutomationManager::getInstance();
     int contentY = HEADER_HEIGHT;
-    int contentHeight = getHeight() - HEADER_HEIGHT;
+    int contentHeight = getHeight() - HEADER_HEIGHT - RESIZE_HANDLE_HEIGHT;
 
     for (auto& cc : clipComponents_) {
         const auto* clip = manager.getClip(cc->getClipId());
@@ -301,7 +312,7 @@ void AutomationLaneComponent::updateClipPositions() {
 
         int x = static_cast<int>(clip->startTime * pixelsPerSecond_);
         int width = static_cast<int>(clip->length * pixelsPerSecond_);
-        cc->setBounds(x, contentY, juce::jmax(10, width), contentHeight);
+        cc->setBounds(x, contentY, juce::jmax(10, width), juce::jmax(10, contentHeight));
     }
 }
 

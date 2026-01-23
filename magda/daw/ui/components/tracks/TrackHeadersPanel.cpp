@@ -595,9 +595,10 @@ int TrackHeadersPanel::getVisibleAutomationLanesHeight(TrackId trackId) const {
         for (auto laneId : it->second) {
             const auto* lane = manager.getLane(laneId);
             if (lane && lane->visible) {
-                // Apply vertical zoom to automation lane height (but not header)
+                // Apply vertical zoom to automation lane height (header + content + resize handle)
                 int laneHeight = lane->expanded ? (AutomationLaneComponent::HEADER_HEIGHT +
-                                                   static_cast<int>(lane->height * verticalZoom))
+                                                   static_cast<int>(lane->height * verticalZoom) +
+                                                   AutomationLaneComponent::RESIZE_HANDLE_HEIGHT)
                                                 : AutomationLaneComponent::HEADER_HEIGHT;
                 totalHeight += laneHeight;
             }

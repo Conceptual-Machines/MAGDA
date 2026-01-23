@@ -36,6 +36,7 @@ class AutomationLaneComponent : public juce::Component,
     void mouseDrag(const juce::MouseEvent& e) override;
     void mouseUp(const juce::MouseEvent& e) override;
     void mouseMove(const juce::MouseEvent& e) override;
+    bool hitTest(int x, int y) override;
 
     // AutomationManagerListener
     void automationLanesChanged() override;
