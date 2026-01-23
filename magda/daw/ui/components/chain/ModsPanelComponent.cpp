@@ -213,8 +213,8 @@ void ModsPanelComponent::paint(juce::Graphics& g) {
     int itemWidth = (bounds.getWidth() - GRID_SPACING) / GRID_COLUMNS;
     int itemHeight = (bounds.getHeight() - (rows - 1) * GRID_SPACING) / rows;
 
-    // Draw subtle grid cell outlines for all slots
-    g.setColour(DarkTheme::getColour(DarkTheme::BORDER).withAlpha(0.2f));
+    // Draw grid cell outlines for all slots
+    g.setColour(DarkTheme::getColour(DarkTheme::BORDER).withAlpha(0.5f));
 
     for (int i = 0; i < visibleCount; ++i) {
         int col = i % GRID_COLUMNS;
