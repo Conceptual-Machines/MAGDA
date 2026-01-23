@@ -116,6 +116,12 @@ void AutomationLaneComponent::mouseDown(const juce::MouseEvent& e) {
         return;
     }
 
+    // Right-click on header shows context menu
+    if (e.y < HEADER_HEIGHT && e.mods.isPopupMenu()) {
+        showContextMenu();
+        return;
+    }
+
     // Click on header selects lane
     if (e.y < HEADER_HEIGHT) {
         SelectionManager::getInstance().selectAutomationLane(laneId_);
@@ -305,6 +311,25 @@ void AutomationLaneComponent::syncSelectionState() {
     if (wasSelected != isSelected_) {
         repaint();
     }
+}
+
+void AutomationLaneComponent::showContextMenu() {
+    juce::PopupMenu menu;
+
+    // Hide Lane option
+    menu.addItem(1, "Hide Lane");
+
+    // Show menu
+    auto options = juce::PopupMenu::Options().withTargetComponent(this);
+
+    auto laneId = laneId_;  // Capture for lambda
+    menu.showMenuAsync(options, [laneId](int result) {
+        if (result == 1) {
+            // Defer to avoid destroying component during callback
+            juce::MessageManager::callAsync(
+                [laneId]() { AutomationManager::getInstance().setLaneVisible(laneId, false); });
+        }
+    });
 }
 
 }  // namespace magda

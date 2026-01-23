@@ -521,44 +521,35 @@ double AutomationManager::interpolatePoints(const std::vector<AutomationPoint>& 
 // ============================================================================
 
 void AutomationManager::addListener(AutomationManagerListener* listener) {
-    if (listener && std::find(listeners_.begin(), listeners_.end(), listener) == listeners_.end()) {
-        listeners_.push_back(listener);
-    }
+    listeners_.add(listener);
 }
 
 void AutomationManager::removeListener(AutomationManagerListener* listener) {
-    listeners_.erase(std::remove(listeners_.begin(), listeners_.end(), listener), listeners_.end());
+    listeners_.remove(listener);
 }
 
 void AutomationManager::notifyLanesChanged() {
-    for (auto* listener : listeners_) {
-        listener->automationLanesChanged();
-    }
+    listeners_.call([](AutomationManagerListener& l) { l.automationLanesChanged(); });
 }
 
 void AutomationManager::notifyLanePropertyChanged(AutomationLaneId laneId) {
-    for (auto* listener : listeners_) {
-        listener->automationLanePropertyChanged(laneId);
-    }
+    listeners_.call(
+        [laneId](AutomationManagerListener& l) { l.automationLanePropertyChanged(laneId); });
 }
 
 void AutomationManager::notifyClipsChanged(AutomationLaneId laneId) {
-    for (auto* listener : listeners_) {
-        listener->automationClipsChanged(laneId);
-    }
+    listeners_.call([laneId](AutomationManagerListener& l) { l.automationClipsChanged(laneId); });
 }
 
 void AutomationManager::notifyPointsChanged(AutomationLaneId laneId) {
-    for (auto* listener : listeners_) {
-        listener->automationPointsChanged(laneId);
-    }
+    listeners_.call([laneId](AutomationManagerListener& l) { l.automationPointsChanged(laneId); });
 }
 
 void AutomationManager::notifyPointDragPreview(AutomationLaneId laneId, AutomationPointId pointId,
                                                double previewTime, double previewValue) {
-    for (auto* listener : listeners_) {
-        listener->automationPointDragPreview(laneId, pointId, previewTime, previewValue);
-    }
+    listeners_.call([laneId, pointId, previewTime, previewValue](AutomationManagerListener& l) {
+        l.automationPointDragPreview(laneId, pointId, previewTime, previewValue);
+    });
 }
 
 // ============================================================================

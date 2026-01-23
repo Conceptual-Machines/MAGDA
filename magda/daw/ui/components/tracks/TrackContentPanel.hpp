@@ -236,6 +236,7 @@ class TrackContentPanel : public juce::Component,
     std::vector<AutomationLaneEntry> automationLaneComponents_;
     std::unordered_map<TrackId, std::vector<AutomationLaneId>> visibleAutomationLanes_;
 
+    void syncAutomationLaneVisibility();
     void rebuildAutomationLaneComponents();
     void updateAutomationLanePositions();
     int getVisibleAutomationLanesHeight(TrackId trackId) const;

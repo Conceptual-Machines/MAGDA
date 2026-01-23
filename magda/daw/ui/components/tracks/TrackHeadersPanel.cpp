@@ -1657,11 +1657,11 @@ void TrackHeadersPanel::showAutomationMenu(TrackId trackId, juce::Component* rel
             AutomationLaneId laneId = result - 1000;
             const auto* lane = automationManager.getLane(laneId);
             if (lane) {
-                automationManager.setLaneVisible(laneId, !lane->visible);
-                // Notify the TrackContentPanel to show/hide the lane
-                if (onShowAutomationLane) {
-                    onShowAutomationLane(trackId, laneId);
-                }
+                bool newVisible = !lane->visible;
+                // Defer visibility change to avoid destroying listeners during notification loop
+                juce::MessageManager::callAsync([laneId, newVisible]() {
+                    AutomationManager::getInstance().setLaneVisible(laneId, newVisible);
+                });
             }
         } else if (result == 1) {
             // Create track volume automation lane

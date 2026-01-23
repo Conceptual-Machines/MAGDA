@@ -1759,42 +1759,48 @@ bool TrackContentPanel::keyPressed(const juce::KeyPress& key) {
 // AutomationManagerListener Implementation
 // ============================================================================
 
+void TrackContentPanel::syncAutomationLaneVisibility() {
+    visibleAutomationLanes_.clear();
+
+    auto& manager = AutomationManager::getInstance();
+
+    for (auto trackId : visibleTrackIds_) {
+        auto laneIds = manager.getLanesForTrack(trackId);
+        for (auto laneId : laneIds) {
+            const auto* lane = manager.getLane(laneId);
+            if (lane && lane->visible) {
+                visibleAutomationLanes_[trackId].push_back(laneId);
+            }
+        }
+    }
+}
+
 void TrackContentPanel::automationLanesChanged() {
+    syncAutomationLaneVisibility();
     rebuildAutomationLaneComponents();
+    updateClipComponentPositions();
     resized();
     repaint();
 }
 
-void TrackContentPanel::automationLanePropertyChanged(AutomationLaneId laneId) {
-    auto& manager = AutomationManager::getInstance();
-    const auto* lane = manager.getLane(laneId);
-    if (!lane)
-        return;
+void TrackContentPanel::automationLanePropertyChanged(AutomationLaneId /*laneId*/) {
+    // Check if visibility changed by comparing with current state
+    auto oldVisibleLanes = visibleAutomationLanes_;
+    syncAutomationLaneVisibility();
 
-    // Check if visibility changed - if lane is now invisible, remove it
-    if (!lane->visible) {
-        // Find and remove from our visible lanes map
-        for (auto& [trackId, laneIds] : visibleAutomationLanes_) {
-            auto it = std::find(laneIds.begin(), laneIds.end(), laneId);
-            if (it != laneIds.end()) {
-                laneIds.erase(it);
-                if (laneIds.empty()) {
-                    visibleAutomationLanes_.erase(trackId);
-                }
-                rebuildAutomationLaneComponents();
-                resized();
-                repaint();
-                return;
-            }
-        }
+    bool visibilityChanged = (oldVisibleLanes != visibleAutomationLanes_);
+
+    if (visibilityChanged) {
+        // Visibility changed - need to rebuild components
+        rebuildAutomationLaneComponents();
+    } else {
+        // Just a property change (like height) - update positions only
+        updateAutomationLanePositions();
     }
 
-    // For other property changes, just repaint the component
-    for (auto& entry : automationLaneComponents_) {
-        if (entry.laneId == laneId && entry.component) {
-            entry.component->repaint();
-        }
-    }
+    updateClipComponentPositions();
+    resized();
+    repaint();
 }
 
 // ============================================================================
@@ -1802,34 +1808,15 @@ void TrackContentPanel::automationLanePropertyChanged(AutomationLaneId laneId) {
 // ============================================================================
 
 void TrackContentPanel::showAutomationLane(TrackId trackId, AutomationLaneId laneId) {
-    // Set visibility through AutomationManager (this will trigger automationLanePropertyChanged)
+    juce::ignoreUnused(trackId);
+    // Set visibility through AutomationManager - listener will sync and rebuild
     AutomationManager::getInstance().setLaneVisible(laneId, true);
-
-    // Add to visible lanes if not already there
-    auto& lanes = visibleAutomationLanes_[trackId];
-    if (std::find(lanes.begin(), lanes.end(), laneId) == lanes.end()) {
-        lanes.push_back(laneId);
-        rebuildAutomationLaneComponents();
-        resized();
-        repaint();
-    }
 }
 
 void TrackContentPanel::hideAutomationLane(TrackId trackId, AutomationLaneId laneId) {
-    // Set visibility through AutomationManager (this will trigger automationLanePropertyChanged)
+    juce::ignoreUnused(trackId);
+    // Set visibility through AutomationManager - listener will sync and rebuild
     AutomationManager::getInstance().setLaneVisible(laneId, false);
-
-    auto it = visibleAutomationLanes_.find(trackId);
-    if (it != visibleAutomationLanes_.end()) {
-        auto& lanes = it->second;
-        lanes.erase(std::remove(lanes.begin(), lanes.end(), laneId), lanes.end());
-        if (lanes.empty()) {
-            visibleAutomationLanes_.erase(it);
-        }
-        rebuildAutomationLaneComponents();
-        resized();
-        repaint();
-    }
 }
 
 void TrackContentPanel::toggleAutomationLane(TrackId trackId, AutomationLaneId laneId) {
@@ -1920,6 +1907,7 @@ void TrackContentPanel::rebuildAutomationLaneComponents() {
                                                       int /*newHeight*/) {
                 // Update layout when automation lane is resized
                 updateAutomationLanePositions();
+                updateClipComponentPositions();
                 resized();
                 repaint();
             };

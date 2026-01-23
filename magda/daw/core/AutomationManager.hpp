@@ -1,5 +1,7 @@
 #pragma once
 
+#include <juce_events/juce_events.h>
+
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -260,7 +262,7 @@ class AutomationManager {
 
     std::vector<AutomationLaneInfo> lanes_;
     std::vector<AutomationClipInfo> clips_;
-    std::vector<AutomationManagerListener*> listeners_;
+    juce::ListenerList<AutomationManagerListener> listeners_;
 
     int nextLaneId_ = 1;
     int nextClipId_ = 1;

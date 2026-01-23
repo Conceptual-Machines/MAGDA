@@ -44,6 +44,8 @@ class AutomationCurveEditor : public juce::Component,
     void automationLanesChanged() override;
     void automationLanePropertyChanged(AutomationLaneId laneId) override;
     void automationPointsChanged(AutomationLaneId laneId) override;
+    void automationPointDragPreview(AutomationLaneId laneId, AutomationPointId pointId,
+                                    double previewTime, double previewValue) override;
 
     // SelectionManagerListener
     void selectionTypeChanged(SelectionType newType) override;
@@ -108,6 +110,11 @@ class AutomationCurveEditor : public juce::Component,
     bool isDrawing_ = false;
     std::vector<juce::Point<int>> drawingPath_;
     juce::Point<int> lineStartPoint_;
+
+    // Drag preview state
+    AutomationPointId previewPointId_ = INVALID_AUTOMATION_POINT_ID;
+    double previewTime_ = 0.0;
+    double previewValue_ = 0.0;
 
     // Rebuild
     void rebuildPointComponents();

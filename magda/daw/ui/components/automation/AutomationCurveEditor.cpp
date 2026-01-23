@@ -56,14 +56,23 @@ void AutomationCurveEditor::paintCurve(juce::Graphics& g) {
     if (points.empty())
         return;
 
+    // Helper to get effective position (preview or actual)
+    auto getEffectivePos = [this](const AutomationPoint& p) -> std::pair<double, double> {
+        if (previewPointId_ != INVALID_AUTOMATION_POINT_ID && p.id == previewPointId_) {
+            return {previewTime_, previewValue_};
+        }
+        return {p.time, p.value};
+    };
+
     // Create path for curve
     juce::Path curvePath;
     bool pathStarted = false;
 
     // Draw from left edge to first point
     if (!points.empty()) {
-        int firstX = timeToPixel(points.front().time);
-        int firstY = valueToPixel(points.front().value);
+        auto [firstTime, firstValue] = getEffectivePos(points.front());
+        int firstX = timeToPixel(firstTime);
+        int firstY = valueToPixel(firstValue);
 
         if (firstX > 0) {
             // Draw horizontal line from left edge at first point's value
@@ -76,8 +85,9 @@ void AutomationCurveEditor::paintCurve(juce::Graphics& g) {
     // Draw between points
     for (size_t i = 0; i < points.size(); ++i) {
         const auto& p = points[i];
-        int x = timeToPixel(p.time);
-        int y = valueToPixel(p.value);
+        auto [time, value] = getEffectivePos(p);
+        int x = timeToPixel(time);
+        int y = valueToPixel(value);
 
         if (!pathStarted) {
             curvePath.startNewSubPath(static_cast<float>(x), static_cast<float>(y));
@@ -91,9 +101,10 @@ void AutomationCurveEditor::paintCurve(juce::Graphics& g) {
                     break;
 
                 case AutomationCurveType::Bezier: {
-                    // Calculate control points
-                    int prevX = timeToPixel(prevP.time);
-                    int prevY = valueToPixel(prevP.value);
+                    // Calculate control points using effective positions
+                    auto [prevTime, prevValue] = getEffectivePos(prevP);
+                    int prevX = timeToPixel(prevTime);
+                    int prevY = valueToPixel(prevValue);
 
                     float cp1X =
                         prevX + static_cast<float>(prevP.outHandle.time * pixelsPerSecond_);
@@ -118,7 +129,9 @@ void AutomationCurveEditor::paintCurve(juce::Graphics& g) {
 
     // Draw from last point to right edge
     if (!points.empty()) {
-        int lastY = valueToPixel(points.back().value);
+        auto [lastTime, lastValue] = getEffectivePos(points.back());
+        juce::ignoreUnused(lastTime);
+        int lastY = valueToPixel(lastValue);
         int width = getWidth();
         curvePath.lineTo(static_cast<float>(width), static_cast<float>(lastY));
     }
@@ -268,8 +281,33 @@ void AutomationCurveEditor::automationLanePropertyChanged(AutomationLaneId laneI
 
 void AutomationCurveEditor::automationPointsChanged(AutomationLaneId laneId) {
     if (laneId == laneId_) {
+        // Clear preview when points are committed
+        previewPointId_ = INVALID_AUTOMATION_POINT_ID;
         rebuildPointComponents();
     }
+}
+
+void AutomationCurveEditor::automationPointDragPreview(AutomationLaneId laneId,
+                                                       AutomationPointId pointId,
+                                                       double previewTime, double previewValue) {
+    if (laneId != laneId_)
+        return;
+
+    previewPointId_ = pointId;
+    previewTime_ = previewTime;
+    previewValue_ = previewValue;
+
+    // Update the point component position for visual feedback
+    for (auto& pc : pointComponents_) {
+        if (pc->getPointId() == pointId) {
+            int x = timeToPixel(previewTime);
+            int y = valueToPixel(previewValue);
+            pc->setCentrePosition(x, y);
+            break;
+        }
+    }
+
+    repaint();
 }
 
 // SelectionManagerListener

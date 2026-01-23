@@ -95,6 +95,7 @@ class AutomationLaneComponent : public juce::Component,
     void rebuildClipComponents();
     void updateClipPositions();
     void syncSelectionState();
+    void showContextMenu();
 
     // Get lane info
     const AutomationLaneInfo* getLaneInfo() const;
