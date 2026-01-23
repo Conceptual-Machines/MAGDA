@@ -95,7 +95,7 @@ class ModKnobComponent : public juce::Component, public magda::LinkModeManagerLi
 
     static constexpr int NAME_LABEL_HEIGHT = 11;
     static constexpr int AMOUNT_SLIDER_HEIGHT = 14;
-    static constexpr int LINK_BUTTON_HEIGHT = 16;
+    static constexpr int LINK_BUTTON_HEIGHT = 12;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ModKnobComponent)
 };

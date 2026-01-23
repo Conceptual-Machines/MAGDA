@@ -476,7 +476,13 @@ void RackComponent::onAddChainClicked() {
         DBG("  step[" << i << "]: type=" << static_cast<int>(rackPath_.steps[i].type)
                       << ", id=" << rackPath_.steps[i].id);
     }
-    magda::TrackManager::getInstance().addChainToRack(rackPath_);
+    auto newChainId = magda::TrackManager::getInstance().addChainToRack(rackPath_);
+
+    // Auto-select the newly created chain
+    if (newChainId != magda::INVALID_CHAIN_ID) {
+        auto newChainPath = rackPath_.withChain(newChainId);
+        magda::SelectionManager::getInstance().selectChainNode(newChainPath);
+    }
 }
 
 void RackComponent::showChainPanel(magda::ChainId chainId) {
