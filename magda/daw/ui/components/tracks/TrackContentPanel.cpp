@@ -1766,7 +1766,30 @@ void TrackContentPanel::automationLanesChanged() {
 }
 
 void TrackContentPanel::automationLanePropertyChanged(AutomationLaneId laneId) {
-    // Find and update the specific lane component
+    auto& manager = AutomationManager::getInstance();
+    const auto* lane = manager.getLane(laneId);
+    if (!lane)
+        return;
+
+    // Check if visibility changed - if lane is now invisible, remove it
+    if (!lane->visible) {
+        // Find and remove from our visible lanes map
+        for (auto& [trackId, laneIds] : visibleAutomationLanes_) {
+            auto it = std::find(laneIds.begin(), laneIds.end(), laneId);
+            if (it != laneIds.end()) {
+                laneIds.erase(it);
+                if (laneIds.empty()) {
+                    visibleAutomationLanes_.erase(trackId);
+                }
+                rebuildAutomationLaneComponents();
+                resized();
+                repaint();
+                return;
+            }
+        }
+    }
+
+    // For other property changes, just repaint the component
     for (auto& entry : automationLaneComponents_) {
         if (entry.laneId == laneId && entry.component) {
             entry.component->repaint();
