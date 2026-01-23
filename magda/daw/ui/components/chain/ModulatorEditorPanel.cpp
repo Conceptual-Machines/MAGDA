@@ -3,6 +3,7 @@
 #include "ui/themes/DarkTheme.hpp"
 #include "ui/themes/FontManager.hpp"
 #include "ui/themes/SmallButtonLookAndFeel.hpp"
+#include "ui/themes/SmallComboBoxLookAndFeel.hpp"
 
 namespace magda::daw::ui {
 
@@ -29,6 +30,7 @@ ModulatorEditorPanel::ModulatorEditorPanel() {
     typeSelector_.setColour(juce::ComboBox::outlineColourId,
                             DarkTheme::getColour(DarkTheme::BORDER));
     typeSelector_.setJustificationType(juce::Justification::centredLeft);
+    typeSelector_.setLookAndFeel(&SmallComboBoxLookAndFeel::getInstance());
     typeSelector_.onChange = [this]() {
         int id = typeSelector_.getSelectedId();
         if (id > 0 && onTypeChanged) {
@@ -50,6 +52,7 @@ ModulatorEditorPanel::ModulatorEditorPanel() {
     waveformCombo_.setColour(juce::ComboBox::outlineColourId,
                              DarkTheme::getColour(DarkTheme::BORDER));
     waveformCombo_.setJustificationType(juce::Justification::centredLeft);
+    waveformCombo_.setLookAndFeel(&SmallComboBoxLookAndFeel::getInstance());
     waveformCombo_.onChange = [this]() {
         int id = waveformCombo_.getSelectedId();
         if (id > 0 && onWaveformChanged) {
@@ -76,7 +79,7 @@ ModulatorEditorPanel::ModulatorEditorPanel() {
     addAndMakeVisible(phaseSlider_);
 
     // Sync toggle button (small square button style)
-    syncToggle_.setButtonText("Sync");
+    syncToggle_.setButtonText("Free");
     syncToggle_.setColour(juce::TextButton::buttonColourId,
                           DarkTheme::getColour(DarkTheme::SURFACE));
     syncToggle_.setColour(juce::TextButton::buttonOnColourId,
@@ -89,6 +92,8 @@ ModulatorEditorPanel::ModulatorEditorPanel() {
     syncToggle_.onClick = [this]() {
         bool synced = syncToggle_.getToggleState();
         currentMod_.tempoSync = synced;
+        // Update button text
+        syncToggle_.setButtonText(synced ? "Sync" : "Free");
         // Show/hide appropriate control
         rateSlider_.setVisible(!synced);
         syncDivisionCombo_.setVisible(synced);
@@ -120,6 +125,7 @@ ModulatorEditorPanel::ModulatorEditorPanel() {
     syncDivisionCombo_.setColour(juce::ComboBox::outlineColourId,
                                  DarkTheme::getColour(DarkTheme::BORDER));
     syncDivisionCombo_.setJustificationType(juce::Justification::centredLeft);
+    syncDivisionCombo_.setLookAndFeel(&SmallComboBoxLookAndFeel::getInstance());
     syncDivisionCombo_.onChange = [this]() {
         int id = syncDivisionCombo_.getSelectedId();
         if (id >= 100) {
@@ -157,6 +163,7 @@ ModulatorEditorPanel::ModulatorEditorPanel() {
     triggerModeCombo_.setColour(juce::ComboBox::outlineColourId,
                                 DarkTheme::getColour(DarkTheme::BORDER));
     triggerModeCombo_.setJustificationType(juce::Justification::centredLeft);
+    triggerModeCombo_.setLookAndFeel(&SmallComboBoxLookAndFeel::getInstance());
     triggerModeCombo_.onChange = [this]() {
         int id = triggerModeCombo_.getSelectedId();
         if (id > 0) {
@@ -232,6 +239,7 @@ void ModulatorEditorPanel::updateFromMod() {
 
     // Tempo sync controls
     syncToggle_.setToggleState(currentMod_.tempoSync, juce::dontSendNotification);
+    syncToggle_.setButtonText(currentMod_.tempoSync ? "Sync" : "Free");
     syncDivisionCombo_.setSelectedId(static_cast<int>(currentMod_.syncDivision) + 100,
                                      juce::dontSendNotification);
     rateSlider_.setValue(currentMod_.rate, juce::dontSendNotification);
