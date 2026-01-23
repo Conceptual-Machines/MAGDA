@@ -491,43 +491,50 @@ void SelectionManager::removeListener(SelectionManagerListener* listener) {
 
 void SelectionManager::notifySelectionTypeChanged(SelectionType type) {
     for (auto* listener : listeners_) {
-        listener->selectionTypeChanged(type);
+        if (listener != nullptr)
+            listener->selectionTypeChanged(type);
     }
 }
 
 void SelectionManager::notifyTrackSelectionChanged(TrackId trackId) {
     for (auto* listener : listeners_) {
-        listener->trackSelectionChanged(trackId);
+        if (listener != nullptr)
+            listener->trackSelectionChanged(trackId);
     }
 }
 
 void SelectionManager::notifyClipSelectionChanged(ClipId clipId) {
     for (auto* listener : listeners_) {
-        listener->clipSelectionChanged(clipId);
+        if (listener != nullptr)
+            listener->clipSelectionChanged(clipId);
     }
 }
 
 void SelectionManager::notifyMultiClipSelectionChanged(const std::unordered_set<ClipId>& clipIds) {
     for (auto* listener : listeners_) {
-        listener->multiClipSelectionChanged(clipIds);
+        if (listener != nullptr)
+            listener->multiClipSelectionChanged(clipIds);
     }
 }
 
 void SelectionManager::notifyTimeRangeSelectionChanged(const TimeRangeSelection& selection) {
     for (auto* listener : listeners_) {
-        listener->timeRangeSelectionChanged(selection);
+        if (listener != nullptr)
+            listener->timeRangeSelectionChanged(selection);
     }
 }
 
 void SelectionManager::notifyNoteSelectionChanged(const NoteSelection& selection) {
     for (auto* listener : listeners_) {
-        listener->noteSelectionChanged(selection);
+        if (listener != nullptr)
+            listener->noteSelectionChanged(selection);
     }
 }
 
 void SelectionManager::notifyDeviceSelectionChanged(const DeviceSelection& selection) {
     for (auto* listener : listeners_) {
-        listener->deviceSelectionChanged(selection);
+        if (listener != nullptr)
+            listener->deviceSelectionChanged(selection);
     }
 }
 
@@ -585,13 +592,16 @@ void SelectionManager::clearChainNodeSelection() {
 
 void SelectionManager::notifyChainNodeSelectionChanged(const ChainNodePath& path) {
     for (auto* listener : listeners_) {
-        listener->chainNodeSelectionChanged(path);
+        if (listener != nullptr) {
+            listener->chainNodeSelectionChanged(path);
+        }
     }
 }
 
 void SelectionManager::notifyChainNodeReselected(const ChainNodePath& path) {
     for (auto* listener : listeners_) {
-        listener->chainNodeReselected(path);
+        if (listener != nullptr)
+            listener->chainNodeReselected(path);
     }
 }
 
@@ -654,7 +664,8 @@ void SelectionManager::clearModSelection() {
 
 void SelectionManager::notifyModSelectionChanged(const ModSelection& selection) {
     for (auto* listener : listeners_) {
-        listener->modSelectionChanged(selection);
+        if (listener != nullptr)
+            listener->modSelectionChanged(selection);
     }
 }
 
@@ -717,7 +728,8 @@ void SelectionManager::clearMacroSelection() {
 
 void SelectionManager::notifyMacroSelectionChanged(const MacroSelection& selection) {
     for (auto* listener : listeners_) {
-        listener->macroSelectionChanged(selection);
+        if (listener != nullptr)
+            listener->macroSelectionChanged(selection);
     }
 }
 
@@ -786,7 +798,8 @@ void SelectionManager::clearParamSelection() {
 
 void SelectionManager::notifyParamSelectionChanged(const ParamSelection& selection) {
     for (auto* listener : listeners_) {
-        listener->paramSelectionChanged(selection);
+        if (listener != nullptr)
+            listener->paramSelectionChanged(selection);
     }
 }
 
@@ -847,7 +860,8 @@ void SelectionManager::clearModsPanelSelection() {
 
 void SelectionManager::notifyModsPanelSelectionChanged(const ModsPanelSelection& selection) {
     for (auto* listener : listeners_) {
-        listener->modsPanelSelectionChanged(selection);
+        if (listener != nullptr)
+            listener->modsPanelSelectionChanged(selection);
     }
 }
 
@@ -908,7 +922,8 @@ void SelectionManager::clearMacrosPanelSelection() {
 
 void SelectionManager::notifyMacrosPanelSelectionChanged(const MacrosPanelSelection& selection) {
     for (auto* listener : listeners_) {
-        listener->macrosPanelSelectionChanged(selection);
+        if (listener != nullptr)
+            listener->macrosPanelSelectionChanged(selection);
     }
 }
 

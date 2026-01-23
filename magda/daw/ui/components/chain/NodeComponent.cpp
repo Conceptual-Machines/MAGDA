@@ -493,6 +493,9 @@ void NodeComponent::setModPanelVisible(bool visible) {
 
 void NodeComponent::setParamPanelVisible(bool visible) {
     if (paramPanelVisible_ != visible) {
+        DBG("NodeComponent::setParamPanelVisible - changing from "
+            << (paramPanelVisible_ ? "visible" : "hidden") << " to "
+            << (visible ? "visible" : "hidden"));
         paramPanelVisible_ = visible;
 
         // When hiding the macro panel, also hide the macro editor

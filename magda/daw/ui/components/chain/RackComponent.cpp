@@ -71,9 +71,10 @@ void RackComponent::initializeCommon(const magda::RackInfo& rack) {
     macroButton_->setActiveColor(juce::Colours::white);
     macroButton_->setActiveBackgroundColor(DarkTheme::getColour(DarkTheme::ACCENT_PURPLE));
     macroButton_->onClick = [this]() {
-        macroButton_->setActive(macroButton_->getToggleState());
-        // Use inherited method to properly handle editor visibility
-        setParamPanelVisible(macroButton_->getToggleState());
+        bool newState = macroButton_->getToggleState();
+        DBG("RackComponent macro button clicked - new state: " << (newState ? "ON" : "OFF"));
+        macroButton_->setActive(newState);
+        setParamPanelVisible(newState);
     };
     addAndMakeVisible(*macroButton_);
 
