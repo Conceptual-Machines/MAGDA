@@ -1779,6 +1779,9 @@ void TrackContentPanel::automationLanePropertyChanged(AutomationLaneId laneId) {
 // ============================================================================
 
 void TrackContentPanel::showAutomationLane(TrackId trackId, AutomationLaneId laneId) {
+    // Set visibility through AutomationManager (this will trigger automationLanePropertyChanged)
+    AutomationManager::getInstance().setLaneVisible(laneId, true);
+
     // Add to visible lanes if not already there
     auto& lanes = visibleAutomationLanes_[trackId];
     if (std::find(lanes.begin(), lanes.end(), laneId) == lanes.end()) {
@@ -1790,6 +1793,9 @@ void TrackContentPanel::showAutomationLane(TrackId trackId, AutomationLaneId lan
 }
 
 void TrackContentPanel::hideAutomationLane(TrackId trackId, AutomationLaneId laneId) {
+    // Set visibility through AutomationManager (this will trigger automationLanePropertyChanged)
+    AutomationManager::getInstance().setLaneVisible(laneId, false);
+
     auto it = visibleAutomationLanes_.find(trackId);
     if (it != visibleAutomationLanes_.end()) {
         auto& lanes = it->second;
