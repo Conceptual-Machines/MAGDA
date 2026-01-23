@@ -54,9 +54,9 @@ class ChainRowComponent : public juce::Component, public magda::SelectionManager
     }
 
     // Set the full node path for nested chains (includes parent rack/chain context)
-    void setNodePath(const magda::ChainNodePath& path) {
-        nodePath_ = path;
-    }
+    // Also checks current selection state to handle cases where selection happened before row
+    // existed
+    void setNodePath(const magda::ChainNodePath& path);
 
     // SelectionManagerListener
     void selectionTypeChanged(magda::SelectionType newType) override;

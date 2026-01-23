@@ -736,10 +736,10 @@ void ParamSlotComponent::paintModulationIndicators(juce::Graphics& g) {
 
     // LINK MODE: Draw amount lines if in link mode
     if (isInLinkMode_) {
-        // If we're dragging in MOD link mode, show mod amount preview at BOTTOM
+        // If we're dragging in MOD link mode, show mod amount preview at TOP
         if (isLinkModeDrag_ && activeMod_.isValid()) {
             // Position above where movement line would be
-            int y = sliderBounds.getBottom() - 6 - movementBarHeight - 2;
+            int y = sliderBounds.getY() + 2;
 
             // Get current parameter value (0.0 to 1.0)
             float currentParamValue = static_cast<float>(valueSlider_.getValue());

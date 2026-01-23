@@ -547,10 +547,9 @@ void RackComponent::showChainPanel(magda::ChainId chainId) {
 void RackComponent::hideChainPanel() {
     DBG("RackComponent::hideChainPanel called - rackId=" << rackId_ << " isNested="
                                                          << (isNested() ? "yes" : "no"));
-    // Print stack trace hint
-    DBG("  (check call stack to see who called hideChainPanel)");
     selectedChainId_ = magda::INVALID_CHAIN_ID;
-    clearChainSelection();
+    // Don't call clearChainSelection() - let SelectionManager control visual selection
+    // This allows collapsing the chain panel while keeping the chain selected
     if (chainPanel_) {
         chainPanel_->clear();
         childLayoutChanged();
