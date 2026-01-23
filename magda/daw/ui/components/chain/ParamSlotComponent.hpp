@@ -22,7 +22,8 @@ namespace magda::daw::ui {
  */
 class ParamSlotComponent : public juce::Component,
                            public juce::DragAndDropTarget,
-                           public magda::LinkModeManagerListener {
+                           public magda::LinkModeManagerListener,
+                           private juce::Timer {
   public:
     ParamSlotComponent(int paramIndex);
     ~ParamSlotComponent() override;
@@ -119,6 +120,16 @@ class ParamSlotComponent : public juce::Component,
     // LinkModeManagerListener implementation
     void modLinkModeChanged(bool active, const magda::ModSelection& selection) override;
     void macroLinkModeChanged(bool active, const magda::MacroSelection& selection) override;
+
+    // Timer callback for animating LFO modulation bars
+    void timerCallback() override;
+
+    // Check if this param has any active mod links
+    bool hasActiveModLinks() const;
+
+    // Update timer state based on whether there are active mod links
+    void updateModTimerState();
+
     int paramIndex_;
     magda::DeviceId deviceId_ = magda::INVALID_DEVICE_ID;
     magda::ChainNodePath devicePath_;  // For param selection

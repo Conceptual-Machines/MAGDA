@@ -813,7 +813,35 @@ void ParamSlotComponent::paintModulationIndicators(juce::Graphics& g) {
                                    1.0f);
         }
 
-        // TODO: Calculate TOTAL mod modulation output (mods use LFOs, not simple values)
+        // Calculate TOTAL mod modulation output (sum of all linked mods)
+        float totalModModulation = 0.0f;
+        magda::ModTarget modTarget{deviceId_, paramIndex_};
+
+        // Check device-level mods
+        if (availableMods_ && deviceId_ != magda::INVALID_DEVICE_ID) {
+            for (size_t i = 0; i < availableMods_->size(); ++i) {
+                const auto& mod = (*availableMods_)[i];
+                if (const auto* link = mod.getLink(modTarget)) {
+                    // mod.value is continuously updated by ModulatorEngine (0.0 to 1.0)
+                    // link->amount is the modulation depth for this parameter (0.0 to 1.0)
+                    totalModModulation += mod.value * link->amount;
+                }
+            }
+        }
+
+        // Draw MOD movement line (orange) at BOTTOM if any mod modulation exists
+        if (totalModModulation > 0.0f) {
+            int y = sliderBounds.getBottom() - 6;
+            int barWidth = juce::jmax(1, static_cast<int>(maxWidth * totalModModulation));
+            // Slightly dimmer orange for normal mode (showing movement)
+            g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE).withAlpha(0.6f));
+            g.fillRoundedRectangle(static_cast<float>(leftX), static_cast<float>(y - barHeight),
+                                   static_cast<float>(barWidth), static_cast<float>(barHeight),
+                                   1.0f);
+        }
+
+        // Update timer state (start if there are mod links, stop if none)
+        const_cast<ParamSlotComponent*>(this)->updateModTimerState();
     }
 }
 
@@ -1124,6 +1152,38 @@ bool ParamSlotComponent::isInScopeOf(const magda::ChainNodePath& parentPath) con
 
     // Other types (Chain, etc.) - for now, don't support
     return false;
+}
+
+void ParamSlotComponent::timerCallback() {
+    // Repaint to update animated LFO modulation bars
+    repaint();
+}
+
+bool ParamSlotComponent::hasActiveModLinks() const {
+    if (!availableMods_ || deviceId_ == magda::INVALID_DEVICE_ID) {
+        return false;
+    }
+
+    magda::ModTarget thisTarget{deviceId_, paramIndex_};
+    for (const auto& mod : *availableMods_) {
+        if (mod.getLink(thisTarget) != nullptr) {
+            return true;  // Found at least one mod link
+        }
+    }
+
+    return false;
+}
+
+void ParamSlotComponent::updateModTimerState() {
+    if (hasActiveModLinks()) {
+        // Start timer at 30 FPS to animate LFO bars (60 FPS would be overkill for UI)
+        if (!isTimerRunning()) {
+            startTimer(33);  // ~30 FPS
+        }
+    } else {
+        // No active mod links, stop the timer to save CPU
+        stopTimer();
+    }
 }
 
 }  // namespace magda::daw::ui
