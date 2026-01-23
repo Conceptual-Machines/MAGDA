@@ -12,6 +12,9 @@ ModulatorEditorPanel::ModulatorEditorPanel() {
     // Intercept mouse clicks to prevent propagation to parent
     setInterceptsMouseClicks(true, true);
 
+    // Start timer for trigger indicator animation
+    startTimer(33);  // 30 FPS
+
     // Name label at top
     nameLabel_.setFont(FontManager::getInstance().getUIFontBold(10.0f));
     nameLabel_.setColour(juce::Label::textColourId, DarkTheme::getTextColour());
@@ -165,13 +168,6 @@ ModulatorEditorPanel::ModulatorEditorPanel() {
         // TODO: Show advanced trigger settings popup
     };
     addAndMakeVisible(advancedButton_.get());
-
-    // Target label
-    targetLabel_.setFont(FontManager::getInstance().getUIFont(8.0f));
-    targetLabel_.setColour(juce::Label::textColourId, DarkTheme::getSecondaryTextColour());
-    targetLabel_.setJustificationType(juce::Justification::centred);
-    targetLabel_.setText("No Target", juce::dontSendNotification);
-    addAndMakeVisible(targetLabel_);
 }
 
 void ModulatorEditorPanel::setModInfo(const magda::ModInfo& mod, const magda::ModInfo* liveMod) {
@@ -193,7 +189,6 @@ void ModulatorEditorPanel::setSelectedModIndex(int index) {
         rateSlider_.setEnabled(false);
         triggerModeCombo_.setEnabled(false);
         advancedButton_->setEnabled(false);
-        targetLabel_.setText("No Target", juce::dontSendNotification);
     } else {
         waveformCombo_.setEnabled(true);
         phaseSlider_.setEnabled(true);
@@ -226,14 +221,6 @@ void ModulatorEditorPanel::updateFromMod() {
     // Trigger mode
     triggerModeCombo_.setSelectedId(static_cast<int>(currentMod_.triggerMode) + 1,
                                     juce::dontSendNotification);
-
-    if (currentMod_.isLinked()) {
-        targetLabel_.setText("Target: Device " + juce::String(currentMod_.target.deviceId) +
-                                 "\nParam " + juce::String(currentMod_.target.paramIndex + 1),
-                             juce::dontSendNotification);
-    } else {
-        targetLabel_.setText("No Target", juce::dontSendNotification);
-    }
 }
 
 void ModulatorEditorPanel::paint(juce::Graphics& g) {
@@ -263,8 +250,29 @@ void ModulatorEditorPanel::paint(juce::Graphics& g) {
     bounds.removeFromTop(18 + 6);  // Skip phase slider + gap
     bounds.removeFromTop(18 + 6);  // Skip rate row + gap
 
-    // "Trigger" label
-    g.drawText("Trigger", bounds.removeFromTop(10), juce::Justification::centredLeft);
+    // "Trigger" label with indicator dot
+    auto triggerLabelRow = bounds.removeFromTop(10);
+
+    // Draw trigger indicator dot on the left
+    const float dotRadius = 3.0f;
+    auto dotBounds =
+        juce::Rectangle<float>(triggerLabelRow.getX(), triggerLabelRow.getCentreY() - dotRadius,
+                               dotRadius * 2, dotRadius * 2);
+
+    // Use live mod pointer for real-time trigger state
+    const magda::ModInfo* mod = liveModPtr_ ? liveModPtr_ : &currentMod_;
+    if (mod->triggered) {
+        g.setColour(DarkTheme::getColour(DarkTheme::ACCENT_ORANGE));
+        g.fillEllipse(dotBounds);
+    } else {
+        g.setColour(DarkTheme::getSecondaryTextColour().withAlpha(0.3f));
+        g.drawEllipse(dotBounds, 1.0f);
+    }
+
+    // Draw "Trigger" text after the dot
+    triggerLabelRow.removeFromLeft(static_cast<int>(dotRadius * 2 + 4));
+    g.setColour(DarkTheme::getSecondaryTextColour());
+    g.drawText("Trigger", triggerLabelRow, juce::Justification::centredLeft);
 }
 
 void ModulatorEditorPanel::resized() {
@@ -312,10 +320,6 @@ void ModulatorEditorPanel::resized() {
 
     // Trigger combo takes remaining space
     triggerModeCombo_.setBounds(triggerRow);
-    bounds.removeFromTop(8);
-
-    // Target info at bottom
-    targetLabel_.setBounds(bounds);
 }
 
 void ModulatorEditorPanel::mouseDown(const juce::MouseEvent& /*e*/) {
@@ -324,6 +328,11 @@ void ModulatorEditorPanel::mouseDown(const juce::MouseEvent& /*e*/) {
 
 void ModulatorEditorPanel::mouseUp(const juce::MouseEvent& /*e*/) {
     // Consume mouse events to prevent propagation to parent
+}
+
+void ModulatorEditorPanel::timerCallback() {
+    // Repaint for trigger indicator animation
+    repaint();
 }
 
 }  // namespace magda::daw::ui

@@ -124,7 +124,7 @@ class WaveformDisplay : public juce::Component, private juce::Timer {
  * |   Param Name     |
  * +------------------+
  */
-class ModulatorEditorPanel : public juce::Component {
+class ModulatorEditorPanel : public juce::Component, private juce::Timer {
   public:
     ModulatorEditorPanel();
     ~ModulatorEditorPanel() override = default;
@@ -169,9 +169,9 @@ class ModulatorEditorPanel : public juce::Component {
     TextSlider rateSlider_{TextSlider::Format::Decimal};
     juce::ComboBox triggerModeCombo_;
     std::unique_ptr<magda::SvgButton> advancedButton_;
-    juce::Label targetLabel_;
 
     void updateFromMod();
+    void timerCallback() override;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ModulatorEditorPanel)
 };
