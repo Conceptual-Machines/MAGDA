@@ -307,34 +307,17 @@ TrackHeadersPanel::~TrackHeadersPanel() {
 }
 
 void TrackHeadersPanel::timerCallback() {
-    // Get metering data from AudioBridge
-    static int uiTimerCounter = 0;
-    if (++uiTimerCounter % 90 == 0) {  // Every 3 seconds
-        std::cout << "TrackHeadersPanel timer running" << std::endl;
-    }
-
-    if (!audioEngine_) {
-        if (uiTimerCounter % 90 == 0) {
-            std::cout << "  No audioEngine_!" << std::endl;
-        }
+    // Get metering data from AudioBridge (30 FPS timer)
+    if (!audioEngine_)
         return;
-    }
 
     auto* teWrapper = dynamic_cast<TracktionEngineWrapper*>(audioEngine_);
-    if (!teWrapper) {
-        if (uiTimerCounter % 90 == 0) {
-            std::cout << "  audioEngine_ is not TracktionEngineWrapper!" << std::endl;
-        }
+    if (!teWrapper)
         return;
-    }
 
     auto* bridge = teWrapper->getAudioBridge();
-    if (!bridge) {
-        if (uiTimerCounter % 90 == 0) {
-            std::cout << "  No AudioBridge!" << std::endl;
-        }
+    if (!bridge)
         return;
-    }
 
     auto& meteringBuffer = bridge->getMeteringBuffer();
 
@@ -342,10 +325,6 @@ void TrackHeadersPanel::timerCallback() {
     for (auto& header : trackHeaders) {
         MeterData data;
         if (meteringBuffer.popLevels(header->trackId, data)) {
-            if (uiTimerCounter % 30 == 0 && header->trackId == 1) {  // Once per second for track 1
-                std::cout << "  UI got meter data for track 1: L=" << data.peakL
-                          << " R=" << data.peakR << std::endl;
-            }
             if (header->meterComponent) {
                 static_cast<TrackMeter*>(header->meterComponent.get())
                     ->setLevels(data.peakL, data.peakR);

@@ -1,5 +1,6 @@
 #include "AudioBridge.hpp"
 
+#include <iomanip>
 #include <iostream>
 
 namespace magda {
@@ -413,12 +414,7 @@ void AudioBridge::updateMetering() {
 }
 
 void AudioBridge::timerCallback() {
-    // Update metering from level measurers
-    static int timerCounter = 0;
-    if (++timerCounter % 90 == 0) {  // Every 3 seconds
-        std::cout << "AudioBridge timer running, checking " << trackMapping_.size() << " tracks"
-                  << std::endl;
-    }
+    // Update metering from level measurers (runs at 30 FPS on message thread)
 
     juce::ScopedLock lock(mappingLock_);
 
@@ -443,12 +439,6 @@ void AudioBridge::timerCallback() {
         data.peakL = juce::Decibels::decibelsToGain(levelL.dB);
         data.peakR = juce::Decibels::decibelsToGain(levelR.dB);
 
-        // Debug output for track 1
-        if (trackId == 1 && timerCounter % 30 == 0) {  // Once per second for track 1
-            std::cout << "Track 1 meter: dB=" << levelL.dB << "/" << levelR.dB
-                      << " linear=" << data.peakL << "/" << data.peakR << std::endl;
-        }
-
         // Check for clipping
         data.clipped = data.peakL > 1.0f || data.peakR > 1.0f;
 
@@ -472,6 +462,12 @@ te::Plugin::Ptr AudioBridge::createToneGenerator(te::AudioTrack* track) {
     auto plugin = edit_.getPluginCache().createNewPlugin(te::ToneGeneratorPlugin::xmlTypeName, {});
     if (plugin) {
         track->pluginList.insertPlugin(plugin, -1, nullptr);
+
+        // Configure tone generator parameters
+        if (auto* toneGen = dynamic_cast<te::ToneGeneratorPlugin*>(plugin.get())) {
+            toneGen->frequency = 440.0f;  // A4 note
+            toneGen->level = 0.25f;       // Quarter amplitude for -12dB
+        }
     }
     return plugin;
 }
