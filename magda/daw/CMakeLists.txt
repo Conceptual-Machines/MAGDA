@@ -105,6 +105,7 @@ set(DAW_CORE_SOURCES
     engine/TracktionEngineWrapper.cpp
     # Audio integration
     audio/AudioBridge.cpp
+    audio/DeviceProcessor.cpp
     # UI components needed by tests
     ui/components/timeline/TimelineComponent.cpp
     # State management

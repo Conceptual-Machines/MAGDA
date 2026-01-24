@@ -8,6 +8,7 @@
 #include "../core/DeviceInfo.hpp"
 #include "../core/TrackManager.hpp"
 #include "../core/TypeIds.hpp"
+#include "DeviceProcessor.hpp"
 #include "MeteringBuffer.hpp"
 #include "ParameterQueue.hpp"
 
@@ -92,6 +93,13 @@ class AudioBridge : public TrackManagerListener, public juce::Timer {
      * @return The Plugin, or nullptr if not found
      */
     te::Plugin::Ptr getPlugin(DeviceId deviceId);
+
+    /**
+     * @brief Get the DeviceProcessor for a MAGDA device
+     * @param deviceId MAGDA device ID
+     * @return The DeviceProcessor, or nullptr if not found
+     */
+    DeviceProcessor* getDeviceProcessor(DeviceId deviceId);
 
     /**
      * @brief Create a Tracktion AudioTrack for a MAGDA track
@@ -189,6 +197,9 @@ class AudioBridge : public TrackManagerListener, public juce::Timer {
     std::map<TrackId, te::AudioTrack*> trackMapping_;
     std::map<DeviceId, te::Plugin::Ptr> deviceToPlugin_;
     std::map<te::Plugin*, DeviceId> pluginToDevice_;
+
+    // Device processors (own the processing logic for each device)
+    std::map<DeviceId, std::unique_ptr<DeviceProcessor>> deviceProcessors_;
 
     // Per-track level measurer clients (needed to read levels)
     std::map<TrackId, te::LevelMeasurer::Client> meterClients_;

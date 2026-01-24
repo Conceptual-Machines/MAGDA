@@ -1,6 +1,5 @@
 #include "AudioBridge.hpp"
 
-#include <iomanip>
 #include <iostream>
 
 namespace magda {
@@ -217,6 +216,12 @@ te::Plugin::Ptr AudioBridge::getPlugin(DeviceId deviceId) {
     juce::ScopedLock lock(mappingLock_);
     auto it = deviceToPlugin_.find(deviceId);
     return it != deviceToPlugin_.end() ? it->second : nullptr;
+}
+
+DeviceProcessor* AudioBridge::getDeviceProcessor(DeviceId deviceId) {
+    juce::ScopedLock lock(mappingLock_);
+    auto it = deviceProcessors_.find(deviceId);
+    return it != deviceProcessors_.end() ? it->second.get() : nullptr;
 }
 
 te::AudioTrack* AudioBridge::createAudioTrack(TrackId trackId, const juce::String& name) {
@@ -477,29 +482,11 @@ te::Plugin::Ptr AudioBridge::createToneGenerator(te::AudioTrack* track) {
     if (!track)
         return nullptr;
 
-    // Create tone generator plugin via PluginCache using xmlTypeName
+    // Create tone generator plugin via PluginCache
+    // ToneGeneratorProcessor will handle parameter configuration
     auto plugin = edit_.getPluginCache().createNewPlugin(te::ToneGeneratorPlugin::xmlTypeName, {});
     if (plugin) {
         track->pluginList.insertPlugin(plugin, -1, nullptr);
-
-        // Configure tone generator parameters
-        if (auto* toneGen = dynamic_cast<te::ToneGeneratorPlugin*>(plugin.get())) {
-            toneGen->frequency = 440.0f;  // A4 note
-            toneGen->level = 0.25f;       // Quarter amplitude for -12dB
-
-            std::cout << "ToneGenerator created:" << std::endl;
-            std::cout << "  freq=" << toneGen->frequency << " Hz" << std::endl;
-            std::cout << "  level=" << toneGen->level << " (target: -12dB)" << std::endl;
-
-            // Check if we can use the automatable parameter instead
-            if (toneGen->levelParam) {
-                std::cout << "  levelParam exists, current value: "
-                          << toneGen->levelParam->getCurrentValue() << std::endl;
-                toneGen->levelParam->setParameter(0.25f, juce::sendNotificationSync);
-                std::cout << "  levelParam after set: " << toneGen->levelParam->getCurrentValue()
-                          << std::endl;
-            }
-        }
     }
     return plugin;
 }
@@ -534,15 +521,23 @@ te::Plugin::Ptr AudioBridge::loadDeviceAsPlugin(TrackId trackId, const DeviceInf
         return nullptr;
 
     te::Plugin::Ptr plugin;
+    std::unique_ptr<DeviceProcessor> processor;
 
     if (device.format == PluginFormat::Internal) {
-        // Map internal device types to Tracktion plugins
+        // Map internal device types to Tracktion plugins and create processors
         if (device.pluginId.containsIgnoreCase("tone")) {
             plugin = createToneGenerator(track);
+            if (plugin) {
+                processor = std::make_unique<ToneGeneratorProcessor>(device.id, plugin);
+            }
         } else if (device.pluginId.containsIgnoreCase("volume")) {
             plugin = createVolumeAndPan(track);
+            if (plugin) {
+                processor = std::make_unique<VolumeProcessor>(device.id, plugin);
+            }
         } else if (device.pluginId.containsIgnoreCase("meter")) {
             plugin = createLevelMeter(track);
+            // No processor for meter - it's just for measurement
         } else if (device.pluginId.containsIgnoreCase("delay")) {
             plugin = edit_.getPluginCache().createNewPlugin(te::DelayPlugin::xmlTypeName, {});
             if (plugin)
@@ -567,6 +562,13 @@ te::Plugin::Ptr AudioBridge::loadDeviceAsPlugin(TrackId trackId, const DeviceInf
     }
 
     if (plugin) {
+        // Store the processor if we created one
+        if (processor) {
+            // Sync initial state from DeviceInfo
+            processor->syncFromDeviceInfo(device);
+            deviceProcessors_[device.id] = std::move(processor);
+        }
+
         // Apply device state
         plugin->setEnabled(!device.bypassed);
         std::cout << "Loaded device " << device.id << " (" << device.name << ") as plugin"
