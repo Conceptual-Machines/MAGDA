@@ -309,6 +309,26 @@ void AutomationLaneComponent::showContextMenu() {
     });
 }
 
+// Convert dB to normalized fader position (0-1)
+// Unity (0dB) at 0.75, +6dB at 1.0, -60dB at 0.0
+static double dbToNormalizedPosition(double db) {
+    constexpr double MIN_DB = -60.0;
+    constexpr double MAX_DB = 6.0;
+
+    if (db <= MIN_DB)
+        return 0.0;
+    if (db >= MAX_DB)
+        return 1.0;
+
+    if (db < 0.0) {
+        // Below unity: map -60dB..0dB to 0..0.75
+        return 0.75 * (db - MIN_DB) / (0.0 - MIN_DB);
+    } else {
+        // Above unity: map 0dB..+6dB to 0.75..1.0
+        return 0.75 + 0.25 * db / MAX_DB;
+    }
+}
+
 void AutomationLaneComponent::paintScaleLabels(juce::Graphics& g, juce::Rectangle<int> area) {
     if (area.getHeight() <= 0)
         return;
@@ -322,45 +342,76 @@ void AutomationLaneComponent::paintScaleLabels(juce::Graphics& g, juce::Rectangl
     g.drawVerticalLine(area.getRight() - 1, static_cast<float>(area.getY()),
                        static_cast<float>(area.getBottom()));
 
-    // Get scale positions based on target type
     const auto* lane = getLaneInfo();
-    std::vector<double> values;
-
-    if (lane && lane->target.type == AutomationTargetType::TrackVolume) {
-        // Volume scale: normalized position -> dB
-        // 1.0 = +6dB, 0.75 = 0dB, 0.5 = -20dB, 0.25 = -40dB, 0.0 = -inf
-        values = {1.0, 0.75, 0.5, 0.25, 0.0};
-    } else if (lane && lane->target.type == AutomationTargetType::TrackPan) {
-        // Pan: L, C, R
-        values = {1.0, 0.5, 0.0};
-    } else {
-        // Default: 100%, 75%, 50%, 25%, 0%
-        values = {1.0, 0.75, 0.5, 0.25, 0.0};
-    }
 
     g.setColour(juce::Colour(0xFF888888));
     g.setFont(9.0f);
 
-    for (double value : values) {
-        int y = area.getY() + valueToPixel(value, area.getHeight());
-        juce::String label = formatScaleValue(value);
+    if (lane && lane->target.type == AutomationTargetType::TrackVolume) {
+        // Standard dB values for volume scale
+        // Select subset based on available height
+        std::vector<std::pair<double, juce::String>> dbLabels;
 
-        // Draw label right-aligned with small margin
-        auto labelBounds = juce::Rectangle<int>(2, y - 5, area.getWidth() - 6, 10);
-
-        // Constrain to area
-        if (labelBounds.getY() < area.getY()) {
-            labelBounds.setY(area.getY());
+        if (area.getHeight() >= 100) {
+            // Large: show more detail
+            dbLabels = {{6.0, "6"},    {0.0, "0"},    {-6.0, "6"},   {-12.0, "12"},
+                        {-24.0, "24"}, {-48.0, "48"}, {-60.0, "inf"}};
+        } else if (area.getHeight() >= 60) {
+            // Medium: essential values
+            dbLabels = {{6.0, "6"}, {0.0, "0"}, {-12.0, "12"}, {-60.0, "inf"}};
+        } else {
+            // Small: minimum
+            dbLabels = {{6.0, "6"}, {0.0, "0"}, {-60.0, "inf"}};
         }
-        if (labelBounds.getBottom() > area.getBottom()) {
-            labelBounds.setY(area.getBottom() - 10);
+
+        for (const auto& [db, label] : dbLabels) {
+            double normalizedValue = dbToNormalizedPosition(db);
+            int y = area.getY() + valueToPixel(normalizedValue, area.getHeight());
+
+            auto labelBounds = juce::Rectangle<int>(2, y - 5, area.getWidth() - 6, 10);
+            if (labelBounds.getY() < area.getY())
+                labelBounds.setY(area.getY());
+            if (labelBounds.getBottom() > area.getBottom())
+                labelBounds.setY(area.getBottom() - 10);
+
+            g.drawText(label, labelBounds, juce::Justification::centredRight);
+            g.drawHorizontalLine(y, static_cast<float>(area.getRight() - 4),
+                                 static_cast<float>(area.getRight() - 1));
         }
+    } else if (lane && lane->target.type == AutomationTargetType::TrackPan) {
+        // Pan: L, C, R
+        std::vector<double> values = {1.0, 0.5, 0.0};
+        for (double value : values) {
+            int y = area.getY() + valueToPixel(value, area.getHeight());
+            juce::String label = formatScaleValue(value);
 
-        g.drawText(label, labelBounds, juce::Justification::centredRight);
+            auto labelBounds = juce::Rectangle<int>(2, y - 5, area.getWidth() - 6, 10);
+            if (labelBounds.getY() < area.getY())
+                labelBounds.setY(area.getY());
+            if (labelBounds.getBottom() > area.getBottom())
+                labelBounds.setY(area.getBottom() - 10);
 
-        // Draw small tick mark
-        g.drawHorizontalLine(y, static_cast<float>(area.getRight() - 4),
-                             static_cast<float>(area.getRight() - 1));
+            g.drawText(label, labelBounds, juce::Justification::centredRight);
+            g.drawHorizontalLine(y, static_cast<float>(area.getRight() - 4),
+                                 static_cast<float>(area.getRight() - 1));
+        }
+    } else {
+        // Default: percentage scale
+        std::vector<double> values = {1.0, 0.75, 0.5, 0.25, 0.0};
+        for (double value : values) {
+            int y = area.getY() + valueToPixel(value, area.getHeight());
+            juce::String label = formatScaleValue(value);
+
+            auto labelBounds = juce::Rectangle<int>(2, y - 5, area.getWidth() - 6, 10);
+            if (labelBounds.getY() < area.getY())
+                labelBounds.setY(area.getY());
+            if (labelBounds.getBottom() > area.getBottom())
+                labelBounds.setY(area.getBottom() - 10);
+
+            g.drawText(label, labelBounds, juce::Justification::centredRight);
+            g.drawHorizontalLine(y, static_cast<float>(area.getRight() - 4),
+                                 static_cast<float>(area.getRight() - 1));
+        }
     }
 }
 
