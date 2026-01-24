@@ -4,6 +4,7 @@
 
 #include "NodeComponent.hpp"
 #include "ParamSlotComponent.hpp"
+#include "ToneGeneratorUI.hpp"
 #include "core/DeviceInfo.hpp"
 #include "ui/components/common/SvgButton.hpp"
 #include "ui/components/common/TextSlider.hpp"
@@ -134,10 +135,22 @@ class DeviceSlotComponent : public NodeComponent {
     // Parameter grid
     std::unique_ptr<ParamSlotComponent> paramSlots_[NUM_PARAMS_PER_PAGE];
 
+    // Custom UI for internal devices
+    std::unique_ptr<ToneGeneratorUI> toneGeneratorUI_;
+
     void updatePageControls();
     void updateParamModulation();  // Update mod/macro pointers for params
     void goToPrevPage();
     void goToNextPage();
+
+    // Helper to check if this is an internal device
+    bool isInternalDevice() const {
+        return device_.format == magda::PluginFormat::Internal;
+    }
+
+    // Helper to create custom UI for internal devices
+    void createCustomUI();
+    void updateCustomUI();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DeviceSlotComponent)
 };

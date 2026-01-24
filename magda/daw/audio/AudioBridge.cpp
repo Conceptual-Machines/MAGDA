@@ -462,6 +462,37 @@ void AudioBridge::processParameterChanges() {
     }
 }
 
+// =============================================================================
+// Transport State
+// =============================================================================
+
+void AudioBridge::updateTransportState(bool isPlaying, bool justStarted, bool justLooped) {
+    // UI thread writes, audio thread reads - use release/acquire semantics
+    transportPlaying_.store(isPlaying, std::memory_order_release);
+    justStartedFlag_.store(justStarted, std::memory_order_release);
+    justLoopedFlag_.store(justLooped, std::memory_order_release);
+
+    // Process transport gating for devices in Transport trigger mode
+    // This needs to be done on the audio thread, but we can enable/disable plugins from here
+    // since Tracktion Engine's plugin enable/disable is thread-safe
+    juce::ScopedLock lock(mappingLock_);
+
+    for (const auto& [deviceId, processor] : deviceProcessors_) {
+        if (auto* toneProc = dynamic_cast<ToneGeneratorProcessor*>(processor.get())) {
+            int triggerMode = toneProc->getTriggerMode();
+
+            // 0 = Free (always play), 1 = Transport (play with transport), 2 = MIDI (not
+            // implemented yet)
+            if (triggerMode == 1) {  // Transport mode
+                auto plugin = getPlugin(deviceId);
+                if (plugin) {
+                    plugin->setEnabled(isPlaying);
+                }
+            }
+        }
+    }
+}
+
 void AudioBridge::updateMetering() {
     // This would be called from the audio thread
     // For now, we use the timer callback for metering
@@ -614,6 +645,20 @@ te::Plugin::Ptr AudioBridge::loadDeviceAsPlugin(TrackId trackId, const DeviceInf
 
         // Apply device state
         plugin->setEnabled(!device.bypassed);
+
+        // For tone generators in Transport mode, sync initial state with transport
+        if (auto* toneProc = dynamic_cast<ToneGeneratorProcessor*>(processor.get())) {
+            if (toneProc->getTriggerMode() == 1) {  // Transport mode
+                // Get current transport state
+                bool isPlaying = transportPlaying_.load(std::memory_order_acquire);
+                // Only enable if both: not bypassed AND transport is playing
+                plugin->setEnabled(!device.bypassed && isPlaying);
+                std::cout << "Tone generator in Transport mode - initial enabled state: "
+                          << plugin->isEnabled() << " (bypassed=" << device.bypassed
+                          << ", playing=" << isPlaying << ")" << std::endl;
+            }
+        }
+
         std::cout << "Loaded device " << device.id << " (" << device.name << ") as plugin"
                   << std::endl;
     }

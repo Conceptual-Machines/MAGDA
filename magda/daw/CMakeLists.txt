@@ -202,6 +202,7 @@ set(DAW_UI_SOURCES
     ui/components/chain/RackComponent.cpp
     ui/components/chain/ChainPanel.cpp
     ui/components/chain/DeviceSlotComponent.cpp
+    ui/components/chain/ToneGeneratorUI.cpp
     ui/components/chain/ParamSlotComponent.cpp
     ui/components/chain/PagedControlPanel.cpp
     ui/components/chain/MacroKnobComponent.cpp
@@ -335,6 +336,7 @@ set(DAW_HEADERS
     ui/components/chain/ChainRowComponent.hpp
     ui/components/chain/RackComponent.hpp
     ui/components/chain/ChainPanel.hpp
+    ui/components/chain/ToneGeneratorUI.hpp
     ui/components/chain/PagedControlPanel.hpp
     ui/components/chain/MacroKnobComponent.hpp
     ui/components/chain/MacroPanelComponent.hpp

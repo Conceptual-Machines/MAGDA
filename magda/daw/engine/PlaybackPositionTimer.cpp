@@ -26,6 +26,9 @@ bool PlaybackPositionTimer::isRunning() const {
 }
 
 void PlaybackPositionTimer::timerCallback() {
+    // Update trigger state for transport-synced devices (tone generator, etc.)
+    engine_.updateTriggerState();
+
     if (engine_.isPlaying()) {
         double position = engine_.getCurrentPosition();
         // Only update playback position (the moving cursor), not edit position

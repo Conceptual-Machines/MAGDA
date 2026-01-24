@@ -105,24 +105,6 @@ CommandResponse TracktionEngineWrapper::processCommand(const Command& command) {
 // TransportInterface implementation
 void TracktionEngineWrapper::play() {
     if (currentEdit_) {
-        // Enable all tone generators/instruments when playing
-        if (audioBridge_) {
-            auto& tm = TrackManager::getInstance();
-            for (const auto& track : tm.getTracks()) {
-                for (const auto& element : track.chainElements) {
-                    if (std::holds_alternative<DeviceInfo>(element)) {
-                        const auto& device = std::get<DeviceInfo>(element);
-                        if (device.isInstrument && device.format == PluginFormat::Internal) {
-                            auto plugin = audioBridge_->getPlugin(device.id);
-                            if (plugin) {
-                                plugin->setEnabled(true);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         currentEdit_->getTransport().play(false);
         std::cout << "Playback started" << std::endl;
     }
@@ -131,25 +113,6 @@ void TracktionEngineWrapper::play() {
 void TracktionEngineWrapper::stop() {
     if (currentEdit_) {
         currentEdit_->getTransport().stop(false, false);
-
-        // Disable all tone generators when stopped
-        if (audioBridge_) {
-            auto& tm = TrackManager::getInstance();
-            for (const auto& track : tm.getTracks()) {
-                for (const auto& element : track.chainElements) {
-                    if (std::holds_alternative<DeviceInfo>(element)) {
-                        const auto& device = std::get<DeviceInfo>(element);
-                        if (device.isInstrument && device.format == PluginFormat::Internal) {
-                            auto plugin = audioBridge_->getPlugin(device.id);
-                            if (plugin) {
-                                plugin->setEnabled(false);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         std::cout << "Playback stopped" << std::endl;
     }
 }
@@ -310,6 +273,11 @@ void TracktionEngineWrapper::updateTriggerState() {
     // Update state for next frame
     wasPlaying_ = currentlyPlaying;
     lastPosition_ = currentPosition;
+
+    // Update AudioBridge with transport state for trigger sync
+    if (audioBridge_) {
+        audioBridge_->updateTransportState(currentlyPlaying, justStarted_, justLooped_);
+    }
 }
 
 // Metronome/click track methods

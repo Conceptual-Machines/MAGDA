@@ -49,6 +49,9 @@ class AudioEngine : public AudioEngineListener {
     virtual void setMetronomeEnabled(bool enabled) = 0;
     virtual bool isMetronomeEnabled() const = 0;
 
+    // ===== Trigger State (for transport-synced devices) =====
+    virtual void updateTriggerState() = 0;
+
     // ===== Device Management =====
     virtual juce::AudioDeviceManager* getDeviceManager() = 0;
 };

@@ -62,7 +62,7 @@ class TracktionEngineWrapper : public AudioEngine,
     bool justLooped() const override;
 
     // Call this each frame to update trigger state (call before updateAllMods)
-    void updateTriggerState();
+    void updateTriggerState() override;
 
     // Metronome/click track control
     void setMetronomeEnabled(bool enabled) override;

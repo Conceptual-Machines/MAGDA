@@ -329,6 +329,11 @@ DeviceSlotComponent::DeviceSlotComponent(const magda::DeviceInfo& device) : devi
     totalPages_ = 4;
     currentPage_ = 0;
     updatePageControls();
+
+    // Create custom UI for internal devices
+    if (isInternalDevice()) {
+        createCustomUI();
+    }
 }
 
 DeviceSlotComponent::~DeviceSlotComponent() = default;
@@ -353,6 +358,16 @@ void DeviceSlotComponent::updateFromDevice(const magda::DeviceInfo& device) {
     onButton_->setToggleState(!device.bypassed, juce::dontSendNotification);
     onButton_->setActive(!device.bypassed);
     gainSlider_.setValue(device.gainDb, juce::dontSendNotification);
+
+    // Create custom UI if this is an internal device and we don't have one yet
+    if (isInternalDevice() && !toneGeneratorUI_) {
+        createCustomUI();
+    }
+
+    // Update custom UI if available
+    if (toneGeneratorUI_) {
+        updateCustomUI();
+    }
 
     // Update parameter slots with current parameter data
     int numParams = static_cast<int>(device.parameters.size());
@@ -460,7 +475,7 @@ void DeviceSlotComponent::paintContent(juce::Graphics& g, juce::Rectangle<int> c
 }
 
 void DeviceSlotComponent::resizedContent(juce::Rectangle<int> contentArea) {
-    // When collapsed, hide content controls
+    // When collapsed, hide all content controls
     if (collapsed_) {
         for (int i = 0; i < NUM_PARAMS_PER_PAGE; ++i) {
             paramSlots_[i]->setVisible(false);
@@ -469,6 +484,8 @@ void DeviceSlotComponent::resizedContent(juce::Rectangle<int> contentArea) {
         nextPageButton_->setVisible(false);
         pageLabel_->setVisible(false);
         gainSlider_.setVisible(false);
+        if (toneGeneratorUI_)
+            toneGeneratorUI_->setVisible(false);
         return;
     }
 
@@ -482,41 +499,60 @@ void DeviceSlotComponent::resizedContent(juce::Rectangle<int> contentArea) {
     // Content header area (manufacturer)
     contentArea.removeFromTop(CONTENT_HEADER_HEIGHT);
 
-    // Pagination area
-    auto paginationArea = contentArea.removeFromTop(PAGINATION_HEIGHT);
-    int buttonWidth = 18;
-    prevPageButton_->setBounds(paginationArea.removeFromLeft(buttonWidth));
-    nextPageButton_->setBounds(paginationArea.removeFromRight(buttonWidth));
-    pageLabel_->setBounds(paginationArea);
-    prevPageButton_->setVisible(true);
-    nextPageButton_->setVisible(true);
-    pageLabel_->setVisible(true);
+    // Check if this is an internal device with custom UI
+    if (isInternalDevice() && toneGeneratorUI_) {
+        // Show custom minimal UI
+        toneGeneratorUI_->setBounds(contentArea.reduced(4));
+        toneGeneratorUI_->setVisible(true);
 
-    // Small gap
-    contentArea.removeFromTop(2);
+        // Hide parameter grid and pagination
+        for (int i = 0; i < NUM_PARAMS_PER_PAGE; ++i) {
+            paramSlots_[i]->setVisible(false);
+        }
+        prevPageButton_->setVisible(false);
+        nextPageButton_->setVisible(false);
+        pageLabel_->setVisible(false);
+    } else {
+        // External plugin or internal device without custom UI - show 4x4 parameter grid
+        if (toneGeneratorUI_)
+            toneGeneratorUI_->setVisible(false);
 
-    // Params area - 4x4 grid spread evenly across available space
-    contentArea = contentArea.reduced(2, 0);
+        // Pagination area
+        auto paginationArea = contentArea.removeFromTop(PAGINATION_HEIGHT);
+        int buttonWidth = 18;
+        prevPageButton_->setBounds(paginationArea.removeFromLeft(buttonWidth));
+        nextPageButton_->setBounds(paginationArea.removeFromRight(buttonWidth));
+        pageLabel_->setBounds(paginationArea);
+        prevPageButton_->setVisible(true);
+        nextPageButton_->setVisible(true);
+        pageLabel_->setVisible(true);
 
-    auto labelFont =
-        FontManager::getInstance().getUIFont(DebugSettings::getInstance().getParamLabelFontSize());
-    auto valueFont =
-        FontManager::getInstance().getUIFont(DebugSettings::getInstance().getParamValueFontSize());
+        // Small gap
+        contentArea.removeFromTop(2);
 
-    // Calculate cell dimensions to fill available space evenly
-    int numRows = (NUM_PARAMS_PER_PAGE + PARAMS_PER_ROW - 1) / PARAMS_PER_ROW;
-    int cellWidth = contentArea.getWidth() / PARAMS_PER_ROW;
-    int cellHeight = contentArea.getHeight() / numRows;
+        // Params area - 4x4 grid spread evenly across available space
+        contentArea = contentArea.reduced(2, 0);
 
-    for (int i = 0; i < NUM_PARAMS_PER_PAGE; ++i) {
-        int row = i / PARAMS_PER_ROW;
-        int col = i % PARAMS_PER_ROW;
-        int x = contentArea.getX() + col * cellWidth;
-        int y = contentArea.getY() + row * cellHeight;
+        auto labelFont = FontManager::getInstance().getUIFont(
+            DebugSettings::getInstance().getParamLabelFontSize());
+        auto valueFont = FontManager::getInstance().getUIFont(
+            DebugSettings::getInstance().getParamValueFontSize());
 
-        paramSlots_[i]->setFonts(labelFont, valueFont);
-        paramSlots_[i]->setBounds(x, y, cellWidth - 2, cellHeight);
-        paramSlots_[i]->setVisible(true);
+        // Calculate cell dimensions to fill available space evenly
+        int numRows = (NUM_PARAMS_PER_PAGE + PARAMS_PER_ROW - 1) / PARAMS_PER_ROW;
+        int cellWidth = contentArea.getWidth() / PARAMS_PER_ROW;
+        int cellHeight = contentArea.getHeight() / numRows;
+
+        for (int i = 0; i < NUM_PARAMS_PER_PAGE; ++i) {
+            int row = i / PARAMS_PER_ROW;
+            int col = i % PARAMS_PER_ROW;
+            int x = contentArea.getX() + col * cellWidth;
+            int y = contentArea.getY() + row * cellHeight;
+
+            paramSlots_[i]->setFonts(labelFont, valueFont);
+            paramSlots_[i]->setBounds(x, y, cellWidth - 2, cellHeight);
+            paramSlots_[i]->setVisible(true);
+        }
     }
 }
 
@@ -852,6 +888,59 @@ void DeviceSlotComponent::paramSelectionChanged(const magda::ParamSelection& sel
         bool isSelected =
             selection.isValid() && selection.devicePath == nodePath_ && selection.paramIndex == i;
         paramSlots_[i]->setSelected(isSelected);
+    }
+}
+
+// =============================================================================
+// Custom UI for Internal Devices
+// =============================================================================
+
+void DeviceSlotComponent::createCustomUI() {
+    if (device_.pluginId.containsIgnoreCase("tone")) {
+        toneGeneratorUI_ = std::make_unique<ToneGeneratorUI>();
+        toneGeneratorUI_->onParameterChanged = [this](int paramIndex, float normalizedValue) {
+            if (!nodePath_.isValid()) {
+                DBG("ERROR: nodePath_ is invalid, cannot set parameter!");
+                return;
+            }
+            magda::TrackManager::getInstance().setDeviceParameterValue(nodePath_, paramIndex,
+                                                                       normalizedValue);
+        };
+        addAndMakeVisible(*toneGeneratorUI_);
+        updateCustomUI();
+    }
+    // Future: Add other internal device custom UIs here
+    // else if (device_.pluginId.containsIgnoreCase("volume")) { ... }
+}
+
+void DeviceSlotComponent::updateCustomUI() {
+    if (toneGeneratorUI_ && device_.pluginId.containsIgnoreCase("tone")) {
+        // Extract parameters from device
+        float frequency = 440.0f;
+        float level = -12.0f;
+        int waveform = 0;
+        int triggerMode = 1;
+
+        // Read from device parameters if available
+        if (device_.parameters.size() >= 4) {
+            // Param 0: Frequency (normalized 0-1)
+            float freqNorm = device_.parameters[0].currentValue;
+            float logMin = std::log(20.0f);
+            float logMax = std::log(20000.0f);
+            frequency = std::exp(logMin + freqNorm * (logMax - logMin));
+
+            // Param 1: Level (normalized 0-1 in -60 to 0 dB range)
+            float levelNorm = device_.parameters[1].currentValue;
+            level = -60.0f + levelNorm * 60.0f;
+
+            // Param 2: Waveform (0 or 1)
+            waveform = static_cast<int>(device_.parameters[2].currentValue);
+
+            // Param 3: Trigger mode (0-2)
+            triggerMode = static_cast<int>(device_.parameters[3].currentValue);
+        }
+
+        toneGeneratorUI_->updateParameters(frequency, level, waveform, triggerMode);
     }
 }
 
