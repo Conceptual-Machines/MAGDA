@@ -53,10 +53,15 @@ class TrackMeter : public juce::Component {
         auto leftBar = bounds.withWidth(barWidth);
         auto rightBar = bounds.withWidth(barWidth).withX(bounds.getX() + barWidth + gap);
 
-        // Background for each bar
-        g.setColour(DarkTheme::getColour(DarkTheme::SURFACE));
+        // Background for each bar (darker background)
+        g.setColour(juce::Colour(0xFF1A1A1A));
         g.fillRoundedRectangle(leftBar, 2.0f);
         g.fillRoundedRectangle(rightBar, 2.0f);
+
+        // Draw border so meters are always visible
+        g.setColour(juce::Colour(0xFF404040));
+        g.drawRoundedRectangle(leftBar, 2.0f, 1.0f);
+        g.drawRoundedRectangle(rightBar, 2.0f, 1.0f);
 
         // Draw level fills
         drawMeterBar(g, leftBar, levelL_);
@@ -273,6 +278,8 @@ TrackHeadersPanel::TrackHeader::TrackHeader(const juce::String& trackName) : nam
 }
 
 TrackHeadersPanel::TrackHeadersPanel(AudioEngine* audioEngine) : audioEngine_(audioEngine) {
+    std::cout << "TrackHeadersPanel created with audioEngine=" << (audioEngine ? "valid" : "NULL")
+              << std::endl;
     setSize(TRACK_HEADER_WIDTH, 400);
 
     // Register as TrackManager listener
@@ -301,16 +308,33 @@ TrackHeadersPanel::~TrackHeadersPanel() {
 
 void TrackHeadersPanel::timerCallback() {
     // Get metering data from AudioBridge
-    if (!audioEngine_)
+    static int uiTimerCounter = 0;
+    if (++uiTimerCounter % 90 == 0) {  // Every 3 seconds
+        std::cout << "TrackHeadersPanel timer running" << std::endl;
+    }
+
+    if (!audioEngine_) {
+        if (uiTimerCounter % 90 == 0) {
+            std::cout << "  No audioEngine_!" << std::endl;
+        }
         return;
+    }
 
     auto* teWrapper = dynamic_cast<TracktionEngineWrapper*>(audioEngine_);
-    if (!teWrapper)
+    if (!teWrapper) {
+        if (uiTimerCounter % 90 == 0) {
+            std::cout << "  audioEngine_ is not TracktionEngineWrapper!" << std::endl;
+        }
         return;
+    }
 
     auto* bridge = teWrapper->getAudioBridge();
-    if (!bridge)
+    if (!bridge) {
+        if (uiTimerCounter % 90 == 0) {
+            std::cout << "  No AudioBridge!" << std::endl;
+        }
         return;
+    }
 
     auto& meteringBuffer = bridge->getMeteringBuffer();
 
@@ -318,6 +342,10 @@ void TrackHeadersPanel::timerCallback() {
     for (auto& header : trackHeaders) {
         MeterData data;
         if (meteringBuffer.popLevels(header->trackId, data)) {
+            if (uiTimerCounter % 30 == 0 && header->trackId == 1) {  // Once per second for track 1
+                std::cout << "  UI got meter data for track 1: L=" << data.peakL
+                          << " R=" << data.peakR << std::endl;
+            }
             if (header->meterComponent) {
                 static_cast<TrackMeter*>(header->meterComponent.get())
                     ->setLevels(data.peakL, data.peakR);

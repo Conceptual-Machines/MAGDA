@@ -143,6 +143,22 @@ te::Plugin::Ptr AudioBridge::loadExternalPlugin(TrackId trackId,
 }
 
 te::Plugin::Ptr AudioBridge::addLevelMeterToTrack(TrackId trackId) {
+    auto* track = getAudioTrack(trackId);
+    if (!track) {
+        std::cerr << "Cannot add LevelMeter: track " << trackId << " not found" << std::endl;
+        return nullptr;
+    }
+
+    // Remove any existing LevelMeter plugins first to avoid duplicates
+    auto& plugins = track->pluginList;
+    for (int i = plugins.size() - 1; i >= 0; --i) {
+        if (auto* levelMeter = dynamic_cast<te::LevelMeterPlugin*>(plugins[i])) {
+            std::cout << "Removing existing LevelMeter at position " << i << std::endl;
+            levelMeter->deleteFromParent();
+        }
+    }
+
+    // Now add a fresh LevelMeter at the end
     return loadBuiltInPlugin(trackId, "levelmeter");
 }
 
@@ -179,12 +195,6 @@ te::AudioTrack* AudioBridge::createAudioTrack(TrackId trackId, const juce::Strin
     te::AudioTrack* track = trackPtr.get();
     if (track) {
         track->setName(name);
-
-        // Add a LevelMeterPlugin for metering
-        auto meterPlugin = createLevelMeter(track);
-        if (meterPlugin) {
-            std::cout << "Added LevelMeterPlugin to track " << trackId << std::endl;
-        }
 
         juce::ScopedLock lock(mappingLock_);
         trackMapping_[trackId] = track;
@@ -353,6 +363,12 @@ void AudioBridge::updateMetering() {
 
 void AudioBridge::timerCallback() {
     // Update metering from level measurers
+    static int timerCounter = 0;
+    if (++timerCounter % 90 == 0) {  // Every 3 seconds
+        std::cout << "AudioBridge timer running, checking " << trackMapping_.size() << " tracks"
+                  << std::endl;
+    }
+
     juce::ScopedLock lock(mappingLock_);
 
     for (const auto& [trackId, track] : trackMapping_) {
@@ -361,8 +377,17 @@ void AudioBridge::timerCallback() {
 
         // Get the track's level measurer via the LevelMeterPlugin
         auto* levelMeterPlugin = track->getLevelMeterPlugin();
-        if (!levelMeterPlugin)
+        if (!levelMeterPlugin) {
+            if (timerCounter % 90 == 0) {
+                std::cout << "Track " << trackId << " has no LevelMeterPlugin!" << std::endl;
+            }
             continue;
+        }
+
+        if (trackId == 1 && timerCounter % 90 == 0) {
+            std::cout << "Track 1: LevelMeterPlugin=" << levelMeterPlugin
+                      << " enabled=" << levelMeterPlugin->isEnabled() << std::endl;
+        }
 
         auto& measurer = levelMeterPlugin->measurer;
 
@@ -374,6 +399,12 @@ void AudioBridge::timerCallback() {
         // Convert from dB to linear
         data.peakL = juce::Decibels::decibelsToGain(levelL);
         data.peakR = juce::Decibels::decibelsToGain(levelR);
+
+        // Debug output for track 1
+        if (trackId == 1 && timerCounter % 30 == 0) {  // Once per second for track 1
+            std::cout << "Track 1 meter: dB=" << levelL << "/" << levelR << " linear=" << data.peakL
+                      << "/" << data.peakR << std::endl;
+        }
 
         // Check for clipping
         data.clipped = data.peakL > 1.0f || data.peakR > 1.0f;

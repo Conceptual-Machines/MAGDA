@@ -66,15 +66,16 @@ class MainWindow::MainComponent::ResizeHandle : public juce::Component {
 };
 
 // MainWindow implementation
-MainWindow::MainWindow()
-    : DocumentWindow("MAGDA", DarkTheme::getBackgroundColour(), DocumentWindow::allButtons) {
+MainWindow::MainWindow(AudioEngine* audioEngine)
+    : DocumentWindow("MAGDA", DarkTheme::getBackgroundColour(), DocumentWindow::allButtons),
+      externalAudioEngine_(audioEngine) {
     setUsingNativeTitleBar(true);
     setResizable(true, true);
 
     // Setup menu bar
     setupMenuBar();
 
-    mainComponent = new MainComponent();
+    mainComponent = new MainComponent(externalAudioEngine_);
     setContentOwned(mainComponent, true);  // Window takes ownership
 
     setSize(1200, 800);
@@ -97,8 +98,23 @@ void MainWindow::closeButtonPressed() {
 }
 
 // MainComponent implementation
-MainWindow::MainComponent::MainComponent() {
+MainWindow::MainComponent::MainComponent(AudioEngine* externalEngine) {
     setWantsKeyboardFocus(true);
+
+    // Use external engine if provided, otherwise create our own
+    if (externalEngine) {
+        audioEngine_.reset();  // Don't own it
+        // Just store a reference for use (audioEngine_ will be nullptr, use getter instead)
+        std::cout << "MainComponent using external audio engine" << std::endl;
+    } else {
+        // Create audio engine FIRST (before creating views that need it)
+        audioEngine_ = std::make_unique<TracktionEngineWrapper>();
+        if (!audioEngine_->initialize()) {
+            DBG("Warning: Failed to initialize audio engine");
+        }
+        externalEngine = audioEngine_.get();
+        std::cout << "MainComponent created internal audio engine" << std::endl;
+    }
 
     // Initialize panel sizes from LayoutConfig
     auto& layout = LayoutConfig::getInstance();
@@ -143,8 +159,9 @@ MainWindow::MainComponent::MainComponent() {
     footerBar = std::make_unique<FooterBar>();
     addAndMakeVisible(*footerBar);
 
-    // Create views
-    mainView = std::make_unique<MainView>(audioEngine_.get());
+    // Create views (now audioEngine is valid - use externalEngine which points to either external
+    // or internal)
+    mainView = std::make_unique<MainView>(externalEngine);
     addAndMakeVisible(*mainView);
 
     sessionView = std::make_unique<SessionView>();
@@ -166,7 +183,7 @@ MainWindow::MainComponent::MainComponent() {
 
     setupResizeHandles();
     setupViewModeListener();
-    setupAudioEngine();
+    setupAudioEngineCallbacks(externalEngine);
 }
 
 void MainWindow::MainComponent::setupResizeHandles() {
@@ -232,13 +249,7 @@ void MainWindow::MainComponent::setupViewModeListener() {
     switchToView(currentViewMode);
 }
 
-void MainWindow::MainComponent::setupAudioEngine() {
-    // Initialize audio engine
-    audioEngine_ = std::make_unique<TracktionEngineWrapper>();
-    if (!audioEngine_->initialize()) {
-        DBG("Warning: Failed to initialize audio engine");
-    }
-
+void MainWindow::MainComponent::setupAudioEngineCallbacks() {
     // Register audio engine as listener on TimelineController
     // This enables the observer pattern: UI -> TimelineController -> AudioEngine
     mainView->getTimelineController().addAudioEngineListener(audioEngine_.get());

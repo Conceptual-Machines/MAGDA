@@ -47,17 +47,33 @@ bool TracktionEngineWrapper::initialize() {
                 TrackId firstTrackId = tm.getTracks().front().id;
                 testTonePlugin_ = audioBridge_->loadBuiltInPlugin(firstTrackId, "tone");
                 if (testTonePlugin_) {
-                    // Set frequency to 440Hz and level to -10dB
+                    // Set frequency to 440Hz and level
                     if (auto* tonePlugin =
                             dynamic_cast<tracktion::ToneGeneratorPlugin*>(testTonePlugin_.get())) {
                         tonePlugin->frequency = 440.0f;
-                        tonePlugin->level = -10.0f;
+                        tonePlugin->level = 0.7f;
+                        std::cout << "Tone generator configured: 440Hz, level=0.7" << std::endl;
                     }
                     // Start disabled - will enable on play
                     testTonePlugin_->setEnabled(false);
                     std::cout << "ToneGeneratorPlugin loaded on Track 1 - press Play to hear!"
                               << std::endl;
                 }
+
+                // Ensure LevelMeter is AFTER the tone generator
+                auto meterPlugin = audioBridge_->addLevelMeterToTrack(firstTrackId);
+                if (meterPlugin) {
+                    auto* track = audioBridge_->getAudioTrack(firstTrackId);
+                    if (track) {
+                        auto& plugins = track->pluginList;
+                        std::cout << "Track 1 has " << plugins.size() << " plugins:" << std::endl;
+                        for (int i = 0; i < plugins.size(); i++) {
+                            auto* p = plugins[i];
+                            std::cout << "  [" << i << "] " << p->getName() << std::endl;
+                        }
+                    }
+                }
+                std::cout << "LevelMeterPlugin added to Track 1" << std::endl;
             }
 
             std::cout << "Tracktion Engine initialized with Edit and AudioBridge" << std::endl;
@@ -124,8 +140,10 @@ CommandResponse TracktionEngineWrapper::processCommand(const Command& command) {
 void TracktionEngineWrapper::play() {
     if (currentEdit_) {
         // Enable test tone when playing
-        if (testTonePlugin_)
+        if (testTonePlugin_) {
             testTonePlugin_->setEnabled(true);
+            std::cout << "ToneGenerator enabled" << std::endl;
+        }
 
         currentEdit_->getTransport().play(false);
         std::cout << "Playback started" << std::endl;

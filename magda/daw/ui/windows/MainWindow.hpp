@@ -25,14 +25,15 @@ class PlaybackPositionTimer;
 
 class MainWindow : public juce::DocumentWindow {
   public:
-    MainWindow();
+    MainWindow(AudioEngine* audioEngine = nullptr);
     ~MainWindow() override;
 
     void closeButtonPressed() override;
 
   private:
     class MainComponent;
-    MainComponent* mainComponent = nullptr;  // Raw pointer - owned by DocumentWindow
+    MainComponent* mainComponent = nullptr;       // Raw pointer - owned by DocumentWindow
+    AudioEngine* externalAudioEngine_ = nullptr;  // Non-owning pointer to external engine
 
     // Menu bar
     std::unique_ptr<juce::MenuBarComponent> menuBar;
@@ -47,7 +48,7 @@ class MainWindow::MainComponent : public juce::Component,
                                   public juce::DragAndDropContainer,
                                   public ViewModeListener {
   public:
-    MainComponent();
+    MainComponent(AudioEngine* externalEngine = nullptr);
     ~MainComponent() override;
 
     void paint(juce::Graphics& g) override;
@@ -108,7 +109,7 @@ class MainWindow::MainComponent : public juce::Component,
     // Setup helpers
     void setupResizeHandles();
     void setupViewModeListener();
-    void setupAudioEngine();
+    void setupAudioEngineCallbacks();
 
     // Layout helpers
     void layoutTransportArea(juce::Rectangle<int>& bounds);

@@ -48,8 +48,8 @@ class MagdaDAWApplication : public JUCEApplication {
 
         std::cout << "✓ Audio engine initialized" << std::endl;
 
-        // 4. Create main window with full UI
-        mainWindow_ = std::make_unique<magda::MainWindow>();
+        // 4. Create main window with full UI (pass the audio engine)
+        mainWindow_ = std::make_unique<magda::MainWindow>(daw_engine_.get());
 
         // 5. Create test clips for development (after singletons are initialized)
         magda::ClipManager::getInstance().createTestClips();
