@@ -335,6 +335,9 @@ LFOCurveEditorWindow::LFOCurveEditorWindow(magda::ModInfo* modInfo,
 
 void LFOCurveEditorWindow::closeButtonPressed() {
     setVisible(false);
+    if (onWindowClosed) {
+        onWindowClosed();
+    }
 }
 
 }  // namespace magda::daw::ui

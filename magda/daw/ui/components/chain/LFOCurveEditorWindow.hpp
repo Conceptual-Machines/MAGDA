@@ -83,6 +83,7 @@ class LFOCurveEditorWindow : public juce::DocumentWindow {
     std::function<void(magda::SyncDivision)> onSyncDivisionChanged;
     std::function<void(bool)> onOneShotChanged;
     std::function<void(bool)> onLoopRegionChanged;
+    std::function<void()> onWindowClosed;
 
   private:
     LFOCurveEditorContent content_;

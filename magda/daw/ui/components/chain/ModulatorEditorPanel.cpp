@@ -135,6 +135,7 @@ ModulatorEditorPanel::ModulatorEditorPanel() {
                     onSyncDivisionChanged(div);
                 }
             };
+            curveEditorWindow_->onWindowClosed = [this]() { curveEditorButton_->setActive(false); };
 
             curveEditorButton_->setActive(true);
         } else if (curveEditorWindow_->isVisible()) {
