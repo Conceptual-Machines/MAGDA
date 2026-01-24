@@ -5,6 +5,7 @@
 #include <functional>
 
 #include "../../../audio/AudioBridge.hpp"
+#include "../../../audio/MidiBridge.hpp"
 #include "../../../core/SelectionManager.hpp"
 #include "../../../core/TrackCommands.hpp"
 #include "../../../core/UndoManager.hpp"
@@ -262,14 +263,7 @@ TrackHeadersPanel::TrackHeader::TrackHeader(const juce::String& trackName) : nam
 
     // MIDI input selector (hybrid toggle + dropdown)
     midiInSelector = std::make_unique<RoutingSelector>(RoutingSelector::Type::MidiIn);
-    midiInSelector->setOptions({
-        {1, "All Inputs"},
-        {2, "None"},
-        {0, "", true},  // separator
-        {10, "Channel 1"},
-        {11, "Channel 2"},
-        {12, "Channel 3"},
-    });
+    // Options will be populated from MidiBridge in populateMidiInputOptions()
     midiInSelector->setSelectedId(1);
     midiInSelector->setEnabled(midiInEnabled);
 
@@ -361,6 +355,62 @@ void TrackHeadersPanel::timerCallback() {
 void TrackHeadersPanel::viewModeChanged(ViewMode mode, const AudioEngineProfile& /*profile*/) {
     currentViewMode_ = mode;
     tracksChanged();  // Rebuild with new visibility settings
+}
+
+void TrackHeadersPanel::populateMidiInputOptions(RoutingSelector* selector) {
+    if (!selector || !audioEngine_)
+        return;
+
+    auto* midiBridge = audioEngine_->getMidiBridge();
+    if (!midiBridge)
+        return;
+
+    // Get available MIDI inputs from MidiBridge
+    auto midiInputs = midiBridge->getAvailableMidiInputs();
+
+    // Build options list
+    std::vector<RoutingSelector::RoutingOption> options;
+    options.push_back({1, "All Inputs"});  // ID 1 = all inputs
+    options.push_back({2, "None"});        // ID 2 = no input
+
+    if (!midiInputs.empty()) {
+        options.push_back({0, "", true});  // separator
+
+        // Add each MIDI device as an option (starting from ID 10)
+        int id = 10;
+        for (const auto& device : midiInputs) {
+            options.push_back({id++, device.name});
+        }
+    }
+
+    selector->setOptions(options);
+}
+
+void TrackHeadersPanel::setupMidiCallbacks(TrackHeader& header, TrackId trackId) {
+    if (!audioEngine_)
+        return;
+
+    auto* midiBridge = audioEngine_->getMidiBridge();
+    if (!midiBridge)
+        return;
+
+    // Handle MIDI input selection changes
+    header.midiInSelector->onSelectionChanged = [this, trackId, midiBridge](int selectedId) {
+        if (selectedId == 2) {
+            // "None" selected - clear MIDI input
+            midiBridge->clearTrackMidiInput(trackId);
+        } else if (selectedId == 1) {
+            // "All Inputs" selected - set special "all" device ID
+            midiBridge->setTrackMidiInput(trackId, "all");
+        } else if (selectedId >= 10) {
+            // Specific device selected
+            auto midiInputs = midiBridge->getAvailableMidiInputs();
+            int deviceIndex = selectedId - 10;
+            if (deviceIndex >= 0 && deviceIndex < static_cast<int>(midiInputs.size())) {
+                midiBridge->setTrackMidiInput(trackId, midiInputs[deviceIndex].id);
+            }
+        }
+    };
 }
 
 void TrackHeadersPanel::tracksChanged() {
@@ -863,6 +913,10 @@ void TrackHeadersPanel::setupTrackHeaderWithId(TrackHeader& header, int trackId)
             repaint();
         }
     };
+
+    // Populate MIDI input options and set up routing callbacks
+    populateMidiInputOptions(header.midiInSelector.get());
+    setupMidiCallbacks(header, trackId);
 }
 
 void TrackHeadersPanel::paintTrackHeader(juce::Graphics& g, const TrackHeader& header,

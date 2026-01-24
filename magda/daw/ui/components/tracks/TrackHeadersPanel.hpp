@@ -165,6 +165,10 @@ class TrackHeadersPanel : public juce::Component,
     DropTargetType dropTargetType_ = DropTargetType::None;
     int dropTargetIndex_ = -1;
 
+    // MIDI device management
+    void populateMidiInputOptions(RoutingSelector* selector);
+    void setupMidiCallbacks(TrackHeader& header, TrackId trackId);
+
     // Helper methods
     void setupTrackHeader(TrackHeader& header, int trackIndex);
     void setupTrackHeaderWithId(TrackHeader& header, int trackId);

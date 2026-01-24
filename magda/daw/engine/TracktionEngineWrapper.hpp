@@ -153,10 +153,10 @@ class TracktionEngineWrapper : public AudioEngine,
      * @brief Get the MidiBridge for MIDI device management and routing
      * @return Pointer to MidiBridge, or nullptr if not initialized
      */
-    MidiBridge* getMidiBridge() {
+    MidiBridge* getMidiBridge() override {
         return midiBridge_.get();
     }
-    const MidiBridge* getMidiBridge() const {
+    const MidiBridge* getMidiBridge() const override {
         return midiBridge_.get();
     }
 

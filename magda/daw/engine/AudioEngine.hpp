@@ -54,6 +54,10 @@ class AudioEngine : public AudioEngineListener {
 
     // ===== Device Management =====
     virtual juce::AudioDeviceManager* getDeviceManager() = 0;
+
+    // ===== MIDI Management =====
+    virtual class MidiBridge* getMidiBridge() = 0;
+    virtual const class MidiBridge* getMidiBridge() const = 0;
 };
 
 }  // namespace magda
