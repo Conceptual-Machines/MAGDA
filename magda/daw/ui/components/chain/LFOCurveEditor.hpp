@@ -63,6 +63,47 @@ class LFOCurveEditor : public CurveEditorBase, private juce::Timer {
         return showCrosshair_;
     }
 
+    // Grid settings
+    void setGridDivisionsX(int divisions) {
+        gridDivisionsX_ = juce::jmax(1, divisions);
+        repaint();
+    }
+    int getGridDivisionsX() const {
+        return gridDivisionsX_;
+    }
+
+    void setGridDivisionsY(int divisions) {
+        gridDivisionsY_ = juce::jmax(1, divisions);
+        repaint();
+    }
+    int getGridDivisionsY() const {
+        return gridDivisionsY_;
+    }
+
+    // Snap settings
+    void setSnapX(bool snap) {
+        snapX_ = snap;
+    }
+    bool getSnapX() const {
+        return snapX_;
+    }
+
+    void setSnapY(bool snap) {
+        snapY_ = snap;
+    }
+    bool getSnapY() const {
+        return snapY_;
+    }
+
+    // Show/hide loop region markers
+    void setShowLoopRegion(bool show) {
+        showLoopRegion_ = show;
+        repaint();
+    }
+    bool getShowLoopRegion() const {
+        return showLoopRegion_;
+    }
+
   protected:
     // CurveEditorBase data mutation callbacks
     void onPointAdded(double x, double y, CurveType curveType) override;
@@ -105,7 +146,19 @@ class LFOCurveEditor : public CurveEditorBase, private juce::Timer {
     float lastPhase_ = 0.0f;
     float lastValue_ = 0.0f;
 
+    // Grid settings
+    int gridDivisionsX_ = 4;  // Vertical lines (phase divisions)
+    int gridDivisionsY_ = 4;  // Horizontal lines (value divisions)
+
+    // Snap settings
+    bool snapX_ = false;
+    bool snapY_ = false;
+
+    // Loop region display
+    bool showLoopRegion_ = false;
+
     void notifyWaveformChanged();
+    void paintLoopRegion(juce::Graphics& g);
 };
 
 }  // namespace magda

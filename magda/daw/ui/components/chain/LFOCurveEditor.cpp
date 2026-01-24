@@ -154,18 +154,34 @@ void LFOCurveEditor::constrainPointPosition(uint32_t pointId, double& x, double&
 
     // Find the point being moved and check if it's currently at an edge
     // We identify edge points by their current x value, not array position
+    bool isEdgePoint = false;
     for (const auto& point : points_) {
         if (point.id == pointId) {
             // If this point is currently at x=0, pin it there
             if (std::abs(point.x) < 0.001) {
                 x = 0.0;
+                isEdgePoint = true;
             }
             // If this point is currently at x=1, pin it there
             else if (std::abs(point.x - 1.0) < 0.001) {
                 x = 1.0;
+                isEdgePoint = true;
             }
             break;
         }
+    }
+
+    // Apply snap to grid if enabled (only for non-edge points on X axis)
+    if (snapX_ && !isEdgePoint && gridDivisionsX_ > 1) {
+        double gridStep = 1.0 / gridDivisionsX_;
+        x = std::round(x / gridStep) * gridStep;
+        x = juce::jlimit(0.0, 1.0, x);
+    }
+
+    if (snapY_ && gridDivisionsY_ > 1) {
+        double gridStep = 1.0 / gridDivisionsY_;
+        y = std::round(y / gridStep) * gridStep;
+        y = juce::jlimit(0.0, 1.0, y);
     }
 }
 
@@ -378,27 +394,74 @@ void LFOCurveEditor::paintPhaseIndicator(juce::Graphics& g) {
 
 void LFOCurveEditor::paintGrid(juce::Graphics& g) {
     auto bounds = getLocalBounds();
+    float width = static_cast<float>(bounds.getWidth());
+    float height = static_cast<float>(bounds.getHeight());
 
-    // Horizontal center line (0.5 value)
-    g.setColour(juce::Colour(0x20FFFFFF));
-    int centerY = bounds.getHeight() / 2;
-    g.drawHorizontalLine(centerY, 0.0f, static_cast<float>(bounds.getWidth()));
-
-    // Quarter lines (0.25, 0.75 value)
-    g.setColour(juce::Colour(0x10FFFFFF));
-    g.drawHorizontalLine(bounds.getHeight() / 4, 0.0f, static_cast<float>(bounds.getWidth()));
-    g.drawHorizontalLine(bounds.getHeight() * 3 / 4, 0.0f, static_cast<float>(bounds.getWidth()));
-
-    // Vertical quarter lines (phase 0.25, 0.5, 0.75)
-    g.setColour(juce::Colour(0x10FFFFFF));
-    for (int i = 1; i < 4; ++i) {
-        int x = bounds.getWidth() * i / 4;
-        g.drawVerticalLine(x, 0.0f, static_cast<float>(bounds.getHeight()));
+    // Horizontal grid lines (value divisions)
+    for (int i = 1; i < gridDivisionsY_; ++i) {
+        int y = bounds.getHeight() * i / gridDivisionsY_;
+        // Center line is brighter
+        bool isCenter = (i * 2 == gridDivisionsY_);
+        g.setColour(juce::Colour(isCenter ? 0x20FFFFFF : 0x10FFFFFF));
+        g.drawHorizontalLine(y, 0.0f, width);
     }
 
-    // Phase 0.5 line (center) slightly brighter
-    g.setColour(juce::Colour(0x20FFFFFF));
-    g.drawVerticalLine(bounds.getWidth() / 2, 0.0f, static_cast<float>(bounds.getHeight()));
+    // Vertical grid lines (phase divisions)
+    for (int i = 1; i < gridDivisionsX_; ++i) {
+        int x = bounds.getWidth() * i / gridDivisionsX_;
+        // Center line is brighter
+        bool isCenter = (i * 2 == gridDivisionsX_);
+        g.setColour(juce::Colour(isCenter ? 0x20FFFFFF : 0x10FFFFFF));
+        g.drawVerticalLine(x, 0.0f, height);
+    }
+
+    // Draw loop region if enabled and modInfo has loop region
+    if (showLoopRegion_ && modInfo_ && modInfo_->useLoopRegion) {
+        paintLoopRegion(g);
+    }
+}
+
+void LFOCurveEditor::paintLoopRegion(juce::Graphics& g) {
+    if (!modInfo_)
+        return;
+
+    auto content = getContentBounds();
+    float loopStartX = content.getX() + modInfo_->loopStart * content.getWidth();
+    float loopEndX = content.getX() + modInfo_->loopEnd * content.getWidth();
+
+    // Shade areas outside the loop region
+    g.setColour(juce::Colour(0x30000000));
+    if (loopStartX > content.getX()) {
+        g.fillRect(juce::Rectangle<float>(
+            static_cast<float>(content.getX()), static_cast<float>(content.getY()),
+            loopStartX - content.getX(), static_cast<float>(content.getHeight())));
+    }
+    if (loopEndX < content.getRight()) {
+        g.fillRect(juce::Rectangle<float>(loopEndX, static_cast<float>(content.getY()),
+                                          content.getRight() - loopEndX,
+                                          static_cast<float>(content.getHeight())));
+    }
+
+    // Draw loop region markers
+    g.setColour(curveColour_.withAlpha(0.7f));
+    g.drawVerticalLine(static_cast<int>(loopStartX), static_cast<float>(content.getY()),
+                       static_cast<float>(content.getBottom()));
+    g.drawVerticalLine(static_cast<int>(loopEndX), static_cast<float>(content.getY()),
+                       static_cast<float>(content.getBottom()));
+
+    // Draw small triangular markers at top
+    constexpr float markerSize = 6.0f;
+    juce::Path startMarker;
+    startMarker.addTriangle(loopStartX, static_cast<float>(content.getY()), loopStartX + markerSize,
+                            static_cast<float>(content.getY()), loopStartX,
+                            static_cast<float>(content.getY()) + markerSize);
+    g.fillPath(startMarker);
+
+    juce::Path endMarker;
+    endMarker.addTriangle(loopEndX, static_cast<float>(content.getY()), loopEndX - markerSize,
+                          static_cast<float>(content.getY()), loopEndX,
+                          static_cast<float>(content.getY()) + markerSize);
+    g.fillPath(endMarker);
 }
 
 void LFOCurveEditor::notifyWaveformChanged() {

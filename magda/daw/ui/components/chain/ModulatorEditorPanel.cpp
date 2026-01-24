@@ -107,6 +107,35 @@ ModulatorEditorPanel::ModulatorEditorPanel() {
                     }
                     repaint();
                 });
+
+            // Wire up rate/sync callbacks from external editor
+            curveEditorWindow_->onRateChanged = [this](float rate) {
+                currentMod_.rate = rate;
+                rateSlider_.setValue(rate, juce::dontSendNotification);
+                if (onRateChanged) {
+                    onRateChanged(rate);
+                }
+            };
+            curveEditorWindow_->onTempoSyncChanged = [this](bool synced) {
+                currentMod_.tempoSync = synced;
+                syncToggle_.setToggleState(synced, juce::dontSendNotification);
+                syncToggle_.setButtonText(synced ? "Sync" : "Free");
+                rateSlider_.setVisible(!synced);
+                syncDivisionCombo_.setVisible(synced);
+                if (onTempoSyncChanged) {
+                    onTempoSyncChanged(synced);
+                }
+                resized();
+            };
+            curveEditorWindow_->onSyncDivisionChanged = [this](magda::SyncDivision div) {
+                currentMod_.syncDivision = div;
+                syncDivisionCombo_.setSelectedId(static_cast<int>(div) + 100,
+                                                 juce::dontSendNotification);
+                if (onSyncDivisionChanged) {
+                    onSyncDivisionChanged(div);
+                }
+            };
+
             curveEditorButton_->setActive(true);
         } else if (curveEditorWindow_->isVisible()) {
             curveEditorWindow_->setVisible(false);

@@ -139,6 +139,14 @@ struct ModInfo {
     LFOTriggerMode triggerMode = LFOTriggerMode::Free;  // When to reset phase
     bool triggered = false;                             // Set true when trigger fires (for UI dot)
 
+    // Loop/One-shot mode
+    bool oneShot = false;  // If true, play once and hold at end value
+
+    // MSEG loop region (for Custom waveform)
+    bool useLoopRegion = false;  // Enable loop between loopStart and loopEnd
+    float loopStart = 0.0f;      // Loop region start phase (0-1)
+    float loopEnd = 1.0f;        // Loop region end phase (0-1)
+
     // Advanced receiver settings (for future MIDI/Audio trigger modes)
     int midiChannel = 0;  // 0 = any, 1-16 = specific
     int midiNote = -1;    // -1 = any, 0-127 = specific
