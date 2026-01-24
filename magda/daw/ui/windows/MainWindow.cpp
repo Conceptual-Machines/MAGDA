@@ -144,7 +144,7 @@ MainWindow::MainComponent::MainComponent() {
     addAndMakeVisible(*footerBar);
 
     // Create views
-    mainView = std::make_unique<MainView>();
+    mainView = std::make_unique<MainView>(audioEngine_.get());
     addAndMakeVisible(*mainView);
 
     sessionView = std::make_unique<SessionView>();

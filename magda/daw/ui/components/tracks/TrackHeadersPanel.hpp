@@ -16,7 +16,11 @@
 
 namespace magda {
 
+// Forward declaration
+class AudioEngine;
+
 class TrackHeadersPanel : public juce::Component,
+                          public juce::Timer,
                           public TrackManagerListener,
                           public ViewModeListener,
                           public AutomationManagerListener {
@@ -26,8 +30,11 @@ class TrackHeadersPanel : public juce::Component,
     static constexpr int MIN_TRACK_HEIGHT = 40;
     static constexpr int MAX_TRACK_HEIGHT = 200;
 
-    TrackHeadersPanel();
+    TrackHeadersPanel(AudioEngine* audioEngine = nullptr);
     ~TrackHeadersPanel() override;
+
+    // Timer callback for metering updates
+    void timerCallback() override;
 
     // TrackManagerListener
     void tracksChanged() override;
@@ -136,6 +143,7 @@ class TrackHeadersPanel : public juce::Component,
     double verticalZoom = 1.0;  // Track height multiplier
     ViewMode currentViewMode_ = ViewMode::Arrange;
     MixerLookAndFeel sliderLookAndFeel_;  // Custom look and feel for sliders
+    AudioEngine* audioEngine_ = nullptr;  // Reference to audio engine for metering
 
     // Resize functionality
     bool isResizing = false;

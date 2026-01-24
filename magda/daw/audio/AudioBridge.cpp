@@ -180,6 +180,12 @@ te::AudioTrack* AudioBridge::createAudioTrack(TrackId trackId, const juce::Strin
     if (track) {
         track->setName(name);
 
+        // Add a LevelMeterPlugin for metering
+        auto meterPlugin = createLevelMeter(track);
+        if (meterPlugin) {
+            std::cout << "Added LevelMeterPlugin to track " << trackId << std::endl;
+        }
+
         juce::ScopedLock lock(mappingLock_);
         trackMapping_[trackId] = track;
 

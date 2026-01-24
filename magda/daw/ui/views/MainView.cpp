@@ -50,7 +50,11 @@ float dbToFaderPos(float db) {
 
 }  // namespace
 
-MainView::MainView() : playheadPosition(0.0), horizontalZoom(20.0), initialZoomSet(false) {
+MainView::MainView(AudioEngine* audioEngine)
+    : audioEngine_(audioEngine),
+      playheadPosition(0.0),
+      horizontalZoom(20.0),
+      initialZoomSet(false) {
     // Load configuration
     auto& config = magda::Config::getInstance();
     config.loadFromFile("magda_config.txt");  // Load from file if it exists
@@ -119,7 +123,7 @@ void MainView::setupComponents() {
     // Create track headers viewport and panel (vertical scroll synced with content viewport)
     trackHeadersViewport = std::make_unique<juce::Viewport>();
     trackHeadersViewport->setScrollBarsShown(false, false);  // No scrollbars - synced externally
-    trackHeadersPanel = std::make_unique<TrackHeadersPanel>();
+    trackHeadersPanel = std::make_unique<TrackHeadersPanel>(audioEngine_);
     trackHeadersViewport->setViewedComponent(trackHeadersPanel.get(),
                                              false);  // false = don't delete
     addAndMakeVisible(*trackHeadersViewport);

@@ -4,13 +4,15 @@
 #include <cmath>
 #include <functional>
 
+#include "../../../audio/AudioBridge.hpp"
+#include "../../../core/SelectionManager.hpp"
+#include "../../../core/TrackCommands.hpp"
+#include "../../../core/UndoManager.hpp"
+#include "../../../engine/TracktionEngineWrapper.hpp"
 #include "../../themes/DarkTheme.hpp"
 #include "../../themes/FontManager.hpp"
 #include "../automation/AutomationLaneComponent.hpp"
 #include "BinaryData.h"
-#include "core/SelectionManager.hpp"
-#include "core/TrackCommands.hpp"
-#include "core/UndoManager.hpp"
 
 namespace magda {
 
@@ -264,16 +266,13 @@ TrackHeadersPanel::TrackHeader::TrackHeader(const juce::String& trackName) : nam
 
     // Meter component (stereo level display)
     meterComponent = std::make_unique<TrackMeter>();
-    // Set demo levels so meters are visible
-    static_cast<TrackMeter*>(meterComponent.get())->setLevels(0.6f, 0.4f);
+    // Levels will be set by timerCallback reading from AudioBridge
 
     // MIDI activity indicator
     midiIndicator = std::make_unique<MidiActivityIndicator>();
-    // Set demo activity so indicator is visible
-    static_cast<MidiActivityIndicator*>(midiIndicator.get())->setActivity(0.3f);
 }
 
-TrackHeadersPanel::TrackHeadersPanel() {
+TrackHeadersPanel::TrackHeadersPanel(AudioEngine* audioEngine) : audioEngine_(audioEngine) {
     setSize(TRACK_HEADER_WIDTH, 400);
 
     // Register as TrackManager listener
@@ -288,12 +287,43 @@ TrackHeadersPanel::TrackHeadersPanel() {
 
     // Build tracks from TrackManager
     tracksChanged();
+
+    // Start timer for metering updates (30 FPS)
+    startTimerHz(30);
 }
 
 TrackHeadersPanel::~TrackHeadersPanel() {
+    stopTimer();
     TrackManager::getInstance().removeListener(this);
     ViewModeController::getInstance().removeListener(this);
     AutomationManager::getInstance().removeListener(this);
+}
+
+void TrackHeadersPanel::timerCallback() {
+    // Get metering data from AudioBridge
+    if (!audioEngine_)
+        return;
+
+    auto* teWrapper = dynamic_cast<TracktionEngineWrapper*>(audioEngine_);
+    if (!teWrapper)
+        return;
+
+    auto* bridge = teWrapper->getAudioBridge();
+    if (!bridge)
+        return;
+
+    auto& meteringBuffer = bridge->getMeteringBuffer();
+
+    // Update meters for all visible tracks
+    for (auto& header : trackHeaders) {
+        MeterData data;
+        if (meteringBuffer.popLevels(header->trackId, data)) {
+            if (header->meterComponent) {
+                static_cast<TrackMeter*>(header->meterComponent.get())
+                    ->setLevels(data.peakL, data.peakR);
+            }
+        }
+    }
 }
 
 void TrackHeadersPanel::viewModeChanged(ViewMode mode, const AudioEngineProfile& /*profile*/) {

@@ -18,13 +18,16 @@
 
 namespace magda {
 
+// Forward declaration
+class AudioEngine;
+
 class MainView : public juce::Component,
                  public juce::ScrollBar::Listener,
                  public TimelineStateListener,
                  public TrackManagerListener,
                  public ViewModeListener {
   public:
-    MainView();
+    MainView(AudioEngine* audioEngine = nullptr);
     ~MainView() override;
 
     void paint(juce::Graphics& g) override;
@@ -220,6 +223,9 @@ class MainView : public juce::Component,
     // Grid division display (shown on horizontal zoom scroll bar)
     void updateGridDivisionDisplay();
     juce::String calculateGridDivisionString() const;
+
+    // Audio engine reference for metering
+    AudioEngine* audioEngine_ = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainView)
 };

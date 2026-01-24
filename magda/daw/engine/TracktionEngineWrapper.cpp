@@ -74,6 +74,9 @@ bool TracktionEngineWrapper::initialize() {
 }
 
 void TracktionEngineWrapper::shutdown() {
+    // Release test tone plugin first (before Edit is destroyed)
+    testTonePlugin_.reset();
+
     // Destroy AudioBridge first (it references Edit and Engine)
     if (audioBridge_) {
         audioBridge_.reset();
