@@ -116,7 +116,7 @@ void AutomationCurveEditor::paintCurve(juce::Graphics& g) {
                         for (int seg = 1; seg <= NUM_SEGMENTS; ++seg) {
                             double t = static_cast<double>(seg) / NUM_SEGMENTS;
 
-                            // Apply tension curve
+                            // Apply tension curve (tension can be -3 to +3 with Shift)
                             double curvedT;
                             if (effectiveTension > 0) {
                                 curvedT = std::pow(t, 1.0 + effectiveTension * 2.0);

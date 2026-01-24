@@ -513,7 +513,8 @@ void AutomationManager::setPointTension(AutomationLaneId laneId, AutomationPoint
         return;
 
     if (auto* point = findPoint(lane->absolutePoints, pointId)) {
-        point->tension = juce::jlimit(-1.0, 1.0, tension);
+        // Allow -3 to +3 for extreme curves (Shift+drag)
+        point->tension = juce::jlimit(-3.0, 3.0, tension);
         notifyPointsChanged(laneId);
     }
 }
@@ -525,7 +526,8 @@ void AutomationManager::setPointTensionInClip(AutomationClipId clipId, Automatio
         return;
 
     if (auto* point = findPoint(clip->points, pointId)) {
-        point->tension = juce::jlimit(-1.0, 1.0, tension);
+        // Allow -3 to +3 for extreme curves (Shift+drag)
+        point->tension = juce::jlimit(-3.0, 3.0, tension);
         notifyClipsChanged(clip->laneId);
     }
 }
