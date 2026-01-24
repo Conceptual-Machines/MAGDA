@@ -16,7 +16,7 @@ ToneGeneratorUI::ToneGeneratorUI() {
     waveformSelector_.onChange = [this]() {
         int waveform = waveformSelector_.getSelectedId() - 1;  // 0=Sine, 1=Noise
         if (onParameterChanged) {
-            // Normalize: 0 or 1
+            // Send actual choice index (0 or 1)
             onParameterChanged(2, static_cast<float>(waveform));
         }
     };
@@ -42,8 +42,8 @@ ToneGeneratorUI::ToneGeneratorUI() {
     });
     frequencySlider_.onValueChanged = [this](double value) {
         if (onParameterChanged) {
-            float normalized = frequencyToNormalized(static_cast<float>(value));
-            onParameterChanged(0, normalized);  // Param 0 = frequency
+            // Send actual Hz value (20-20000)
+            onParameterChanged(0, static_cast<float>(value));  // Param 0 = frequency
         }
     };
     addAndMakeVisible(frequencySlider_);
@@ -53,8 +53,8 @@ ToneGeneratorUI::ToneGeneratorUI() {
     levelSlider_.setValue(-12.0, juce::dontSendNotification);
     levelSlider_.onValueChanged = [this](double value) {
         if (onParameterChanged) {
-            float normalized = levelToNormalized(static_cast<float>(value));
-            onParameterChanged(1, normalized);  // Param 1 = level
+            // Send actual dB value (-60 to 0)
+            onParameterChanged(1, static_cast<float>(value));  // Param 1 = level
         }
     };
     addAndMakeVisible(levelSlider_);
@@ -111,32 +111,6 @@ juce::String ToneGeneratorUI::formatFrequency(float hz) const {
         return juce::String(static_cast<int>(hz)) + " Hz";
     }
     return juce::String(hz, 1) + " Hz";
-}
-
-float ToneGeneratorUI::frequencyToNormalized(float hz) const {
-    // Logarithmic mapping: 20-20000 Hz → 0-1
-    float logMin = std::log(20.0f);
-    float logMax = std::log(20000.0f);
-    float logValue = std::log(juce::jlimit(20.0f, 20000.0f, hz));
-    return (logValue - logMin) / (logMax - logMin);
-}
-
-float ToneGeneratorUI::normalizedToFrequency(float normalized) const {
-    // Logarithmic mapping: 0-1 → 20-20000 Hz
-    float logMin = std::log(20.0f);
-    float logMax = std::log(20000.0f);
-    float logValue = logMin + normalized * (logMax - logMin);
-    return std::exp(logValue);
-}
-
-float ToneGeneratorUI::levelToNormalized(float db) const {
-    // Linear mapping: -60 to 0 dB → 0-1
-    return juce::jlimit(0.0f, 1.0f, (db + 60.0f) / 60.0f);
-}
-
-float ToneGeneratorUI::normalizedToLevel(float normalized) const {
-    // Linear mapping: 0-1 → -60 to 0 dB
-    return -60.0f + normalized * 60.0f;
 }
 
 }  // namespace magda::daw::ui

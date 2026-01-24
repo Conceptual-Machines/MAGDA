@@ -30,10 +30,11 @@ class ToneGeneratorUI : public juce::Component {
     void updateParameters(float frequency, float level, int waveform);
 
     /**
-     * @brief Callback when a parameter changes (paramIndex, normalizedValue)
+     * @brief Callback when a parameter changes (paramIndex, actualValue)
      * ParamIndex: 0=frequency, 1=level, 2=waveform
+     * Values are in real units (Hz, dB, choice index)
      */
-    std::function<void(int paramIndex, float normalizedValue)> onParameterChanged;
+    std::function<void(int paramIndex, float actualValue)> onParameterChanged;
 
     void paint(juce::Graphics& g) override;
     void resized() override;
@@ -48,20 +49,8 @@ class ToneGeneratorUI : public juce::Component {
     // Level slider (-60 to 0 dB)
     TextSlider levelSlider_{TextSlider::Format::Decibels};
 
-    // Convert frequency to display string
+    // Convert frequency to display string (for formatter)
     juce::String formatFrequency(float hz) const;
-
-    // Convert frequency to normalized value (0-1, logarithmic)
-    float frequencyToNormalized(float hz) const;
-
-    // Convert normalized value to frequency
-    float normalizedToFrequency(float normalized) const;
-
-    // Convert level (dB) to normalized value (0-1)
-    float levelToNormalized(float db) const;
-
-    // Convert normalized value to level (dB)
-    float normalizedToLevel(float normalized) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ToneGeneratorUI)
 };

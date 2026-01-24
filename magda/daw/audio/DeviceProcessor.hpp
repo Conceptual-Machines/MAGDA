@@ -43,18 +43,16 @@ class DeviceProcessor {
     /**
      * @brief Set a named parameter on the device
      * @param paramName Parameter name (device-specific, e.g., "level", "frequency")
-     * @param value Normalized value (0-1) or actual value depending on parameter
-     * @param isNormalized If true, value is 0-1 normalized; if false, it's the actual value
+     * @param value Actual value in real units (Hz, dB, etc.)
      */
-    virtual void setParameter(const juce::String& paramName, float value, bool isNormalized = true);
+    virtual void setParameter(const juce::String& paramName, float value);
 
     /**
      * @brief Get a named parameter value
      * @param paramName Parameter name
-     * @param normalized If true, return normalized 0-1 value
-     * @return Parameter value, or 0 if not found
+     * @return Parameter value in real units, or 0 if not found
      */
-    virtual float getParameter(const juce::String& paramName, bool normalized = true) const;
+    virtual float getParameter(const juce::String& paramName) const;
 
     /**
      * @brief Get list of available parameter names for this device
@@ -159,9 +157,8 @@ class ToneGeneratorProcessor : public DeviceProcessor {
   public:
     ToneGeneratorProcessor(DeviceId deviceId, te::Plugin::Ptr plugin);
 
-    void setParameter(const juce::String& paramName, float value,
-                      bool isNormalized = true) override;
-    float getParameter(const juce::String& paramName, bool normalized = true) const override;
+    void setParameter(const juce::String& paramName, float value) override;
+    float getParameter(const juce::String& paramName) const override;
     std::vector<juce::String> getParameterNames() const override;
     int getParameterCount() const override;
     ParameterInfo getParameterInfo(int index) const override;
@@ -194,9 +191,8 @@ class VolumeProcessor : public DeviceProcessor {
   public:
     VolumeProcessor(DeviceId deviceId, te::Plugin::Ptr plugin);
 
-    void setParameter(const juce::String& paramName, float value,
-                      bool isNormalized = true) override;
-    float getParameter(const juce::String& paramName, bool normalized = true) const override;
+    void setParameter(const juce::String& paramName, float value) override;
+    float getParameter(const juce::String& paramName) const override;
     std::vector<juce::String> getParameterNames() const override;
 
     void setVolume(float db);

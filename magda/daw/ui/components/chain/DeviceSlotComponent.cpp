@@ -915,24 +915,20 @@ void DeviceSlotComponent::createCustomUI() {
 
 void DeviceSlotComponent::updateCustomUI() {
     if (toneGeneratorUI_ && device_.pluginId.containsIgnoreCase("tone")) {
-        // Extract parameters from device
+        // Extract parameters from device (stored as actual values)
         float frequency = 440.0f;
         float level = -12.0f;
         int waveform = 0;
 
         // Read from device parameters if available
         if (device_.parameters.size() >= 3) {
-            // Param 0: Frequency (normalized 0-1)
-            float freqNorm = device_.parameters[0].currentValue;
-            float logMin = std::log(20.0f);
-            float logMax = std::log(20000.0f);
-            frequency = std::exp(logMin + freqNorm * (logMax - logMin));
+            // Param 0: Frequency (actual Hz)
+            frequency = device_.parameters[0].currentValue;
 
-            // Param 1: Level (normalized 0-1 in -60 to 0 dB range)
-            float levelNorm = device_.parameters[1].currentValue;
-            level = -60.0f + levelNorm * 60.0f;
+            // Param 1: Level (actual dB)
+            level = device_.parameters[1].currentValue;
 
-            // Param 2: Waveform (0 or 1)
+            // Param 2: Waveform (actual choice index: 0 or 1)
             waveform = static_cast<int>(device_.parameters[2].currentValue);
         }
 

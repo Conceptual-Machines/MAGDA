@@ -11,12 +11,11 @@ namespace magda {
 DeviceProcessor::DeviceProcessor(DeviceId deviceId, te::Plugin::Ptr plugin)
     : deviceId_(deviceId), plugin_(plugin) {}
 
-void DeviceProcessor::setParameter(const juce::String& /*paramName*/, float /*value*/,
-                                   bool /*isNormalized*/) {
+void DeviceProcessor::setParameter(const juce::String& /*paramName*/, float /*value*/) {
     // Base implementation does nothing - override in subclasses
 }
 
-float DeviceProcessor::getParameter(const juce::String& /*paramName*/, bool /*normalized*/) const {
+float DeviceProcessor::getParameter(const juce::String& /*paramName*/) const {
     return 0.0f;
 }
 
@@ -69,14 +68,14 @@ void DeviceProcessor::syncFromDeviceInfo(const DeviceInfo& info) {
     setGainDb(info.gainDb);
     setBypassed(info.bypassed);
 
-    // Sync parameter values
+    // Sync parameter values (ParameterInfo stores actual values in real units)
     auto names = getParameterNames();
     for (size_t i = 0; i < info.parameters.size(); ++i) {
         const auto& param = info.parameters[i];
-        // Use setParameter with normalized=true since ParameterInfo stores normalized values
         if (i < names.size()) {
-            DBG("  Syncing param " << i << " (" << names[i] << ") = " << param.currentValue);
-            setParameter(names[i], param.currentValue, true);
+            DBG("  Syncing param " << i << " (" << names[i] << ") = " << param.currentValue << " "
+                                   << param.unit);
+            setParameter(names[i], param.currentValue);
         }
     }
 }
@@ -150,54 +149,39 @@ te::ToneGeneratorPlugin* ToneGeneratorProcessor::getTonePlugin() const {
     return dynamic_cast<te::ToneGeneratorPlugin*>(plugin_.get());
 }
 
-void ToneGeneratorProcessor::setParameter(const juce::String& paramName, float value,
-                                          bool isNormalized) {
+void ToneGeneratorProcessor::setParameter(const juce::String& paramName, float value) {
     if (paramName.equalsIgnoreCase("frequency") || paramName.equalsIgnoreCase("freq")) {
-        if (isNormalized) {
-            // Map 0-1 to 20-20000 Hz (logarithmic)
-            float hz = 20.0f * std::pow(1000.0f, value);
-            DBG("ToneGen::setParameter freq normalized=" << value << " -> " << hz << " Hz");
-            setFrequency(hz);
-        } else {
-            DBG("ToneGen::setParameter freq raw=" << value << " Hz");
-            setFrequency(value);
-        }
+        // Value is actual Hz (20-20000)
+        DBG("ToneGen::setParameter freq=" << value << " Hz");
+        setFrequency(value);
     } else if (paramName.equalsIgnoreCase("level") || paramName.equalsIgnoreCase("gain") ||
                paramName.equalsIgnoreCase("volume")) {
-        float level;
-        if (isNormalized) {
-            // Normalized value is position in -60 to 0 dB range, convert to linear
-            float db = -60.0f + value * 60.0f;
-            level = juce::Decibels::decibelsToGain(db, -60.0f);
-        } else {
-            level = juce::Decibels::decibelsToGain(value);
-        }
-        DBG("ToneGen::setParameter level=" << level << " (normalized=" << value << ")");
+        // Value is actual dB (-60 to 0)
+        float level = juce::Decibels::decibelsToGain(value, -60.0f);
+        DBG("ToneGen::setParameter level=" << value << " dB (linear=" << level << ")");
         setLevel(level);
     } else if (paramName.equalsIgnoreCase("oscType") || paramName.equalsIgnoreCase("type") ||
                paramName.equalsIgnoreCase("waveform")) {
-        // 0 = sine, 1 = noise (normalized value 0-1 maps to choice index)
+        // Value is actual choice index (0 or 1)
         int type = static_cast<int>(std::round(value));
         DBG("ToneGen::setParameter oscType=" << type);
-        setOscType(type);  // 0 or 1
+        setOscType(type);
     }
 }
 
-float ToneGeneratorProcessor::getParameter(const juce::String& paramName, bool normalized) const {
+float ToneGeneratorProcessor::getParameter(const juce::String& paramName) const {
     if (paramName.equalsIgnoreCase("frequency") || paramName.equalsIgnoreCase("freq")) {
-        float hz = getFrequency();
-        if (normalized) {
-            // Map 20-20000 Hz to 0-1 (logarithmic)
-            return std::log(hz / 20.0f) / std::log(1000.0f);
-        }
-        return hz;
+        // Return actual Hz (20-20000)
+        return getFrequency();
     } else if (paramName.equalsIgnoreCase("level") || paramName.equalsIgnoreCase("gain") ||
                paramName.equalsIgnoreCase("volume")) {
+        // Return actual dB (-60 to 0)
         float level = getLevel();
-        return normalized ? level : juce::Decibels::gainToDecibels(level);
+        return juce::Decibels::gainToDecibels(level, -60.0f);
     } else if (paramName.equalsIgnoreCase("oscType") || paramName.equalsIgnoreCase("type") ||
                paramName.equalsIgnoreCase("waveform")) {
-        return static_cast<float>(getOscType());  // 0 or 1
+        // Return actual choice index (0 or 1)
+        return static_cast<float>(getOscType());
     }
     return 0.0f;
 }
@@ -222,11 +206,8 @@ ParameterInfo ToneGeneratorProcessor::getParameterInfo(int index) const {
             info.maxValue = 20000.0f;
             info.defaultValue = 440.0f;
             info.scale = ParameterScale::Logarithmic;
-            // Store normalized value (0-1) for UI slider
-            // Clamp frequency to valid range to prevent negative normalized values
-            float hz = std::max(20.0f, std::min(20000.0f, getFrequency()));
-            info.currentValue = juce::jlimit(
-                0.0f, 1.0f, static_cast<float>(std::log(hz / 20.0f) / std::log(1000.0f)));
+            // Store actual value in Hz
+            info.currentValue = juce::jlimit(20.0f, 20000.0f, getFrequency());
             break;
         }
 
@@ -237,10 +218,10 @@ ParameterInfo ToneGeneratorProcessor::getParameterInfo(int index) const {
             info.maxValue = 0.0f;
             info.defaultValue = -12.0f;  // 0.25 linear ≈ -12 dB
             info.scale = ParameterScale::Linear;
-            // Convert linear level to normalized position in dB range
+            // Store actual value in dB
             float level = getLevel();
             float db = level > 0.0f ? juce::Decibels::gainToDecibels(level, -60.0f) : -60.0f;
-            info.currentValue = juce::jlimit(0.0f, 1.0f, (db + 60.0f) / 60.0f);
+            info.currentValue = juce::jlimit(-60.0f, 0.0f, db);
             break;
         }
 
@@ -250,6 +231,7 @@ ParameterInfo ToneGeneratorProcessor::getParameterInfo(int index) const {
             info.minValue = 0.0f;
             info.maxValue = 1.0f;
             info.defaultValue = 0.0f;
+            // Store actual value (choice index)
             info.currentValue = static_cast<float>(getOscType());  // 0 or 1
             info.scale = ParameterScale::Discrete;
             info.choices = {"Sine", "Noise"};
@@ -353,32 +335,25 @@ te::VolumeAndPanPlugin* VolumeProcessor::getVolPanPlugin() const {
     return dynamic_cast<te::VolumeAndPanPlugin*>(plugin_.get());
 }
 
-void VolumeProcessor::setParameter(const juce::String& paramName, float value, bool isNormalized) {
+void VolumeProcessor::setParameter(const juce::String& paramName, float value) {
     if (paramName.equalsIgnoreCase("volume") || paramName.equalsIgnoreCase("gain") ||
         paramName.equalsIgnoreCase("level")) {
-        if (isNormalized) {
-            // Map 0-1 to -inf to +6dB
-            float db = value > 0.0f ? juce::Decibels::gainToDecibels(value * 2.0f) : -100.0f;
-            setVolume(db);
-        } else {
-            setVolume(value);  // Already in dB
-        }
+        // Value is actual dB
+        setVolume(value);
     } else if (paramName.equalsIgnoreCase("pan")) {
-        setPan(isNormalized ? (value * 2.0f - 1.0f) : value);  // 0-1 to -1 to 1
+        // Value is actual pan (-1 to 1)
+        setPan(value);
     }
 }
 
-float VolumeProcessor::getParameter(const juce::String& paramName, bool normalized) const {
+float VolumeProcessor::getParameter(const juce::String& paramName) const {
     if (paramName.equalsIgnoreCase("volume") || paramName.equalsIgnoreCase("gain") ||
         paramName.equalsIgnoreCase("level")) {
-        float db = getVolume();
-        if (normalized) {
-            return juce::Decibels::decibelsToGain(db) / 2.0f;
-        }
-        return db;
+        // Return actual dB
+        return getVolume();
     } else if (paramName.equalsIgnoreCase("pan")) {
-        float pan = getPan();
-        return normalized ? (pan + 1.0f) / 2.0f : pan;
+        // Return actual pan (-1 to 1)
+        return getPan();
     }
     return 0.0f;
 }
