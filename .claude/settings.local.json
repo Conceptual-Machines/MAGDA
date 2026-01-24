@@ -35,7 +35,9 @@
       "Bash(gh issue close:*)",
       "Bash(./cmake-build-debug/tests/magda_tests:*)",
       "Bash(pkill:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(git reset HEAD)",
+      "Bash(git restore:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

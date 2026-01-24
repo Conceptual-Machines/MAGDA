@@ -238,26 +238,13 @@ TrackHeadersPanel::TrackHeader::TrackHeader(const juce::String& trackName) : nam
 
     // Audio input selector (hybrid toggle + dropdown)
     audioInSelector = std::make_unique<RoutingSelector>(RoutingSelector::Type::AudioIn);
-    audioInSelector->setOptions({
-        {1, "Input 1"},
-        {2, "Input 2"},
-        {3, "Input 1+2 (Stereo)"},
-        {0, "", true},  // separator
-        {10, "External Sidechain"},
-    });
+    // Options will be populated from real audio hardware
     audioInSelector->setSelectedId(1);
     audioInSelector->setEnabled(audioInEnabled);
 
     // Audio output selector (hybrid toggle + dropdown)
     audioOutSelector = std::make_unique<RoutingSelector>(RoutingSelector::Type::AudioOut);
-    audioOutSelector->setOptions({
-        {1, "Master"},
-        {2, "Output 1-2"},
-        {3, "Output 3-4"},
-        {0, "", true},  // separator
-        {10, "Bus 1"},
-        {11, "Bus 2"},
-    });
+    // Options will be populated from real audio hardware
     audioOutSelector->setSelectedId(1);
     audioOutSelector->setEnabled(audioOutEnabled);
 
