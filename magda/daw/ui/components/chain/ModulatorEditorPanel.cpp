@@ -350,17 +350,16 @@ void ModulatorEditorPanel::paint(juce::Graphics& g) {
     }
     int displayHeight = isCurveMode_ ? 70 : 46;
     bounds.removeFromTop(displayHeight + 6);  // Skip waveform/curve display + gap
-    bounds.removeFromTop(18 + 6);             // Skip rate row + gap
+    bounds.removeFromTop(18 + 8);             // Skip rate row + gap
 
     // "Trigger" label
-    g.drawText("Trigger", bounds.removeFromTop(10), juce::Justification::centredLeft);
+    g.drawText("Trigger", bounds.removeFromTop(12), juce::Justification::centredLeft);
 
     // Skip to trigger row for monitor dot
     auto triggerRow = bounds.removeFromTop(18);
-    // Layout: [dropdown] [gap] [monitor dot] [gap] [advanced button]
+    // Layout: [dropdown] [monitor dot] [advanced button]
     int advButtonWidth = 20;
-    int dotDiameter = 6;
-    int comboWidth = 80;                         // Fixed width for combo
+    int dotDiameter = 8;
     triggerRow.removeFromRight(advButtonWidth);  // Skip advanced button
     triggerRow.removeFromRight(4);               // Skip gap before advanced
     auto dotArea = triggerRow.removeFromRight(dotDiameter);
@@ -371,7 +370,6 @@ void ModulatorEditorPanel::paint(juce::Graphics& g) {
     auto dotBounds =
         juce::Rectangle<float>(static_cast<float>(dotArea.getX()), dotArea.getCentreY() - dotRadius,
                                dotRadius * 2, dotRadius * 2);
-    juce::ignoreUnused(comboWidth);
 
     // Use live mod pointer for real-time trigger state
     const magda::ModInfo* mod = liveModPtr_ ? liveModPtr_ : &currentMod_;
@@ -425,10 +423,10 @@ void ModulatorEditorPanel::resized() {
     // Rate slider or division combo takes remaining space (same position, shown alternately)
     rateSlider_.setBounds(rateRow);
     syncDivisionCombo_.setBounds(rateRow);
-    bounds.removeFromTop(6);
+    bounds.removeFromTop(8);
 
-    // Trigger row: [dropdown] [gap] [monitor dot] [gap] [advanced button]
-    bounds.removeFromTop(10);  // "Trigger" label
+    // Trigger row: [dropdown] [monitor dot] [advanced button]
+    bounds.removeFromTop(12);  // "Trigger" label
     auto triggerRow = bounds.removeFromTop(18);
 
     // Advanced button on the right
@@ -437,13 +435,12 @@ void ModulatorEditorPanel::resized() {
     triggerRow.removeFromRight(4);  // Gap before advanced
 
     // Leave space for monitor dot (painted in paint())
-    int dotDiameter = 6;
+    int dotDiameter = 8;
     triggerRow.removeFromRight(dotDiameter);  // Monitor dot space
     triggerRow.removeFromRight(4);            // Gap before dot
 
-    // Trigger combo with fixed width
-    int comboWidth = 80;
-    triggerModeCombo_.setBounds(triggerRow.removeFromLeft(comboWidth));
+    // Trigger combo takes remaining space
+    triggerModeCombo_.setBounds(triggerRow);
 }
 
 void ModulatorEditorPanel::mouseDown(const juce::MouseEvent& /*e*/) {
