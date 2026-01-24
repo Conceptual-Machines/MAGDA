@@ -219,6 +219,17 @@ class AutomationManager : public TrackManagerListener {
     void setPointCurveType(AutomationLaneId laneId, AutomationPointId pointId,
                            AutomationCurveType curveType);
 
+    /**
+     * @brief Set tension for a curve segment
+     * @param tension Range -1.0 (concave) to 0.0 (linear) to +1.0 (convex)
+     */
+    void setPointTension(AutomationLaneId laneId, AutomationPointId pointId, double tension);
+
+    /**
+     * @brief Set tension for a curve segment in a clip
+     */
+    void setPointTensionInClip(AutomationClipId clipId, AutomationPointId pointId, double tension);
+
     // ========================================================================
     // Value Interpolation
     // ========================================================================

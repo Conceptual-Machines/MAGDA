@@ -96,9 +96,40 @@ void AutomationCurveEditor::paintCurve(juce::Graphics& g) {
             const auto& prevP = points[i - 1];
 
             switch (prevP.curveType) {
-                case AutomationCurveType::Linear:
-                    curvePath.lineTo(static_cast<float>(x), static_cast<float>(y));
+                case AutomationCurveType::Linear: {
+                    // Check if tension is applied
+                    if (std::abs(prevP.tension) < 0.001) {
+                        // Pure linear
+                        curvePath.lineTo(static_cast<float>(x), static_cast<float>(y));
+                    } else {
+                        // Tension-based curve - draw as series of line segments
+                        auto [prevTime, prevValue] = getEffectivePos(prevP);
+                        int prevX = timeToPixel(prevTime);
+                        int prevY = valueToPixel(prevValue);
+
+                        const int NUM_SEGMENTS = 16;
+                        for (int seg = 1; seg <= NUM_SEGMENTS; ++seg) {
+                            double t = static_cast<double>(seg) / NUM_SEGMENTS;
+
+                            // Apply tension curve
+                            double curvedT;
+                            if (prevP.tension > 0) {
+                                curvedT = std::pow(t, 1.0 + prevP.tension * 2.0);
+                            } else {
+                                curvedT = 1.0 - std::pow(1.0 - t, 1.0 - prevP.tension * 2.0);
+                            }
+
+                            double segValue = prevValue + curvedT * (value - prevValue);
+                            double segTime = prevTime + t * (time - prevTime);
+
+                            float segX = static_cast<float>(timeToPixel(segTime));
+                            float segY = static_cast<float>(valueToPixel(segValue));
+
+                            curvePath.lineTo(segX, segY);
+                        }
+                    }
                     break;
+                }
 
                 case AutomationCurveType::Bezier: {
                     // Calculate control points using effective positions
@@ -402,6 +433,7 @@ void AutomationCurveEditor::deleteSelectedPoints() {
 void AutomationCurveEditor::rebuildPointComponents() {
     pointComponents_.clear();
     handleComponents_.clear();
+    tensionHandles_.clear();
 
     const auto& points = getPoints();
     for (const auto& point : points) {
@@ -451,6 +483,36 @@ void AutomationCurveEditor::rebuildPointComponents() {
         pointComponents_.push_back(std::move(pc));
     }
 
+    // Create tension handles for each curve segment (between consecutive points)
+    // Only for Linear curve type - Bezier uses handles, Step has no curve
+    for (size_t i = 0; i < points.size(); ++i) {
+        const auto& point = points[i];
+
+        // Only create tension handle if this isn't the last point
+        // and the curve type is Linear (tension applies to Linear curves)
+        if (i < points.size() - 1 && point.curveType == AutomationCurveType::Linear) {
+            auto th = std::make_unique<TensionHandleComponent>(point.id);
+            th->setTension(point.tension);
+
+            th->onTensionChanged = [this](AutomationPointId pointId, double tension) {
+                auto& manager = AutomationManager::getInstance();
+                if (clipId_ != INVALID_AUTOMATION_CLIP_ID) {
+                    manager.setPointTensionInClip(clipId_, pointId, tension);
+                } else {
+                    manager.setPointTension(laneId_, pointId, tension);
+                }
+            };
+
+            th->onTensionDragPreview = [this](AutomationPointId /*pointId*/, double /*tension*/) {
+                // Just repaint to show curve preview
+                repaint();
+            };
+
+            addAndMakeVisible(th.get());
+            tensionHandles_.push_back(std::move(th));
+        }
+    }
+
     updatePointPositions();
     syncSelectionState();
 }
@@ -465,6 +527,40 @@ void AutomationCurveEditor::updatePointPositions() {
 
         pointComponents_[i]->setCentrePosition(x, y);
         pointComponents_[i]->updateFromPoint(point);
+    }
+
+    // Position tension handles at the midpoint of each curve segment
+    size_t tensionIdx = 0;
+    for (size_t i = 0; i < points.size() - 1 && tensionIdx < tensionHandles_.size(); ++i) {
+        const auto& p1 = points[i];
+        const auto& p2 = points[i + 1];
+
+        // Only position for Linear curves (tension handles only exist for those)
+        if (p1.curveType == AutomationCurveType::Linear) {
+            // Calculate midpoint position
+            double midTime = (p1.time + p2.time) / 2.0;
+            double midValue = (p1.value + p2.value) / 2.0;
+
+            // Apply tension to get the actual curve position at midpoint
+            // This makes the handle follow the curve as tension changes
+            if (std::abs(p1.tension) > 0.001) {
+                double t = 0.5;
+                double curvedT;
+                if (p1.tension > 0) {
+                    curvedT = std::pow(t, 1.0 + p1.tension * 2.0);
+                } else {
+                    curvedT = 1.0 - std::pow(1.0 - t, 1.0 - p1.tension * 2.0);
+                }
+                midValue = p1.value + curvedT * (p2.value - p1.value);
+            }
+
+            int x = timeToPixel(midTime);
+            int y = valueToPixel(midValue);
+
+            tensionHandles_[tensionIdx]->setCentrePosition(x, y);
+            tensionHandles_[tensionIdx]->setTension(p1.tension);
+            ++tensionIdx;
+        }
     }
 }
 

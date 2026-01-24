@@ -506,6 +506,30 @@ void AutomationManager::setPointCurveType(AutomationLaneId laneId, AutomationPoi
     }
 }
 
+void AutomationManager::setPointTension(AutomationLaneId laneId, AutomationPointId pointId,
+                                        double tension) {
+    auto* lane = getLane(laneId);
+    if (!lane || !lane->isAbsolute())
+        return;
+
+    if (auto* point = findPoint(lane->absolutePoints, pointId)) {
+        point->tension = juce::jlimit(-1.0, 1.0, tension);
+        notifyPointsChanged(laneId);
+    }
+}
+
+void AutomationManager::setPointTensionInClip(AutomationClipId clipId, AutomationPointId pointId,
+                                              double tension) {
+    auto* clip = getClip(clipId);
+    if (!clip)
+        return;
+
+    if (auto* point = findPoint(clip->points, pointId)) {
+        point->tension = juce::jlimit(-1.0, 1.0, tension);
+        notifyClipsChanged(clip->laneId);
+    }
+}
+
 // ============================================================================
 // Value Interpolation
 // ============================================================================
@@ -565,6 +589,29 @@ double AutomationManager::interpolateBezier(double t, const AutomationPoint& p1,
     return mt3 * p1.value + 3.0 * mt2 * t * cp1Value + 3.0 * mt * t2 * cp2Value + t3 * p2.value;
 }
 
+// Tension-based interpolation: power curve between two values
+// tension: -1 = concave (log-like), 0 = linear, +1 = convex (exp-like)
+static double interpolateWithTension(double t, double v1, double v2, double tension) {
+    if (std::abs(tension) < 0.001) {
+        // Linear interpolation for near-zero tension
+        return v1 + t * (v2 - v1);
+    }
+
+    // Use power curve for tension
+    // tension > 0: convex curve (slow start, fast end) - use t^(1+tension)
+    // tension < 0: concave curve (fast start, slow end) - use t^(1/(1-tension))
+    double curvedT;
+    if (tension > 0) {
+        // Convex: power > 1
+        curvedT = std::pow(t, 1.0 + tension * 2.0);
+    } else {
+        // Concave: power < 1
+        curvedT = 1.0 - std::pow(1.0 - t, 1.0 - tension * 2.0);
+    }
+
+    return v1 + curvedT * (v2 - v1);
+}
+
 double AutomationManager::interpolatePoints(const std::vector<AutomationPoint>& points,
                                             double time) const {
     if (points.empty())
@@ -593,7 +640,8 @@ double AutomationManager::interpolatePoints(const std::vector<AutomationPoint>& 
 
             switch (p1.curveType) {
                 case AutomationCurveType::Linear:
-                    return interpolateLinear(t, p1.value, p2.value);
+                    // Use tension-based interpolation
+                    return interpolateWithTension(t, p1.value, p2.value, p1.tension);
 
                 case AutomationCurveType::Bezier:
                     return interpolateBezier(t, p1, p2);

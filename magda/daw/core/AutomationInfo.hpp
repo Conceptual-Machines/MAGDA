@@ -42,6 +42,10 @@ struct AutomationPoint {
     BezierHandle inHandle;   // Handle before the point
     BezierHandle outHandle;  // Handle after the point
 
+    // Tension control for the curve segment AFTER this point
+    // Range: -1.0 (concave/log) to 0.0 (linear) to +1.0 (convex/exp)
+    double tension = 0.0;
+
     bool operator<(const AutomationPoint& other) const {
         return time < other.time;
     }

@@ -8,6 +8,7 @@
 
 #include "AutomationPointComponent.hpp"
 #include "BezierHandleComponent.hpp"
+#include "TensionHandleComponent.hpp"
 #include "core/AutomationInfo.hpp"
 #include "core/AutomationManager.hpp"
 #include "core/AutomationTypes.hpp"
@@ -105,6 +106,7 @@ class AutomationCurveEditor : public juce::Component,
 
     std::vector<std::unique_ptr<AutomationPointComponent>> pointComponents_;
     std::vector<std::unique_ptr<BezierHandleComponent>> handleComponents_;
+    std::vector<std::unique_ptr<TensionHandleComponent>> tensionHandles_;
 
     // Drawing state
     bool isDrawing_ = false;

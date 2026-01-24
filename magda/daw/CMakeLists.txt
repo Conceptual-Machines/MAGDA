@@ -182,6 +182,7 @@ set(DAW_UI_SOURCES
     # Components - Automation
     ui/components/automation/AutomationPointComponent.cpp
     ui/components/automation/BezierHandleComponent.cpp
+    ui/components/automation/TensionHandleComponent.cpp
     ui/components/automation/AutomationCurveEditor.cpp
     ui/components/automation/AutomationLaneComponent.cpp
     ui/components/automation/AutomationClipComponent.cpp
@@ -341,6 +342,7 @@ set(DAW_HEADERS
     # Components - Automation
     ui/components/automation/AutomationPointComponent.hpp
     ui/components/automation/BezierHandleComponent.hpp
+    ui/components/automation/TensionHandleComponent.hpp
     ui/components/automation/AutomationCurveEditor.hpp
     ui/components/automation/AutomationLaneComponent.hpp
     ui/components/automation/AutomationClipComponent.hpp
