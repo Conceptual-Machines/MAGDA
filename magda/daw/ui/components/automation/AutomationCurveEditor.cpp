@@ -97,15 +97,20 @@ void AutomationCurveEditor::paintCurve(juce::Graphics& g) {
 
             switch (prevP.curveType) {
                 case AutomationCurveType::Linear: {
+                    // Get effective tension (use preview if dragging this segment)
+                    double effectiveTension = prevP.tension;
+                    if (tensionPreviewPointId_ != INVALID_AUTOMATION_POINT_ID &&
+                        prevP.id == tensionPreviewPointId_) {
+                        effectiveTension = tensionPreviewValue_;
+                    }
+
                     // Check if tension is applied
-                    if (std::abs(prevP.tension) < 0.001) {
+                    if (std::abs(effectiveTension) < 0.001) {
                         // Pure linear
                         curvePath.lineTo(static_cast<float>(x), static_cast<float>(y));
                     } else {
                         // Tension-based curve - draw as series of line segments
                         auto [prevTime, prevValue] = getEffectivePos(prevP);
-                        int prevX = timeToPixel(prevTime);
-                        int prevY = valueToPixel(prevValue);
 
                         const int NUM_SEGMENTS = 16;
                         for (int seg = 1; seg <= NUM_SEGMENTS; ++seg) {
@@ -113,10 +118,10 @@ void AutomationCurveEditor::paintCurve(juce::Graphics& g) {
 
                             // Apply tension curve
                             double curvedT;
-                            if (prevP.tension > 0) {
-                                curvedT = std::pow(t, 1.0 + prevP.tension * 2.0);
+                            if (effectiveTension > 0) {
+                                curvedT = std::pow(t, 1.0 + effectiveTension * 2.0);
                             } else {
-                                curvedT = 1.0 - std::pow(1.0 - t, 1.0 - prevP.tension * 2.0);
+                                curvedT = 1.0 - std::pow(1.0 - t, 1.0 - effectiveTension * 2.0);
                             }
 
                             double segValue = prevValue + curvedT * (value - prevValue);
@@ -456,8 +461,25 @@ void AutomationCurveEditor::rebuildPointComponents() {
 
         pc->onPointDragPreview = [this](AutomationPointId pointId, double newTime,
                                         double newValue) {
-            AutomationManager::getInstance().notifyPointDragPreview(laneId_, pointId, newTime,
-                                                                    newValue);
+            // Update preview state directly (bypass manager for fluid response)
+            previewPointId_ = pointId;
+            previewTime_ = newTime;
+            previewValue_ = newValue;
+
+            // Update the point component position
+            for (auto& ptComp : pointComponents_) {
+                if (ptComp->getPointId() == pointId) {
+                    int x = timeToPixel(newTime);
+                    int y = valueToPixel(newValue);
+                    ptComp->setCentrePosition(x, y);
+                    break;
+                }
+            }
+
+            // Update tension handle positions that depend on this point
+            updateTensionHandlePositions();
+
+            repaint();
         };
 
         pc->onPointDeleted = [this](AutomationPointId pointId) {
@@ -495,6 +517,9 @@ void AutomationCurveEditor::rebuildPointComponents() {
             th->setTension(point.tension);
 
             th->onTensionChanged = [this](AutomationPointId pointId, double tension) {
+                // Clear preview state
+                tensionPreviewPointId_ = INVALID_AUTOMATION_POINT_ID;
+
                 auto& manager = AutomationManager::getInstance();
                 if (clipId_ != INVALID_AUTOMATION_CLIP_ID) {
                     manager.setPointTensionInClip(clipId_, pointId, tension);
@@ -503,8 +528,46 @@ void AutomationCurveEditor::rebuildPointComponents() {
                 }
             };
 
-            th->onTensionDragPreview = [this](AutomationPointId /*pointId*/, double /*tension*/) {
-                // Just repaint to show curve preview
+            th->onTensionDragPreview = [this](AutomationPointId pointId, double tension) {
+                // Store preview state
+                tensionPreviewPointId_ = pointId;
+                tensionPreviewValue_ = tension;
+
+                // Update the tension handle position to follow the curve
+                const auto& points = getPoints();
+                for (size_t i = 0; i < points.size() - 1; ++i) {
+                    if (points[i].id == pointId) {
+                        const auto& p1 = points[i];
+                        const auto& p2 = points[i + 1];
+
+                        double midTime = (p1.time + p2.time) / 2.0;
+                        double midValue = (p1.value + p2.value) / 2.0;
+
+                        // Apply tension to get actual curve position at midpoint
+                        if (std::abs(tension) > 0.001) {
+                            double t = 0.5;
+                            double curvedT;
+                            if (tension > 0) {
+                                curvedT = std::pow(t, 1.0 + tension * 2.0);
+                            } else {
+                                curvedT = 1.0 - std::pow(1.0 - t, 1.0 - tension * 2.0);
+                            }
+                            midValue = p1.value + curvedT * (p2.value - p1.value);
+                        }
+
+                        // Update handle position
+                        for (auto& handle : tensionHandles_) {
+                            if (handle->getPointId() == pointId) {
+                                int x = timeToPixel(midTime);
+                                int y = valueToPixel(midValue);
+                                handle->setCentrePosition(x, y);
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+
                 repaint();
             };
 
@@ -559,6 +622,58 @@ void AutomationCurveEditor::updatePointPositions() {
 
             tensionHandles_[tensionIdx]->setCentrePosition(x, y);
             tensionHandles_[tensionIdx]->setTension(p1.tension);
+            ++tensionIdx;
+        }
+    }
+}
+
+void AutomationCurveEditor::updateTensionHandlePositions() {
+    const auto& points = getPoints();
+    if (points.size() < 2)
+        return;
+
+    // Helper to get effective position (use preview if dragging)
+    auto getEffectivePos = [this](const AutomationPoint& p) -> std::pair<double, double> {
+        if (previewPointId_ != INVALID_AUTOMATION_POINT_ID && p.id == previewPointId_) {
+            return {previewTime_, previewValue_};
+        }
+        return {p.time, p.value};
+    };
+
+    size_t tensionIdx = 0;
+    for (size_t i = 0; i < points.size() - 1 && tensionIdx < tensionHandles_.size(); ++i) {
+        const auto& p1 = points[i];
+        const auto& p2 = points[i + 1];
+
+        if (p1.curveType == AutomationCurveType::Linear) {
+            auto [time1, value1] = getEffectivePos(p1);
+            auto [time2, value2] = getEffectivePos(p2);
+
+            double midTime = (time1 + time2) / 2.0;
+            double midValue = (value1 + value2) / 2.0;
+
+            // Apply tension to get actual curve position at midpoint
+            double tension = p1.tension;
+            if (tensionPreviewPointId_ != INVALID_AUTOMATION_POINT_ID &&
+                p1.id == tensionPreviewPointId_) {
+                tension = tensionPreviewValue_;
+            }
+
+            if (std::abs(tension) > 0.001) {
+                double t = 0.5;
+                double curvedT;
+                if (tension > 0) {
+                    curvedT = std::pow(t, 1.0 + tension * 2.0);
+                } else {
+                    curvedT = 1.0 - std::pow(1.0 - t, 1.0 - tension * 2.0);
+                }
+                midValue = value1 + curvedT * (value2 - value1);
+            }
+
+            int x = timeToPixel(midTime);
+            int y = valueToPixel(midValue);
+
+            tensionHandles_[tensionIdx]->setCentrePosition(x, y);
             ++tensionIdx;
         }
     }

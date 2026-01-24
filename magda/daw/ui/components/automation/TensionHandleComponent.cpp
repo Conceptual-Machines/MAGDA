@@ -54,7 +54,7 @@ void TensionHandleComponent::mouseDrag(const juce::MouseEvent& e) {
     if (!isDragging_)
         return;
 
-    // Dragging up increases tension (convex), down decreases (concave)
+    // Dragging up increases tension (convex/outward), down decreases (concave/inward)
     // 50 pixels of drag = full range (-1 to +1)
     int deltaY = dragStartY_ - e.y;
     double deltaTension = static_cast<double>(deltaY) / 50.0;

@@ -118,9 +118,14 @@ class AutomationCurveEditor : public juce::Component,
     double previewTime_ = 0.0;
     double previewValue_ = 0.0;
 
+    // Tension preview state
+    AutomationPointId tensionPreviewPointId_ = INVALID_AUTOMATION_POINT_ID;
+    double tensionPreviewValue_ = 0.0;
+
     // Rebuild
     void rebuildPointComponents();
     void updatePointPositions();
+    void updateTensionHandlePositions();  // For preview updates during point drag
     void syncSelectionState();
 
     // Drawing
