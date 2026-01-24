@@ -190,8 +190,8 @@ class AudioBridge : public TrackManagerListener, public juce::Timer {
     std::map<DeviceId, te::Plugin::Ptr> deviceToPlugin_;
     std::map<te::Plugin*, DeviceId> pluginToDevice_;
 
-    // Per-track level measurers
-    std::map<TrackId, te::LevelMeasurer*> trackMeasurers_;
+    // Per-track level measurer clients (needed to read levels)
+    std::map<TrackId, te::LevelMeasurer::Client> meterClients_;
 
     // Lock-free communication buffers
     MeteringBuffer meteringBuffer_;

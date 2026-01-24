@@ -18,13 +18,27 @@ AudioBridge::~AudioBridge() {
     stopTimer();
     TrackManager::getInstance().removeListener(this);
 
-    // Clear all mappings
+    // Remove all meter clients before clearing mappings
     {
         juce::ScopedLock lock(mappingLock_);
+
+        // Unregister all meter clients
+        for (auto& [trackId, track] : trackMapping_) {
+            if (track) {
+                auto* levelMeter = track->getLevelMeterPlugin();
+                if (levelMeter) {
+                    auto it = meterClients_.find(trackId);
+                    if (it != meterClients_.end()) {
+                        levelMeter->measurer.removeClient(it->second);
+                    }
+                }
+            }
+        }
+
         trackMapping_.clear();
         deviceToPlugin_.clear();
         pluginToDevice_.clear();
-        trackMeasurers_.clear();
+        meterClients_.clear();
     }
 
     std::cout << "AudioBridge destroyed" << std::endl;
@@ -154,12 +168,38 @@ te::Plugin::Ptr AudioBridge::addLevelMeterToTrack(TrackId trackId) {
     for (int i = plugins.size() - 1; i >= 0; --i) {
         if (auto* levelMeter = dynamic_cast<te::LevelMeterPlugin*>(plugins[i])) {
             std::cout << "Removing existing LevelMeter at position " << i << std::endl;
+
+            // Unregister meter client from the old LevelMeter
+            {
+                juce::ScopedLock lock(mappingLock_);
+                auto it = meterClients_.find(trackId);
+                if (it != meterClients_.end()) {
+                    levelMeter->measurer.removeClient(it->second);
+                }
+            }
+
             levelMeter->deleteFromParent();
         }
     }
 
     // Now add a fresh LevelMeter at the end
-    return loadBuiltInPlugin(trackId, "levelmeter");
+    auto plugin = loadBuiltInPlugin(trackId, "levelmeter");
+
+    // Register meter client with the new LevelMeter
+    if (plugin) {
+        if (auto* levelMeter = dynamic_cast<te::LevelMeterPlugin*>(plugin.get())) {
+            juce::ScopedLock lock(mappingLock_);
+
+            // Create or get existing client
+            auto [it, inserted] = meterClients_.try_emplace(trackId);
+            levelMeter->measurer.addClient(it->second);
+
+            std::cout << "Registered meter client for track " << trackId
+                      << " with LevelMeter at end of plugin chain" << std::endl;
+        }
+    }
+
+    return plugin;
 }
 
 // =============================================================================
@@ -199,6 +239,7 @@ te::AudioTrack* AudioBridge::createAudioTrack(TrackId trackId, const juce::Strin
         juce::ScopedLock lock(mappingLock_);
         trackMapping_[trackId] = track;
 
+        // Don't register meter client yet - will do it when LevelMeter is added
         std::cout << "Created Tracktion AudioTrack for MAGDA track " << trackId << ": " << name
                   << std::endl;
     }
@@ -214,11 +255,21 @@ void AudioBridge::removeAudioTrack(TrackId trackId) {
         auto it = trackMapping_.find(trackId);
         if (it != trackMapping_.end()) {
             track = it->second;
+
+            // Unregister meter client before removing track
+            if (track) {
+                auto* levelMeter = track->getLevelMeterPlugin();
+                if (levelMeter) {
+                    auto clientIt = meterClients_.find(trackId);
+                    if (clientIt != meterClients_.end()) {
+                        levelMeter->measurer.removeClient(clientIt->second);
+                        meterClients_.erase(clientIt);
+                    }
+                }
+            }
+
             trackMapping_.erase(it);
         }
-
-        // Remove any associated measurers
-        trackMeasurers_.erase(trackId);
     }
 
     if (track) {
@@ -375,35 +426,27 @@ void AudioBridge::timerCallback() {
         if (!track)
             continue;
 
-        // Get the track's level measurer via the LevelMeterPlugin
-        auto* levelMeterPlugin = track->getLevelMeterPlugin();
-        if (!levelMeterPlugin) {
-            if (timerCounter % 90 == 0) {
-                std::cout << "Track " << trackId << " has no LevelMeterPlugin!" << std::endl;
-            }
+        // Get the meter client for this track
+        auto clientIt = meterClients_.find(trackId);
+        if (clientIt == meterClients_.end())
             continue;
-        }
 
-        if (trackId == 1 && timerCounter % 90 == 0) {
-            std::cout << "Track 1: LevelMeterPlugin=" << levelMeterPlugin
-                      << " enabled=" << levelMeterPlugin->isEnabled() << std::endl;
-        }
-
-        auto& measurer = levelMeterPlugin->measurer;
+        auto& client = clientIt->second;
 
         MeterData data;
 
-        // Read peak levels from level cache
-        auto [levelL, levelR] = measurer.getLevelCache();
+        // Read and clear audio levels from the client (returns DbTimePair)
+        auto levelL = client.getAndClearAudioLevel(0);
+        auto levelR = client.getAndClearAudioLevel(1);
 
-        // Convert from dB to linear
-        data.peakL = juce::Decibels::decibelsToGain(levelL);
-        data.peakR = juce::Decibels::decibelsToGain(levelR);
+        // Convert from dB to linear gain (0-1)
+        data.peakL = juce::Decibels::decibelsToGain(levelL.dB);
+        data.peakR = juce::Decibels::decibelsToGain(levelR.dB);
 
         // Debug output for track 1
         if (trackId == 1 && timerCounter % 30 == 0) {  // Once per second for track 1
-            std::cout << "Track 1 meter: dB=" << levelL << "/" << levelR << " linear=" << data.peakL
-                      << "/" << data.peakR << std::endl;
+            std::cout << "Track 1 meter: dB=" << levelL.dB << "/" << levelR.dB
+                      << " linear=" << data.peakL << "/" << data.peakR << std::endl;
         }
 
         // Check for clipping
