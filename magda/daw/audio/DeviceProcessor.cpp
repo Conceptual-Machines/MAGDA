@@ -216,14 +216,8 @@ void ToneGeneratorProcessor::setFrequency(float hz) {
         // Clamp to valid range
         hz = juce::jlimit(20.0f, 20000.0f, hz);
 
-        // Update parameter first with NORMALIZED value (0-1)
-        if (tone->frequencyParam) {
-            // Frequency is logarithmic: 20-20000 Hz → 0-1
-            float normalized = std::log(hz / 20.0f) / std::log(20000.0f / 20.0f);
-            tone->frequencyParam->setNormalisedParameter(normalized, juce::dontSendNotification);
-        }
-
-        // CRITICAL: Overwrite CachedValue with precise value (bypasses quantization)
+        // ONLY set the CachedValue - don't touch the parameter
+        // The parameter normalization was causing incorrect frequency
         tone->frequency = hz;
     }
 }
@@ -237,13 +231,7 @@ float ToneGeneratorProcessor::getFrequency() const {
 
 void ToneGeneratorProcessor::setLevel(float level) {
     if (auto* tone = getTonePlugin()) {
-        // Update parameter first with normalized value
-        // Level is already 0-1 linear, so it's already normalized
-        if (tone->levelParam) {
-            tone->levelParam->setNormalisedParameter(level, juce::dontSendNotification);
-        }
-
-        // Overwrite CachedValue with precise value
+        // ONLY set the CachedValue - don't touch the parameter
         tone->level = level;
     }
 }
@@ -261,13 +249,7 @@ void ToneGeneratorProcessor::setOscType(int type) {
         // TE enum: 0=sin, 1=triangle, 2=sawUp, 3=sawDown, 4=square, 5=noise
         float teType = (type == 0) ? 0.0f : 5.0f;  // 0→sin, 1→noise
 
-        // Update parameter first with normalized value (0-1 for discrete 0-5)
-        if (tone->oscTypeParam) {
-            float normalized = teType / 5.0f;  // 0→0.0, 5→1.0
-            tone->oscTypeParam->setNormalisedParameter(normalized, juce::dontSendNotification);
-        }
-
-        // Set CachedValue
+        // ONLY set the CachedValue - don't touch the parameter
         tone->oscType = teType;
     }
 }
