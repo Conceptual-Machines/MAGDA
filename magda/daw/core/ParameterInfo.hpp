@@ -35,6 +35,7 @@ struct ParameterInfo {
     float minValue = 0.0f;      // Real minimum (e.g., 20.0 for Hz)
     float maxValue = 1.0f;      // Real maximum (e.g., 20000.0 for Hz)
     float defaultValue = 0.5f;  // Real default
+    float currentValue = 0.5f;  // Current value (for UI display and sync)
 
     // Scaling
     ParameterScale scale = ParameterScale::Linear;

@@ -154,15 +154,45 @@ DeviceSlotComponent::DeviceSlotComponent(const magda::DeviceInfo& device) : devi
     pageLabel_->setJustificationType(juce::Justification::centred);
     addAndMakeVisible(*pageLabel_);
 
-    // Create parameter slots with labels, values, and modulation support
-    static const char* mockParamNames[NUM_PARAMS_PER_PAGE] = {
-        "Cutoff",   "Resonance", "Drive",    "Mix",   "Attack", "Decay", "Sustain", "Release",
-        "LFO Rate", "LFO Depth", "Feedback", "Width", "Low",    "Mid",   "High",    "Output"};
+    // Create parameter slots
+    int numParams = static_cast<int>(device.parameters.size());
+    DBG("DeviceSlotComponent::ctor deviceId=" << device.id << " numParams=" << numParams);
+    for (int i = 0; i < numParams && i < NUM_PARAMS_PER_PAGE; ++i) {
+        DBG("  param[" << i << "] name=" << device.parameters[static_cast<size_t>(i)].name
+                       << " currentValue="
+                       << device.parameters[static_cast<size_t>(i)].currentValue);
+    }
 
     for (int i = 0; i < NUM_PARAMS_PER_PAGE; ++i) {
         paramSlots_[i] = std::make_unique<ParamSlotComponent>(i);
-        paramSlots_[i]->setParamName(mockParamNames[i]);
         paramSlots_[i]->setDeviceId(device.id);
+
+        // Set param name/value from DeviceInfo.parameters if available
+        if (i < numParams) {
+            const auto& param = device.parameters[static_cast<size_t>(i)];
+            paramSlots_[i]->setParamName(param.name);
+            paramSlots_[i]->setParamValue(param.currentValue);
+            paramSlots_[i]->setEnabled(true);
+
+            // Wire up value change callback only for valid params
+            paramSlots_[i]->onValueChanged = [this, i](double value) {
+                DBG("Param " << i << " changed to " << value << " nodePath valid="
+                             << (nodePath_.isValid() ? 1 : 0) << " trackId=" << nodePath_.trackId
+                             << " topLevelDeviceId=" << nodePath_.topLevelDeviceId);
+                if (!nodePath_.isValid()) {
+                    DBG("  ERROR: nodePath_ is invalid, cannot set parameter!");
+                    return;
+                }
+                magda::TrackManager::getInstance().setDeviceParameterValue(
+                    nodePath_, i, static_cast<float>(value));
+            };
+        } else {
+            // Empty slot - show dash and disable interaction
+            paramSlots_[i]->setParamName("-");
+            paramSlots_[i]->setParamValue(0.0);
+            paramSlots_[i]->setEnabled(false);
+            paramSlots_[i]->onValueChanged = nullptr;  // No callback for empty slots
+        }
 
         // Wire up mod/macro linking callbacks
         paramSlots_[i]->onModLinked = [this](int modIndex, magda::ModTarget target) {
@@ -321,6 +351,41 @@ void DeviceSlotComponent::updateFromDevice(const magda::DeviceInfo& device) {
     onButton_->setToggleState(!device.bypassed, juce::dontSendNotification);
     onButton_->setActive(!device.bypassed);
     gainSlider_.setValue(device.gainDb, juce::dontSendNotification);
+
+    // Update parameter slots with current parameter data
+    int numParams = static_cast<int>(device.parameters.size());
+    for (int i = 0; i < NUM_PARAMS_PER_PAGE; ++i) {
+        if (i < numParams) {
+            const auto& param = device.parameters[static_cast<size_t>(i)];
+            paramSlots_[i]->setParamName(param.name);
+            paramSlots_[i]->setParamValue(param.currentValue);
+            paramSlots_[i]->setEnabled(true);
+            paramSlots_[i]->setVisible(true);
+
+            // Ensure callback is wired for valid params
+            paramSlots_[i]->onValueChanged = [this, i](double value) {
+                magda::TrackManager::getInstance().setDeviceParameterValue(
+                    nodePath_, i, static_cast<float>(value));
+            };
+        } else {
+            // Empty slot
+            paramSlots_[i]->setParamName("-");
+            paramSlots_[i]->setParamValue(0.0);
+            paramSlots_[i]->setEnabled(false);
+            paramSlots_[i]->onValueChanged = nullptr;
+            paramSlots_[i]->setVisible(true);  // Still visible but disabled
+        }
+    }
+
+    // Update pagination based on parameter count
+    int paramCount = static_cast<int>(device.parameters.size());
+    totalPages_ = (paramCount + NUM_PARAMS_PER_PAGE - 1) / NUM_PARAMS_PER_PAGE;
+    if (totalPages_ < 1)
+        totalPages_ = 1;
+    if (currentPage_ >= totalPages_)
+        currentPage_ = totalPages_ - 1;
+    updatePageControls();
+
     updateParamModulation();
     repaint();
 }

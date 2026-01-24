@@ -4,6 +4,7 @@
 
 #include "MacroInfo.hpp"
 #include "ModInfo.hpp"
+#include "ParameterInfo.hpp"
 #include "TypeIds.hpp"
 
 namespace magda {
@@ -32,7 +33,11 @@ struct DeviceInfo {
     bool gainPanelOpen = false;   // Gain panel visible
     bool paramPanelOpen = false;  // Parameter panel visible
 
+    // Device parameters (populated by DeviceProcessor)
+    std::vector<ParameterInfo> parameters;
+
     // User-selected visible parameters (indices into plugin parameter list)
+    // If empty, show first N parameters; otherwise show these specific indices
     std::vector<int> visibleParameters;
 
     // Gain stage (for the hidden gain stage feature)

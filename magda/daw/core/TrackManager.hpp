@@ -174,6 +174,12 @@ class TrackManager {
     void setDeviceGainDb(const ChainNodePath& devicePath, float gainDb);
     void setDeviceLevel(const ChainNodePath& devicePath, float level);  // 0-1 linear
 
+    // Update device parameters (called by AudioBridge when processor is created)
+    void updateDeviceParameters(DeviceId deviceId, const std::vector<ParameterInfo>& params);
+
+    // Set a specific device parameter value
+    void setDeviceParameterValue(const ChainNodePath& devicePath, int paramIndex, float value);
+
     // Nested rack management within chains
     RackId addRackToChain(TrackId trackId, RackId parentRackId, ChainId chainId,
                           const juce::String& name = "Rack");

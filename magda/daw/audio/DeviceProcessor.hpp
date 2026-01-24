@@ -61,6 +61,23 @@ class DeviceProcessor {
      */
     virtual std::vector<juce::String> getParameterNames() const;
 
+    /**
+     * @brief Get the number of parameters this device exposes
+     */
+    virtual int getParameterCount() const;
+
+    /**
+     * @brief Get parameter info for populating DeviceInfo
+     * @param index Parameter index
+     * @return ParameterInfo struct with name, range, value, etc.
+     */
+    virtual ParameterInfo getParameterInfo(int index) const;
+
+    /**
+     * @brief Populate DeviceInfo.parameters with current parameter state
+     */
+    virtual void populateParameters(DeviceInfo& info) const;
+
     // =========================================================================
     // Gain Stage
     // =========================================================================
@@ -146,6 +163,11 @@ class ToneGeneratorProcessor : public DeviceProcessor {
                       bool isNormalized = true) override;
     float getParameter(const juce::String& paramName, bool normalized = true) const override;
     std::vector<juce::String> getParameterNames() const override;
+    int getParameterCount() const override;
+    ParameterInfo getParameterInfo(int index) const override;
+
+    // Initialize with default values - call after processor is fully set up
+    void initializeDefaults();
 
     // Convenience methods
     void setFrequency(float hz);
@@ -162,6 +184,7 @@ class ToneGeneratorProcessor : public DeviceProcessor {
 
   private:
     te::ToneGeneratorPlugin* getTonePlugin() const;
+    bool initialized_ = false;
 };
 
 /**

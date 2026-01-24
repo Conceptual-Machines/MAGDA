@@ -1125,6 +1125,40 @@ void TrackManager::setDeviceLevel(const ChainNodePath& devicePath, float level) 
     }
 }
 
+void TrackManager::updateDeviceParameters(DeviceId deviceId,
+                                          const std::vector<ParameterInfo>& params) {
+    // Search all tracks for the device and update its parameters
+    for (auto& track : tracks_) {
+        for (auto& element : track.chainElements) {
+            if (std::holds_alternative<DeviceInfo>(element)) {
+                auto& device = std::get<DeviceInfo>(element);
+                if (device.id == deviceId) {
+                    device.parameters = params;
+                    // Don't notify - this is called during device loading, not user interaction
+                    return;
+                }
+            }
+        }
+    }
+}
+
+void TrackManager::setDeviceParameterValue(const ChainNodePath& devicePath, int paramIndex,
+                                           float value) {
+    if (auto* device = getDeviceInChainByPath(devicePath)) {
+        DBG("setDeviceParameterValue: deviceId=" << device->id << " paramIndex=" << paramIndex
+                                                 << " value=" << value
+                                                 << " params.size=" << device->parameters.size());
+        if (paramIndex >= 0 && paramIndex < static_cast<int>(device->parameters.size())) {
+            device->parameters[static_cast<size_t>(paramIndex)].currentValue = value;
+            // Log all param values for debugging
+            for (size_t i = 0; i < device->parameters.size(); ++i) {
+                DBG("  param[" << i << "] = " << device->parameters[i].currentValue);
+            }
+            notifyDevicePropertyChanged(device->id);
+        }
+    }
+}
+
 RackId TrackManager::addRackToChain(TrackId trackId, RackId parentRackId, ChainId chainId,
                                     const juce::String& name) {
     if (auto* chain = getChain(trackId, parentRackId, chainId)) {
@@ -2229,8 +2263,8 @@ void TrackManager::createDefaultTracks(int count) {
         device.manufacturer = "MAGDA";
         device.format = PluginFormat::Internal;
         device.isInstrument = true;  // Generates audio
-        device.gainDb = -12.0f;      // Default output level (-12dB shows green on meters)
-        device.gainValue = 0.25f;    // Linear equivalent
+        device.gainDb = 0.0f;        // Unity gain (Level param controls output)
+        device.gainValue = 1.0f;     // Linear equivalent
         track1.chainElements.push_back(makeDeviceElement(device));
 
         // Add a rack with one chain

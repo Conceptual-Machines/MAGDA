@@ -24,6 +24,22 @@ std::vector<juce::String> DeviceProcessor::getParameterNames() const {
     return {};
 }
 
+int DeviceProcessor::getParameterCount() const {
+    return 0;
+}
+
+ParameterInfo DeviceProcessor::getParameterInfo(int /*index*/) const {
+    return {};
+}
+
+void DeviceProcessor::populateParameters(DeviceInfo& info) const {
+    info.parameters.clear();
+    int count = getParameterCount();
+    for (int i = 0; i < count; ++i) {
+        info.parameters.push_back(getParameterInfo(i));
+    }
+}
+
 void DeviceProcessor::setGainDb(float gainDb) {
     gainDb_ = gainDb;
     gainLinear_ = juce::Decibels::decibelsToGain(gainDb);
@@ -47,8 +63,22 @@ bool DeviceProcessor::isBypassed() const {
 }
 
 void DeviceProcessor::syncFromDeviceInfo(const DeviceInfo& info) {
+    DBG("syncFromDeviceInfo: deviceId=" << deviceId_ << " gainDb=" << info.gainDb
+                                        << " params.size=" << info.parameters.size());
+
     setGainDb(info.gainDb);
     setBypassed(info.bypassed);
+
+    // Sync parameter values
+    auto names = getParameterNames();
+    for (size_t i = 0; i < info.parameters.size(); ++i) {
+        const auto& param = info.parameters[i];
+        // Use setParameter with normalized=true since ParameterInfo stores normalized values
+        if (i < names.size()) {
+            DBG("  Syncing param " << i << " (" << names[i] << ") = " << param.currentValue);
+            setParameter(names[i], param.currentValue, true);
+        }
+    }
 }
 
 void DeviceProcessor::syncToDeviceInfo(DeviceInfo& info) const {
@@ -68,8 +98,52 @@ void DeviceProcessor::applyGain() {
 
 ToneGeneratorProcessor::ToneGeneratorProcessor(DeviceId deviceId, te::Plugin::Ptr plugin)
     : DeviceProcessor(deviceId, plugin) {
-    // Set default level to -12dB (0.25 linear) so meters show green
-    setLevel(0.25f);
+    // Note: Don't set defaults here - the plugin may not be fully ready
+    // Call initializeDefaults() after the processor is stored and plugin is initialized
+    if (auto* tone = getTonePlugin()) {
+        DBG("ToneGeneratorProcessor created: plugin freq="
+            << tone->frequency.get() << " Hz, level=" << tone->level.get()
+            << " frequencyParam=" << (tone->frequencyParam ? "yes" : "no"));
+    } else {
+        DBG("ToneGeneratorProcessor created but getTonePlugin() returned nullptr!");
+    }
+}
+
+void ToneGeneratorProcessor::initializeDefaults() {
+    if (initialized_)
+        return;
+
+    if (auto* tone = getTonePlugin()) {
+        // Set default values - the plugin should be fully ready now
+        // IMPORTANT: setParameter() expects ACTUAL values (Hz, not normalized!)
+        // Use setNormalisedParameter() for 0-1 values
+        if (tone->frequencyParam) {
+            // setParameter expects actual Hz value
+            tone->frequencyParam->setParameter(440.0f, juce::sendNotificationSync);
+            DBG("initializeDefaults: set frequencyParam to 440 Hz");
+        } else {
+            tone->frequency = 440.0f;
+            DBG("initializeDefaults: set frequency CachedValue to 440 Hz");
+        }
+
+        if (tone->levelParam) {
+            // Level is 0-1, so setParameter and setNormalisedParameter are equivalent
+            tone->levelParam->setParameter(0.25f, juce::sendNotificationSync);
+        } else {
+            tone->level = 0.25f;
+        }
+
+        if (tone->oscTypeParam) {
+            // OscType is discrete 0-5
+            tone->oscTypeParam->setParameter(0.0f, juce::sendNotificationSync);
+        } else {
+            tone->oscType = 0.0f;
+        }
+
+        initialized_ = true;
+        DBG("ToneGeneratorProcessor::initializeDefaults: freq=" << getFrequency()
+                                                                << " Hz, level=" << getLevel());
+    }
 }
 
 te::ToneGeneratorPlugin* ToneGeneratorProcessor::getTonePlugin() const {
@@ -82,16 +156,22 @@ void ToneGeneratorProcessor::setParameter(const juce::String& paramName, float v
         if (isNormalized) {
             // Map 0-1 to 20-20000 Hz (logarithmic)
             float hz = 20.0f * std::pow(1000.0f, value);
+            DBG("ToneGen::setParameter freq normalized=" << value << " -> " << hz << " Hz");
             setFrequency(hz);
         } else {
+            DBG("ToneGen::setParameter freq raw=" << value << " Hz");
             setFrequency(value);
         }
     } else if (paramName.equalsIgnoreCase("level") || paramName.equalsIgnoreCase("gain") ||
                paramName.equalsIgnoreCase("volume")) {
-        setLevel(isNormalized ? value : juce::Decibels::decibelsToGain(value));
+        float level = isNormalized ? value : juce::Decibels::decibelsToGain(value);
+        DBG("ToneGen::setParameter level=" << level);
+        setLevel(level);
     } else if (paramName.equalsIgnoreCase("oscType") || paramName.equalsIgnoreCase("type") ||
                paramName.equalsIgnoreCase("waveform")) {
-        setOscType(static_cast<int>(value * 3.0f));  // 0-3 range
+        int type = static_cast<int>(value * 3.0f);
+        DBG("ToneGen::setParameter oscType=" << type);
+        setOscType(type);  // 0-3 range
     }
 }
 
@@ -118,14 +198,73 @@ std::vector<juce::String> ToneGeneratorProcessor::getParameterNames() const {
     return {"frequency", "level", "oscType"};
 }
 
+int ToneGeneratorProcessor::getParameterCount() const {
+    return 3;  // frequency, level, oscType
+}
+
+ParameterInfo ToneGeneratorProcessor::getParameterInfo(int index) const {
+    ParameterInfo info;
+    info.paramIndex = index;
+
+    switch (index) {
+        case 0: {  // Frequency
+            info.name = "Frequency";
+            info.unit = "Hz";
+            info.minValue = 20.0f;
+            info.maxValue = 20000.0f;
+            info.defaultValue = 440.0f;
+            info.scale = ParameterScale::Logarithmic;
+            // Store normalized value (0-1) for UI slider
+            // Clamp frequency to valid range to prevent negative normalized values
+            float hz = std::max(20.0f, std::min(20000.0f, getFrequency()));
+            info.currentValue = juce::jlimit(
+                0.0f, 1.0f, static_cast<float>(std::log(hz / 20.0f) / std::log(1000.0f)));
+            break;
+        }
+
+        case 1:  // Level
+            info.name = "Level";
+            info.unit = "";
+            info.minValue = 0.0f;
+            info.maxValue = 1.0f;
+            info.defaultValue = 0.25f;
+            info.currentValue = getLevel();  // Already 0-1
+            info.scale = ParameterScale::Linear;
+            break;
+
+        case 2:  // Oscillator Type
+            info.name = "Waveform";
+            info.unit = "";
+            info.minValue = 0.0f;
+            info.maxValue = 3.0f;
+            info.defaultValue = 0.0f;
+            info.currentValue = static_cast<float>(getOscType()) / 3.0f;  // Normalize to 0-1
+            info.scale = ParameterScale::Discrete;
+            info.choices = {"Sine", "Square", "Saw", "Noise"};
+            break;
+
+        default:
+            break;
+    }
+
+    return info;
+}
+
 void ToneGeneratorProcessor::setFrequency(float hz) {
     if (auto* tone = getTonePlugin()) {
-        tone->frequency = hz;
+        // Clamp to valid range
+        hz = juce::jlimit(20.0f, 20000.0f, hz);
+
+        // Set via automatable parameter if available (preferred - proper sync)
+        // IMPORTANT: setParameter expects actual Hz value, not normalized!
         if (tone->frequencyParam) {
-            // Normalize to 0-1 for the automatable parameter
-            float normalized = std::log(hz / 20.0f) / std::log(1000.0f);
-            tone->frequencyParam->setParameter(juce::jlimit(0.0f, 1.0f, normalized),
-                                               juce::sendNotificationSync);
+            tone->frequencyParam->setParameter(hz, juce::sendNotificationSync);
+            DBG("ToneGen::setFrequency " << hz
+                                         << " Hz via param, actual=" << tone->frequency.get());
+        } else {
+            // Fallback to CachedValue directly
+            tone->frequency = hz;
+            DBG("ToneGen::setFrequency " << hz << " Hz direct, actual=" << tone->frequency.get());
         }
     }
 }
@@ -171,10 +310,10 @@ int ToneGeneratorProcessor::getOscType() const {
 }
 
 void ToneGeneratorProcessor::applyGain() {
-    // For tone generator, gain is applied via the level parameter
-    // Map gainDb to level: 0dB = 1.0, -12dB = 0.25, etc.
-    // We apply gainLinear_ directly as the level (0-1 range)
-    setLevel(gainLinear_);
+    // For tone generator, the Level parameter controls output directly.
+    // The device gain stage is separate (would need a VolumeAndPan plugin after).
+    // For now, don't apply gain here - let Level param control output.
+    // TODO: Implement proper per-device gain stage via plugin chain
 }
 
 // =============================================================================

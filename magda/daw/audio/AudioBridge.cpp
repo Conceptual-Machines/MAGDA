@@ -72,9 +72,13 @@ void AudioBridge::trackDevicesChanged(TrackId trackId) {
 
 void AudioBridge::devicePropertyChanged(DeviceId deviceId) {
     // A device property changed (gain, level, etc.) - sync to processor
+    DBG("AudioBridge::devicePropertyChanged deviceId=" << deviceId);
+
     auto* processor = getDeviceProcessor(deviceId);
-    if (!processor)
+    if (!processor) {
+        DBG("  No processor found for deviceId=" << deviceId);
         return;
+    }
 
     // Find the DeviceInfo to get updated values
     // We need to search through all tracks to find this device
@@ -84,6 +88,7 @@ void AudioBridge::devicePropertyChanged(DeviceId deviceId) {
             if (std::holds_alternative<DeviceInfo>(element)) {
                 const auto& device = std::get<DeviceInfo>(element);
                 if (device.id == deviceId) {
+                    DBG("  Found device in track " << track.id << ", syncing...");
                     // Sync processor from the updated DeviceInfo
                     processor->syncFromDeviceInfo(device);
                     return;
@@ -91,6 +96,7 @@ void AudioBridge::devicePropertyChanged(DeviceId deviceId) {
             }
         }
     }
+    DBG("  Device not found in any track!");
 }
 
 // =============================================================================
@@ -587,8 +593,22 @@ te::Plugin::Ptr AudioBridge::loadDeviceAsPlugin(TrackId trackId, const DeviceInf
     if (plugin) {
         // Store the processor if we created one
         if (processor) {
-            // Sync initial state from DeviceInfo
+            // Initialize defaults first if DeviceInfo has no parameters
+            // This ensures the plugin starts with sensible values
+            if (device.parameters.empty()) {
+                if (auto* toneProc = dynamic_cast<ToneGeneratorProcessor*>(processor.get())) {
+                    toneProc->initializeDefaults();
+                }
+            }
+
+            // Sync state from DeviceInfo (only applies if it has values)
             processor->syncFromDeviceInfo(device);
+
+            // Populate parameters back to TrackManager
+            DeviceInfo tempInfo;
+            processor->populateParameters(tempInfo);
+            TrackManager::getInstance().updateDeviceParameters(device.id, tempInfo.parameters);
+
             deviceProcessors_[device.id] = std::move(processor);
         }
 

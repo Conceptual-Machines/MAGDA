@@ -365,6 +365,13 @@ void ParamSlotComponent::paint(juce::Graphics& /*g*/) {
 }
 
 void ParamSlotComponent::paintOverChildren(juce::Graphics& g) {
+    // If disabled, draw a semi-transparent overlay to dim the component
+    if (!isEnabled()) {
+        g.setColour(DarkTheme::getColour(DarkTheme::BACKGROUND).withAlpha(0.6f));
+        g.fillRect(getLocalBounds());
+        return;  // Don't draw other overlays for disabled components
+    }
+
     // Draw link mode highlight (background tint when a mod/macro is in link mode)
     if (isInLinkMode_) {
         auto color = activeMod_.isValid()
