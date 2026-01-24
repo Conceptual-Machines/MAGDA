@@ -358,15 +358,22 @@ void TrackHeadersPanel::viewModeChanged(ViewMode mode, const AudioEngineProfile&
 }
 
 void TrackHeadersPanel::populateMidiInputOptions(RoutingSelector* selector) {
-    if (!selector || !audioEngine_)
+    if (!selector || !audioEngine_) {
+        DBG("populateMidiInputOptions: selector=" << (selector ? "valid" : "null")
+                                                  << " audioEngine="
+                                                  << (audioEngine_ ? "valid" : "null"));
         return;
+    }
 
     auto* midiBridge = audioEngine_->getMidiBridge();
-    if (!midiBridge)
+    if (!midiBridge) {
+        DBG("populateMidiInputOptions: midiBridge is null");
         return;
+    }
 
     // Get available MIDI inputs from MidiBridge
     auto midiInputs = midiBridge->getAvailableMidiInputs();
+    DBG("populateMidiInputOptions: Found " << midiInputs.size() << " MIDI inputs");
 
     // Build options list
     std::vector<RoutingSelector::RoutingOption> options;
