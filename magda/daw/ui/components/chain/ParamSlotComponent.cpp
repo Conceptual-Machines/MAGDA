@@ -10,7 +10,7 @@ ParamSlotComponent::ParamSlotComponent(int paramIndex) : paramIndex_(paramIndex)
     // Register for link mode notifications
     magda::LinkModeManager::getInstance().addListener(this);
 
-    // Allow painting outside bounds for tooltip
+    // Intercept mouse clicks for this component AND allow children to receive them too
     setInterceptsMouseClicks(true, true);
 
     nameLabel_.setJustificationType(juce::Justification::centredLeft);
@@ -127,8 +127,8 @@ ParamSlotComponent::ParamSlotComponent(int paramIndex) : paramIndex_(paramIndex)
         }
     };
 
-    // Disable right-click editing - we use right-click for link menu
-    valueSlider_.setRightClickEditsText(false);
+    // Enable right-click editing - mouseDown checks bounds to avoid showing link menu on slider
+    valueSlider_.setRightClickEditsText(true);
     addAndMakeVisible(valueSlider_);
 
     setInterceptsMouseClicks(true, true);
@@ -429,7 +429,7 @@ void ParamSlotComponent::setParameterInfo(const magda::ParameterInfo& info) {
 
         // Set up value display formatting based on scale/unit
         if (info.scale == magda::ParameterScale::Logarithmic && info.unit == "Hz") {
-            // Frequency - show as Hz
+            // Frequency - show as Hz/kHz
             valueSlider_.setValueFormatter([this](double normalized) {
                 float hz = paramInfo_.minValue * std::pow(paramInfo_.maxValue / paramInfo_.minValue,
                                                           static_cast<float>(normalized));
@@ -437,6 +437,22 @@ void ParamSlotComponent::setParameterInfo(const magda::ParameterInfo& info) {
                     return juce::String(hz / 1000.0f, 2) + " kHz";
                 }
                 return juce::String(static_cast<int>(hz)) + " Hz";
+            });
+            // Parse user input: "440 Hz" or "2.5 kHz" → normalized
+            valueSlider_.setValueParser([this](const juce::String& text) {
+                auto trimmed = text.trim();
+                float hz = 0.0f;
+                if (trimmed.endsWithIgnoreCase("khz")) {
+                    hz = trimmed.dropLastCharacters(3).trim().getFloatValue() * 1000.0f;
+                } else if (trimmed.endsWithIgnoreCase("hz")) {
+                    hz = trimmed.dropLastCharacters(2).trim().getFloatValue();
+                } else {
+                    hz = trimmed.getFloatValue();
+                }
+                // Convert Hz to normalized (logarithmic)
+                hz = juce::jlimit(paramInfo_.minValue, paramInfo_.maxValue, hz);
+                return std::log(hz / paramInfo_.minValue) /
+                       std::log(paramInfo_.maxValue / paramInfo_.minValue);
             });
         } else if (info.unit == "dB") {
             // Decibels
@@ -448,19 +464,44 @@ void ParamSlotComponent::setParameterInfo(const magda::ParameterInfo& info) {
                 }
                 return juce::String(db, 1) + " dB";
             });
+            // Parse user input: "-12 dB" or "-12" → normalized
+            valueSlider_.setValueParser([this](const juce::String& text) {
+                auto trimmed = text.trim();
+                if (trimmed.endsWithIgnoreCase("db")) {
+                    trimmed = trimmed.dropLastCharacters(2).trim();
+                }
+                float db = trimmed.getFloatValue();
+                db = juce::jlimit(paramInfo_.minValue, paramInfo_.maxValue, db);
+                return (db - paramInfo_.minValue) / (paramInfo_.maxValue - paramInfo_.minValue);
+            });
         } else if (info.unit == "%") {
             // Percentage
             valueSlider_.setValueFormatter([](double normalized) {
                 return juce::String(static_cast<int>(normalized * 100)) + "%";
+            });
+            valueSlider_.setValueParser([](const juce::String& text) {
+                auto trimmed = text.trim();
+                if (trimmed.endsWith("%")) {
+                    trimmed = trimmed.dropLastCharacters(1).trim();
+                }
+                return juce::jlimit(0.0, 1.0, trimmed.getDoubleValue() / 100.0);
             });
         } else if (info.unit.isEmpty() && info.minValue == 0.0f && info.maxValue == 1.0f) {
             // Generic 0-1 linear - show as percentage
             valueSlider_.setValueFormatter([](double normalized) {
                 return juce::String(static_cast<int>(normalized * 100)) + "%";
             });
+            valueSlider_.setValueParser([](const juce::String& text) {
+                auto trimmed = text.trim();
+                if (trimmed.endsWith("%")) {
+                    trimmed = trimmed.dropLastCharacters(1).trim();
+                }
+                return juce::jlimit(0.0, 1.0, trimmed.getDoubleValue() / 100.0);
+            });
         } else {
             // Default - show raw normalized value
             valueSlider_.setValueFormatter(nullptr);
+            valueSlider_.setValueParser(nullptr);
         }
     }
 
@@ -542,8 +583,23 @@ void ParamSlotComponent::mouseExit(const juce::MouseEvent& /*e*/) {
 }
 
 void ParamSlotComponent::mouseDown(const juce::MouseEvent& e) {
-    // Handle right-click anywhere on the component
+    // Handle right-click - but allow value controls to handle their own right-clicks
     if (e.mods.isPopupMenu()) {
+        // If clicking on the value slider area, let it handle text editing
+        if (valueSlider_.isVisible() && valueSlider_.getBounds().contains(e.getPosition())) {
+            // Don't intercept - let the slider handle it
+            return;
+        }
+        // If clicking on ComboBox or Toggle, let them handle it
+        if (discreteCombo_ && discreteCombo_->isVisible() &&
+            discreteCombo_->getBounds().contains(e.getPosition())) {
+            return;
+        }
+        if (boolToggle_ && boolToggle_->isVisible() &&
+            boolToggle_->getBounds().contains(e.getPosition())) {
+            return;
+        }
+        // Otherwise show link menu
         showLinkMenu();
         return;
     }

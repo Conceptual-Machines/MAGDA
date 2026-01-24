@@ -102,6 +102,11 @@ class TextSlider : public juce::Component, public juce::Label::Listener {
         updateLabel();
     }
 
+    // Custom value parser - takes user input string, returns normalized value (0-1)
+    void setValueParser(std::function<double(const juce::String&)> parser) {
+        valueParser_ = std::move(parser);
+    }
+
     void setShiftDragStartValue(float value) {
         shiftDragStartValue_ = value;
     }
@@ -199,14 +204,8 @@ class TextSlider : public juce::Component, public juce::Label::Listener {
     }
 
     void mouseDoubleClick(const juce::MouseEvent&) override {
-        // Double-click to reset to default (0.0 for pan, 0.0 dB for gain)
-        if (format_ == Format::Pan) {
-            setValue(0.0);  // Center
-        } else if (format_ == Format::Decibels) {
-            setValue(0.0);  // 0 dB
-        } else {
-            setValue((minValue_ + maxValue_) / 2.0);  // Midpoint for decimal
-        }
+        // Double-click to edit value
+        label_.showEditor();
     }
 
     // Label::Listener
@@ -214,7 +213,14 @@ class TextSlider : public juce::Component, public juce::Label::Listener {
         if (labelThatChanged == &label_) {
             auto text = label_.getText().trim();
 
-            // Remove common suffixes
+            // Use custom parser if provided
+            if (valueParser_) {
+                double newValue = valueParser_(text);
+                setValue(newValue);
+                return;
+            }
+
+            // Default parsing - remove common suffixes
             if (text.endsWithIgnoreCase("db")) {
                 text = text.dropLastCharacters(2).trim();
             } else if (text.endsWithIgnoreCase("l") || text.endsWithIgnoreCase("r")) {
@@ -246,7 +252,10 @@ class TextSlider : public juce::Component, public juce::Label::Listener {
     bool rightClickEditsText_ = true;
     juce::String emptyText_ = "-";
     bool showEmptyText_ = false;
-    std::function<juce::String(double)> valueFormatter_;  // Custom value formatting
+    std::function<juce::String(double)>
+        valueFormatter_;  // Custom value formatting (normalized → string)
+    std::function<double(const juce::String&)>
+        valueParser_;  // Custom value parsing (string → normalized)
 
     void updateLabel() {
         // Show empty text instead of value when disabled/empty
