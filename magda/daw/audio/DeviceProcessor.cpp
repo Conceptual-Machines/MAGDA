@@ -113,31 +113,12 @@ void ToneGeneratorProcessor::initializeDefaults() {
         return;
 
     if (auto* tone = getTonePlugin()) {
-        // Set default values - the plugin should be fully ready now
-        // IMPORTANT: setParameter() expects ACTUAL values (Hz, not normalized!)
-        // Use setNormalisedParameter() for 0-1 values
-        if (tone->frequencyParam) {
-            // setParameter expects actual Hz value
-            tone->frequencyParam->setParameter(440.0f, juce::sendNotificationSync);
-            DBG("initializeDefaults: set frequencyParam to 440 Hz");
-        } else {
-            tone->frequency = 440.0f;
-            DBG("initializeDefaults: set frequency CachedValue to 440 Hz");
-        }
-
-        if (tone->levelParam) {
-            // Level is 0-1, so setParameter and setNormalisedParameter are equivalent
-            tone->levelParam->setParameter(0.25f, juce::sendNotificationSync);
-        } else {
-            tone->level = 0.25f;
-        }
-
-        if (tone->oscTypeParam) {
-            // OscType is discrete 0-5
-            tone->oscTypeParam->setParameter(0.0f, juce::sendNotificationSync);
-        } else {
-            tone->oscType = 0.0f;
-        }
+        // Set default values directly on CachedValues
+        // Audio engine reads from these, not from AutomatableParameters
+        // Parameters are only for automation playback
+        tone->frequency = 440.0f;
+        tone->level = 0.25f;
+        tone->oscType = 0.0f;  // Sine wave
 
         initialized_ = true;
         DBG("ToneGeneratorProcessor::initializeDefaults: freq=" << getFrequency()
@@ -249,17 +230,10 @@ void ToneGeneratorProcessor::setFrequency(float hz) {
         // Clamp to valid range
         hz = juce::jlimit(20.0f, 20000.0f, hz);
 
-        // CRITICAL: Always use direct CachedValue assignment to bypass AutomatableParameter
-        // quantization (default 100 steps causes stepping artifacts)
+        // CRITICAL: Set CachedValue directly - bypasses AutomatableParameter quantization
+        // The audio engine reads from tone->frequency, NOT from frequencyParam
+        // AutomatableParameter is only for automation playback, not manual control
         tone->frequency = hz;
-
-        // Also update the parameter so automation/UI stays in sync
-        if (tone->frequencyParam) {
-            // Use setNormalisedParameter to avoid double-conversion
-            // Frequency range in ToneGeneratorPlugin is 20-20000 Hz
-            float normalized = (std::log(hz / 20.0f)) / (std::log(20000.0f / 20.0f));
-            tone->frequencyParam->setNormalisedParameter(normalized, juce::sendNotificationSync);
-        }
 
         DBG("ToneGen::setFrequency " << hz << " Hz (direct), actual=" << tone->frequency.get());
     }
@@ -274,14 +248,9 @@ float ToneGeneratorProcessor::getFrequency() const {
 
 void ToneGeneratorProcessor::setLevel(float level) {
     if (auto* tone = getTonePlugin()) {
-        // CRITICAL: Set CachedValue first for immediate, smooth response
+        // Set CachedValue directly - audio engine reads from this
+        // AutomatableParameter is only for automation, not manual control
         tone->level = level;
-
-        // Update parameter for UI/automation sync
-        if (tone->levelParam) {
-            // Level is already normalized 0-1, so use setNormalisedParameter
-            tone->levelParam->setNormalisedParameter(level, juce::sendNotificationSync);
-        }
     }
 }
 
@@ -298,13 +267,8 @@ void ToneGeneratorProcessor::setOscType(int type) {
         // TE enum: 0=sin, 1=triangle, 2=sawUp, 3=sawDown, 4=square, 5=noise
         float teType = (type == 0) ? 0.0f : 5.0f;  // 0→sin, 1→noise
 
-        // Set CachedValue first for immediate response
+        // Set CachedValue directly - audio engine reads from this
         tone->oscType = teType;
-
-        // Update parameter for UI/automation sync (6 choices: 0-5)
-        if (tone->oscTypeParam) {
-            tone->oscTypeParam->setNormalisedParameter(teType / 5.0f, juce::sendNotificationSync);
-        }
     }
 }
 
