@@ -18,10 +18,11 @@ namespace magda {
  * - Phase-based X coordinate (0 to 1)
  * - Seamless looping (last point connects to first)
  * - Integration with ModInfo for waveform storage
+ * - Animated phase indicator showing current LFO position
  *
  * Used in the modulator editor panel for custom LFO shapes.
  */
-class LFOCurveEditor : public CurveEditorBase {
+class LFOCurveEditor : public CurveEditorBase, private juce::Timer {
   public:
     LFOCurveEditor();
     ~LFOCurveEditor() override;
@@ -60,7 +61,11 @@ class LFOCurveEditor : public CurveEditorBase {
 
     void paintGrid(juce::Graphics& g) override;
 
+    // Paint override to add phase indicator
+    void paint(juce::Graphics& g) override;
+
   private:
+    void timerCallback() override;
     ModInfo* modInfo_ = nullptr;
 
     // Local curve points for custom waveform

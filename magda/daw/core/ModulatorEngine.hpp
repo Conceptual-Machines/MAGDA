@@ -148,13 +148,93 @@ class ModulatorEngine : public juce::Timer {
     }
 
     /**
-     * @brief Generate waveform value for a mod (handles Custom waveforms with curve presets)
+     * @brief Evaluate curve points at given phase using tension-based interpolation
+     * @param points The curve points sorted by phase
+     * @param phase Current phase (0.0 to 1.0)
+     * @return Output value (0.0 to 1.0)
+     */
+    static float evaluateCurvePoints(const std::vector<CurvePointData>& points, float phase) {
+        if (points.empty()) {
+            return 0.5f;  // Default to center
+        }
+        if (points.size() == 1) {
+            return points[0].value;
+        }
+
+        // Find bracketing points (curve loops, so we may wrap around)
+        const CurvePointData* p1 = nullptr;
+        const CurvePointData* p2 = nullptr;
+
+        for (size_t i = 0; i < points.size(); ++i) {
+            if (points[i].phase > phase) {
+                if (i == 0) {
+                    // Before first point - wrap from last point
+                    p1 = &points.back();
+                    p2 = &points[0];
+                } else {
+                    p1 = &points[i - 1];
+                    p2 = &points[i];
+                }
+                break;
+            }
+        }
+
+        // If we didn't find a bracket, we're after the last point - wrap to first
+        if (!p1) {
+            p1 = &points.back();
+            p2 = &points.front();
+        }
+
+        // Calculate interpolation t value
+        float phaseSpan;
+        float localPhase;
+        if (p2->phase < p1->phase) {
+            // Wrapping case
+            phaseSpan = (1.0f - p1->phase) + p2->phase;
+            if (phase >= p1->phase) {
+                localPhase = phase - p1->phase;
+            } else {
+                localPhase = (1.0f - p1->phase) + phase;
+            }
+        } else {
+            phaseSpan = p2->phase - p1->phase;
+            localPhase = phase - p1->phase;
+        }
+
+        float t = (phaseSpan > 0.0001f) ? (localPhase / phaseSpan) : 0.0f;
+        t = std::clamp(t, 0.0f, 1.0f);
+
+        // Apply tension-based interpolation
+        float tension = p1->tension;
+        if (std::abs(tension) < 0.001f) {
+            // Linear interpolation
+            return p1->value + t * (p2->value - p1->value);
+        } else {
+            // Tension-based curve (same formula as CurveEditorBase)
+            float curvedT;
+            if (tension > 0) {
+                // Ease out - fast start, slow end
+                curvedT = 1.0f - std::pow(1.0f - t, 1.0f + tension);
+            } else {
+                // Ease in - slow start, fast end
+                curvedT = std::pow(t, 1.0f - tension);
+            }
+            return p1->value + curvedT * (p2->value - p1->value);
+        }
+    }
+
+    /**
+     * @brief Generate waveform value for a mod (handles Custom waveforms with curve points)
      * @param mod The modulator info
      * @param phase Current phase (0.0 to 1.0)
      * @return Output value (0.0 to 1.0)
      */
     static float generateWaveformForMod(const ModInfo& mod, float phase) {
         if (mod.waveform == LFOWaveform::Custom) {
+            if (!mod.curvePoints.empty()) {
+                return evaluateCurvePoints(mod.curvePoints, phase);
+            }
+            // Fallback to preset if no custom points
             return generateCurvePreset(mod.curvePreset, phase);
         }
         return generateWaveform(mod.waveform, phase);

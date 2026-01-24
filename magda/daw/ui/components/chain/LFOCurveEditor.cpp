@@ -8,40 +8,87 @@ namespace magda {
 LFOCurveEditor::LFOCurveEditor() {
     setName("LFOCurveEditor");
 
-    // Initialize with default sine-like curve (just two points for now)
-    // First point at 0.0 phase, 0.5 value (center)
-    CurvePoint p1;
-    p1.id = nextPointId_++;
-    p1.x = 0.0;
-    p1.y = 0.5;
-    p1.curveType = CurveType::Linear;
-    points_.push_back(p1);
-
-    // Second point at 0.5 phase, 1.0 value (peak)
-    CurvePoint p2;
-    p2.id = nextPointId_++;
-    p2.x = 0.5;
-    p2.y = 1.0;
-    p2.curveType = CurveType::Linear;
-    points_.push_back(p2);
-
-    // Third point at 1.0 phase, 0.5 value (back to center)
-    CurvePoint p3;
-    p3.id = nextPointId_++;
-    p3.x = 1.0;
-    p3.y = 0.5;
-    p3.curveType = CurveType::Linear;
-    points_.push_back(p3);
+    // Start timer for phase indicator animation
+    startTimer(33);  // 30 FPS
 
     rebuildPointComponents();
 }
 
-LFOCurveEditor::~LFOCurveEditor() = default;
+LFOCurveEditor::~LFOCurveEditor() {
+    stopTimer();
+}
 
 void LFOCurveEditor::setModInfo(ModInfo* mod) {
     modInfo_ = mod;
-    // TODO: Load custom waveform points from ModInfo if stored
+
+    // Load curve points from ModInfo
+    points_.clear();
+
+    if (mod && !mod->curvePoints.empty()) {
+        // Load from ModInfo
+        for (const auto& cp : mod->curvePoints) {
+            CurvePoint point;
+            point.id = nextPointId_++;
+            point.x = static_cast<double>(cp.phase);
+            point.y = static_cast<double>(cp.value);
+            point.tension = static_cast<double>(cp.tension);
+            point.curveType = CurveType::Linear;
+            points_.push_back(point);
+        }
+    } else {
+        // Initialize with default triangle-like curve
+        CurvePoint p1;
+        p1.id = nextPointId_++;
+        p1.x = 0.0;
+        p1.y = 0.0;
+        p1.curveType = CurveType::Linear;
+        points_.push_back(p1);
+
+        CurvePoint p2;
+        p2.id = nextPointId_++;
+        p2.x = 0.5;
+        p2.y = 1.0;
+        p2.curveType = CurveType::Linear;
+        points_.push_back(p2);
+
+        CurvePoint p3;
+        p3.id = nextPointId_++;
+        p3.x = 1.0;
+        p3.y = 0.0;
+        p3.curveType = CurveType::Linear;
+        points_.push_back(p3);
+    }
+
+    rebuildPointComponents();
     repaint();
+}
+
+void LFOCurveEditor::timerCallback() {
+    // Repaint to update phase indicator
+    repaint();
+}
+
+void LFOCurveEditor::paint(juce::Graphics& g) {
+    // Call base class paint for curve rendering
+    CurveEditorBase::paint(g);
+
+    // Draw phase indicator if we have modInfo with current phase
+    if (modInfo_ && getWidth() > 0 && getHeight() > 0) {
+        float phase = modInfo_->phase;
+        float value = modInfo_->value;
+
+        // Calculate position
+        int x = xToPixel(static_cast<double>(phase));
+        int y = yToPixel(static_cast<double>(value));
+
+        // Draw indicator dot
+        g.setColour(curveColour_);
+        g.fillEllipse(static_cast<float>(x - 4), static_cast<float>(y - 4), 8.0f, 8.0f);
+
+        // Draw white outline
+        g.setColour(juce::Colours::white);
+        g.drawEllipse(static_cast<float>(x - 4), static_cast<float>(y - 4), 8.0f, 8.0f, 1.5f);
+    }
 }
 
 double LFOCurveEditor::getPixelsPerX() const {
@@ -186,11 +233,21 @@ void LFOCurveEditor::paintGrid(juce::Graphics& g) {
 }
 
 void LFOCurveEditor::notifyWaveformChanged() {
+    // Save curve points to ModInfo
+    if (modInfo_) {
+        modInfo_->curvePoints.clear();
+        for (const auto& p : points_) {
+            CurvePointData cpd;
+            cpd.phase = static_cast<float>(p.x);
+            cpd.value = static_cast<float>(p.y);
+            cpd.tension = static_cast<float>(p.tension);
+            modInfo_->curvePoints.push_back(cpd);
+        }
+    }
+
     if (onWaveformChanged) {
         onWaveformChanged();
     }
-
-    // TODO: Store waveform data in ModInfo for persistence
 }
 
 }  // namespace magda
