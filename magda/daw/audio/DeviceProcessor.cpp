@@ -176,9 +176,10 @@ void ToneGeneratorProcessor::setParameter(const juce::String& paramName, float v
         setLevel(level);
     } else if (paramName.equalsIgnoreCase("oscType") || paramName.equalsIgnoreCase("type") ||
                paramName.equalsIgnoreCase("waveform")) {
-        int type = static_cast<int>(value * 3.0f);
+        // 0 = sine, 1 = noise (normalized value 0-1 maps to choice index)
+        int type = static_cast<int>(std::round(value));
         DBG("ToneGen::setParameter oscType=" << type);
-        setOscType(type);  // 0-3 range
+        setOscType(type);  // 0 or 1
     }
 }
 
@@ -196,7 +197,7 @@ float ToneGeneratorProcessor::getParameter(const juce::String& paramName, bool n
         return normalized ? level : juce::Decibels::gainToDecibels(level);
     } else if (paramName.equalsIgnoreCase("oscType") || paramName.equalsIgnoreCase("type") ||
                paramName.equalsIgnoreCase("waveform")) {
-        return static_cast<float>(getOscType()) / 3.0f;
+        return static_cast<float>(getOscType());  // 0 or 1
     }
     return 0.0f;
 }
@@ -247,11 +248,11 @@ ParameterInfo ToneGeneratorProcessor::getParameterInfo(int index) const {
             info.name = "Waveform";
             info.unit = "";
             info.minValue = 0.0f;
-            info.maxValue = 3.0f;
+            info.maxValue = 1.0f;
             info.defaultValue = 0.0f;
-            info.currentValue = static_cast<float>(getOscType()) / 3.0f;  // Normalize to 0-1
+            info.currentValue = static_cast<float>(getOscType());  // 0 or 1
             info.scale = ParameterScale::Discrete;
-            info.choices = {"Sine", "Square", "Saw", "Noise"};
+            info.choices = {"Sine", "Noise"};
             break;
 
         default:
@@ -305,17 +306,22 @@ float ToneGeneratorProcessor::getLevel() const {
 
 void ToneGeneratorProcessor::setOscType(int type) {
     if (auto* tone = getTonePlugin()) {
-        tone->oscType = static_cast<float>(type);
+        // Map our 0/1 (sine/noise) to TE's 0/5 (sin/noise)
+        // TE enum: 0=sin, 1=triangle, 2=sawUp, 3=sawDown, 4=square, 5=noise
+        float teType = (type == 0) ? 0.0f : 5.0f;  // 0→sin, 1→noise
+        tone->oscType = teType;
         if (tone->oscTypeParam) {
-            tone->oscTypeParam->setParameter(static_cast<float>(type) / 3.0f,
-                                             juce::sendNotificationSync);
+            // Normalize to 0-1 for TE parameter (5 choices: 0-5 → 0-1)
+            tone->oscTypeParam->setParameter(teType / 5.0f, juce::sendNotificationSync);
         }
     }
 }
 
 int ToneGeneratorProcessor::getOscType() const {
     if (auto* tone = getTonePlugin()) {
-        return static_cast<int>(tone->oscType);
+        // Map TE's 0/5 back to our 0/1
+        int teType = static_cast<int>(tone->oscType);
+        return (teType == 5) ? 1 : 0;  // noise→1, everything else→0 (sine)
     }
     return 0;  // Sine
 }
