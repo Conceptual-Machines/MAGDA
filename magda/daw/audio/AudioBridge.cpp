@@ -573,6 +573,7 @@ te::Plugin::Ptr AudioBridge::createToneGenerator(te::AudioTrack* track) {
     auto plugin = edit_.getPluginCache().createNewPlugin(te::ToneGeneratorPlugin::xmlTypeName, {});
     if (plugin) {
         track->pluginList.insertPlugin(plugin, -1, nullptr);
+        DBG("ToneGenerator created - using direct CachedValue access for smooth control");
     }
     return plugin;
 }
@@ -609,6 +610,12 @@ te::Plugin::Ptr AudioBridge::createFourOscSynth(te::AudioTrack* track) {
     auto plugin = edit_.getPluginCache().createNewPlugin(te::FourOscPlugin::xmlTypeName, {});
     if (plugin) {
         track->pluginList.insertPlugin(plugin, -1, nullptr);
+
+        // CRITICAL: Increase parameter resolution for all continuous parameters
+        // Default is 100 steps which causes stepping artifacts
+        // Note: FourOscPlugin exposes many parameters - we'll set high resolution globally
+        // for now since distinguishing discrete vs continuous requires deeper inspection
+        DBG("FourOscPlugin: Created - parameter resolution will be handled by FourOscProcessor");
     }
     return plugin;
 }

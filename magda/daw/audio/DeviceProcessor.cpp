@@ -267,17 +267,19 @@ void ToneGeneratorProcessor::setFrequency(float hz) {
         // Clamp to valid range
         hz = juce::jlimit(20.0f, 20000.0f, hz);
 
-        // Set via automatable parameter if available (preferred - proper sync)
-        // IMPORTANT: setParameter expects actual Hz value, not normalized!
+        // CRITICAL: Always use direct CachedValue assignment to bypass AutomatableParameter
+        // quantization (default 100 steps causes stepping artifacts)
+        tone->frequency = hz;
+
+        // Also update the parameter so automation/UI stays in sync
         if (tone->frequencyParam) {
-            tone->frequencyParam->setParameter(hz, juce::sendNotificationSync);
-            DBG("ToneGen::setFrequency " << hz
-                                         << " Hz via param, actual=" << tone->frequency.get());
-        } else {
-            // Fallback to CachedValue directly
-            tone->frequency = hz;
-            DBG("ToneGen::setFrequency " << hz << " Hz direct, actual=" << tone->frequency.get());
+            // Use setNormalisedParameter to avoid double-conversion
+            // Frequency range in ToneGeneratorPlugin is 20-20000 Hz
+            float normalized = (std::log(hz / 20.0f)) / (std::log(20000.0f / 20.0f));
+            tone->frequencyParam->setNormalisedParameter(normalized, juce::sendNotificationSync);
         }
+
+        DBG("ToneGen::setFrequency " << hz << " Hz (direct), actual=" << tone->frequency.get());
     }
 }
 
@@ -290,9 +292,13 @@ float ToneGeneratorProcessor::getFrequency() const {
 
 void ToneGeneratorProcessor::setLevel(float level) {
     if (auto* tone = getTonePlugin()) {
+        // CRITICAL: Set CachedValue first for immediate, smooth response
         tone->level = level;
+
+        // Update parameter for UI/automation sync
         if (tone->levelParam) {
-            tone->levelParam->setParameter(level, juce::sendNotificationSync);
+            // Level is already normalized 0-1, so use setNormalisedParameter
+            tone->levelParam->setNormalisedParameter(level, juce::sendNotificationSync);
         }
     }
 }
@@ -309,10 +315,13 @@ void ToneGeneratorProcessor::setOscType(int type) {
         // Map our 0/1 (sine/noise) to TE's 0/5 (sin/noise)
         // TE enum: 0=sin, 1=triangle, 2=sawUp, 3=sawDown, 4=square, 5=noise
         float teType = (type == 0) ? 0.0f : 5.0f;  // 0→sin, 1→noise
+
+        // Set CachedValue first for immediate response
         tone->oscType = teType;
+
+        // Update parameter for UI/automation sync (6 choices: 0-5)
         if (tone->oscTypeParam) {
-            // Normalize to 0-1 for TE parameter (5 choices: 0-5 → 0-1)
-            tone->oscTypeParam->setParameter(teType / 5.0f, juce::sendNotificationSync);
+            tone->oscTypeParam->setNormalisedParameter(teType / 5.0f, juce::sendNotificationSync);
         }
     }
 }
