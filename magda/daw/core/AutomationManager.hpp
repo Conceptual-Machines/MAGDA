@@ -8,6 +8,7 @@
 
 #include "AutomationInfo.hpp"
 #include "AutomationTypes.hpp"
+#include "TrackManager.hpp"
 #include "TypeIds.hpp"
 
 namespace magda {
@@ -49,8 +50,9 @@ class AutomationManagerListener {
  *
  * Provides CRUD operations for automation lanes, clips, and points.
  * Handles curve interpolation for real-time value retrieval.
+ * Listens to TrackManager for volume/pan changes to update automation lanes.
  */
-class AutomationManager {
+class AutomationManager : public TrackManagerListener {
   public:
     static AutomationManager& getInstance();
 
@@ -256,9 +258,16 @@ class AutomationManager {
 
     void clearAll();
 
+    // ========================================================================
+    // TrackManagerListener - Updates automation when faders move
+    // ========================================================================
+
+    void tracksChanged() override {}
+    void trackPropertyChanged(int trackId) override;
+
   private:
     AutomationManager();
-    ~AutomationManager() = default;
+    ~AutomationManager();
 
     std::vector<AutomationLaneInfo> lanes_;
     std::vector<AutomationClipInfo> clips_;

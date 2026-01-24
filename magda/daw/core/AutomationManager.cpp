@@ -48,7 +48,49 @@ AutomationManager& AutomationManager::getInstance() {
     return instance;
 }
 
-AutomationManager::AutomationManager() = default;
+AutomationManager::AutomationManager() {
+    // Register to receive track property changes (volume/pan updates)
+    TrackManager::getInstance().addListener(this);
+}
+
+AutomationManager::~AutomationManager() {
+    TrackManager::getInstance().removeListener(this);
+}
+
+// ============================================================================
+// TrackManagerListener - Updates automation when faders move
+// ============================================================================
+
+void AutomationManager::trackPropertyChanged(int trackId) {
+    // When a track's volume or pan changes, update any automation lanes
+    // that target those parameters (if they have points)
+    TrackId tid = static_cast<TrackId>(trackId);
+
+    for (auto& lane : lanes_) {
+        // Only update lanes for this track
+        if (lane.target.trackId != tid)
+            continue;
+
+        // Only process volume and pan targets
+        if (lane.target.type != AutomationTargetType::TrackVolume &&
+            lane.target.type != AutomationTargetType::TrackPan)
+            continue;
+
+        // Only update absolute lanes with points
+        if (!lane.isAbsolute() || lane.absolutePoints.empty())
+            continue;
+
+        // Get current value from track
+        double newValue = getCurrentTargetValue(lane.target);
+
+        // Update the first point (or all points if single-point lane)
+        // This provides real-time feedback when moving faders
+        if (lane.absolutePoints.size() == 1) {
+            lane.absolutePoints[0].value = newValue;
+            notifyPointsChanged(lane.id);
+        }
+    }
+}
 
 // ============================================================================
 // Lane Management
