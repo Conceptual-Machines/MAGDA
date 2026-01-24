@@ -135,7 +135,7 @@ void ToneGeneratorProcessor::setParameter(const juce::String& paramName, float v
         setFrequency(value);
     } else if (paramName.equalsIgnoreCase("level") || paramName.equalsIgnoreCase("gain") ||
                paramName.equalsIgnoreCase("volume")) {
-        // Value is actual dB (-60 to 0)
+        // Value is actual dB (-60 to +6)
         float level = juce::Decibels::decibelsToGain(value, -60.0f);
         DBG("ToneGen::setParameter level=" << value << " dB (linear=" << level << ")");
         setLevel(level);

@@ -106,6 +106,7 @@ set(DAW_CORE_SOURCES
     # Audio integration
     audio/AudioBridge.cpp
     audio/DeviceProcessor.cpp
+    audio/MidiBridge.cpp
     # TODO: Custom synth library (SimpleSynthPlugin.cpp) - for future implementation
     # UI components needed by tests
     ui/components/timeline/TimelineComponent.cpp

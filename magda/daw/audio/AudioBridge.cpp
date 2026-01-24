@@ -545,7 +545,7 @@ void AudioBridge::timerCallback() {
         auto levelL = client.getAndClearAudioLevel(0);
         auto levelR = client.getAndClearAudioLevel(1);
 
-        // Convert from dB to linear gain (0-1)
+        // Convert from dB to linear gain (allow > 1.0 for headroom)
         data.peakL = juce::Decibels::decibelsToGain(levelL.dB);
         data.peakR = juce::Decibels::decibelsToGain(levelR.dB);
 

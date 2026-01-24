@@ -11,8 +11,9 @@
 
 namespace magda {
 
-// Forward declaration
+// Forward declarations
 class AudioBridge;
+class MidiBridge;
 
 /**
  * @brief Tracktion Engine implementation of AudioEngine
@@ -149,6 +150,17 @@ class TracktionEngineWrapper : public AudioEngine,
     }
 
     /**
+     * @brief Get the MidiBridge for MIDI device management and routing
+     * @return Pointer to MidiBridge, or nullptr if not initialized
+     */
+    MidiBridge* getMidiBridge() {
+        return midiBridge_.get();
+    }
+    const MidiBridge* getMidiBridge() const {
+        return midiBridge_.get();
+    }
+
+    /**
      * @brief Get the Tracktion Engine instance
      */
     tracktion::Engine* getEngine() {
@@ -175,6 +187,9 @@ class TracktionEngineWrapper : public AudioEngine,
 
     // Audio bridge for TrackManager synchronization
     std::unique_ptr<AudioBridge> audioBridge_;
+
+    // MIDI bridge for MIDI device management and routing
+    std::unique_ptr<MidiBridge> midiBridge_;
 
     // Test tone generator (for Phase 1 testing)
     tracktion::Plugin::Ptr testTonePlugin_;

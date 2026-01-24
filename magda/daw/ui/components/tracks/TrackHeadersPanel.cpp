@@ -19,7 +19,7 @@ namespace magda {
 // dB conversion helpers for volume
 namespace {
 constexpr float MIN_DB = -60.0f;
-constexpr float MAX_DB = 6.0f;
+constexpr float MAX_DB = 6.0f;  // Allow +6 dB headroom
 
 float gainToDb(float gain) {
     if (gain <= 0.0f)
@@ -33,14 +33,31 @@ float dbToGain(float db) {
     return std::pow(10.0f, db / 20.0f);
 }
 
+// Meter-specific scaling: simple logarithmic curve
+// Single power curve compresses bottom, leaves room at top for headroom
+float dbToMeterPos(float db) {
+    if (db <= MIN_DB)
+        return 0.0f;
+    if (db >= MAX_DB)
+        return 1.0f;
+
+    // Normalize to 0-1 range
+    float normalized = (db - MIN_DB) / (MAX_DB - MIN_DB);
+
+    // Apply power curve: y = x^3
+    // -12 dB → ~38%, 0 dB → ~75%, +6 dB → 100%
+    return std::pow(normalized, 3.0f);
+}
+
 // Simple stereo level meter component for track headers
 class TrackMeter : public juce::Component {
   public:
     TrackMeter() = default;
 
     void setLevels(float left, float right) {
-        levelL_ = juce::jlimit(0.0f, 1.0f, left);
-        levelR_ = juce::jlimit(0.0f, 1.0f, right);
+        // Allow up to 2.0 gain (+6 dB) for proper headroom display
+        levelL_ = juce::jlimit(0.0f, 2.0f, left);
+        levelR_ = juce::jlimit(0.0f, 2.0f, right);
         repaint();
     }
 
@@ -76,19 +93,27 @@ class TrackMeter : public juce::Component {
         if (level <= 0.0f)
             return;
 
-        float fillHeight = bounds.getHeight() * level;
+        // Convert gain to dB, then to meter position (linear dB scaling)
+        float db = gainToDb(level);
+        float meterPos = dbToMeterPos(db);
+        float fillHeight = bounds.getHeight() * meterPos;
         auto fillBounds = bounds.removeFromBottom(fillHeight);
 
-        // Color gradient: green -> yellow -> red
+        // Color gradient based on dB: green -> yellow -> red
+        // Green: < -12 dB, Yellow: -12 to 0 dB, Red: 0 to +12 dB
         juce::Colour color;
-        if (level < 0.7f) {
-            color = juce::Colour(0xFF55AA55);  // Green
-        } else if (level < 0.9f) {
-            float t = (level - 0.7f) / 0.2f;
+        if (db < -12.0f) {
+            color = juce::Colour(0xFF55AA55);  // Green (safe zone)
+        } else if (db < 0.0f) {
+            // Transition from green to yellow
+            float t = (db + 12.0f) / 12.0f;
             color = juce::Colour(0xFF55AA55).interpolatedWith(juce::Colour(0xFFAAAA55), t);
-        } else {
-            float t = (level - 0.9f) / 0.1f;
+        } else if (db < 6.0f) {
+            // Transition from yellow/orange to red
+            float t = db / 6.0f;
             color = juce::Colour(0xFFAAAA55).interpolatedWith(juce::Colour(0xFFAA5555), t);
+        } else {
+            color = juce::Colour(0xFFAA5555);  // Red (clipping zone above +6 dB)
         }
 
         g.setColour(color);

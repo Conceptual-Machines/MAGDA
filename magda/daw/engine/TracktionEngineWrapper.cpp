@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include "../audio/AudioBridge.hpp"
+#include "../audio/MidiBridge.hpp"
 #include "../core/DeviceInfo.hpp"
 #include "../core/TrackManager.hpp"
 
@@ -42,7 +43,11 @@ bool TracktionEngineWrapper::initialize() {
             audioBridge_ = std::make_unique<AudioBridge>(*engine_, *currentEdit_);
             audioBridge_->syncAll();
 
-            std::cout << "Tracktion Engine initialized with Edit and AudioBridge" << std::endl;
+            // Create MidiBridge for MIDI device management
+            midiBridge_ = std::make_unique<MidiBridge>(*engine_);
+
+            std::cout << "Tracktion Engine initialized with Edit, AudioBridge, and MidiBridge"
+                      << std::endl;
         } else {
             std::cout << "Tracktion Engine initialized (no Edit created)" << std::endl;
         }
@@ -59,9 +64,12 @@ void TracktionEngineWrapper::shutdown() {
     // Release test tone plugin first (before Edit is destroyed)
     testTonePlugin_.reset();
 
-    // Destroy AudioBridge first (it references Edit and Engine)
+    // Destroy bridges first (they reference Edit and/or Engine)
     if (audioBridge_) {
         audioBridge_.reset();
+    }
+    if (midiBridge_) {
+        midiBridge_.reset();
     }
     if (currentEdit_) {
         currentEdit_.reset();
