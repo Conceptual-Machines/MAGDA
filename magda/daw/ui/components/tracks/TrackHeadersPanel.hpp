@@ -167,6 +167,7 @@ class TrackHeadersPanel : public juce::Component,
 
     // MIDI device management
     void populateMidiInputOptions(RoutingSelector* selector);
+    void populateMidiOutputOptions(RoutingSelector* selector);
     void setupMidiCallbacks(TrackHeader& header, TrackId trackId);
 
     // Helper methods

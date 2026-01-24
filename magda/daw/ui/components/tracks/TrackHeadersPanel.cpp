@@ -269,13 +269,7 @@ TrackHeadersPanel::TrackHeader::TrackHeader(const juce::String& trackName) : nam
 
     // MIDI output selector (hybrid toggle + dropdown)
     midiOutSelector = std::make_unique<RoutingSelector>(RoutingSelector::Type::MidiOut);
-    midiOutSelector->setOptions({
-        {1, "None"},
-        {2, "All Outputs"},
-        {0, "", true},  // separator
-        {10, "Channel 1"},
-        {11, "Channel 2"},
-    });
+    // Options will be populated from MidiBridge in populateMidiOutputOptions()
     midiOutSelector->setSelectedId(1);
     midiOutSelector->setEnabled(midiOutEnabled);
 
@@ -386,6 +380,42 @@ void TrackHeadersPanel::populateMidiInputOptions(RoutingSelector* selector) {
         // Add each MIDI device as an option (starting from ID 10)
         int id = 10;
         for (const auto& device : midiInputs) {
+            options.push_back({id++, device.name});
+        }
+    }
+
+    selector->setOptions(options);
+}
+
+void TrackHeadersPanel::populateMidiOutputOptions(RoutingSelector* selector) {
+    if (!selector || !audioEngine_) {
+        DBG("populateMidiOutputOptions: selector=" << (selector ? "valid" : "null")
+                                                   << " audioEngine="
+                                                   << (audioEngine_ ? "valid" : "null"));
+        return;
+    }
+
+    auto* midiBridge = audioEngine_->getMidiBridge();
+    if (!midiBridge) {
+        DBG("populateMidiOutputOptions: midiBridge is null");
+        return;
+    }
+
+    // Get available MIDI outputs from MidiBridge
+    auto midiOutputs = midiBridge->getAvailableMidiOutputs();
+    DBG("populateMidiOutputOptions: Found " << midiOutputs.size() << " MIDI outputs");
+
+    // Build options list
+    std::vector<RoutingSelector::RoutingOption> options;
+    options.push_back({1, "None"});         // ID 1 = no output
+    options.push_back({2, "All Outputs"});  // ID 2 = all outputs
+
+    if (!midiOutputs.empty()) {
+        options.push_back({0, "", true});  // separator
+
+        // Add each MIDI device as an option (starting from ID 10)
+        int id = 10;
+        for (const auto& device : midiOutputs) {
             options.push_back({id++, device.name});
         }
     }
@@ -921,8 +951,9 @@ void TrackHeadersPanel::setupTrackHeaderWithId(TrackHeader& header, int trackId)
         }
     };
 
-    // Populate MIDI input options and set up routing callbacks
+    // Populate MIDI input/output options and set up routing callbacks
     populateMidiInputOptions(header.midiInSelector.get());
+    populateMidiOutputOptions(header.midiOutSelector.get());
     setupMidiCallbacks(header, trackId);
 }
 
