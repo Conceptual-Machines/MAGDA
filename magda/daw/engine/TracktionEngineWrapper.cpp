@@ -39,6 +39,9 @@ bool TracktionEngineWrapper::initialize() {
                 }
             }
 
+            // Note: Master track automatically routes to default audio device (first enabled stereo
+            // pair) This is configured by Tracktion Engine's default behavior
+
             // Create AudioBridge for TrackManager-to-Tracktion synchronization
             audioBridge_ = std::make_unique<AudioBridge>(*engine_, *currentEdit_);
             audioBridge_->syncAll();

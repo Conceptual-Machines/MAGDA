@@ -173,6 +173,7 @@ class TrackHeadersPanel : public juce::Component,
     void populateMidiInputOptions(RoutingSelector* selector);
     void populateMidiOutputOptions(RoutingSelector* selector);
     void setupMidiCallbacks(TrackHeader& header, TrackId trackId);
+    void updateMidiRoutingSelectorFromTrack(TrackHeader& header, const TrackInfo* track);
 
     // Refresh all MIDI selectors (call after MIDI device scan completes)
     void refreshMidiSelectors();

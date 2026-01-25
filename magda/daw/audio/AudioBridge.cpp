@@ -694,4 +694,123 @@ te::Plugin::Ptr AudioBridge::loadDeviceAsPlugin(TrackId trackId, const DeviceInf
     return plugin;
 }
 
+// =============================================================================
+// Audio Routing
+// =============================================================================
+
+void AudioBridge::setTrackAudioOutput(TrackId trackId, const juce::String& destination) {
+    auto* track = getAudioTrack(trackId);
+    if (!track) {
+        DBG("AudioBridge::setTrackAudioOutput - track not found: " << trackId);
+        return;
+    }
+
+    DBG("AudioBridge::setTrackAudioOutput - trackId=" << trackId << " destination='" << destination
+                                                      << "'");
+
+    if (destination.isEmpty()) {
+        // Disable output - mute the track
+        track->setMute(true);
+    } else if (destination == "master") {
+        // Route to default/master output
+        track->setMute(false);
+        track->getOutput().setOutputToDefaultDevice(false);  // false = audio (not MIDI)
+    } else {
+        // Route to specific output device
+        track->setMute(false);
+        track->getOutput().setOutputToDeviceID(destination);
+    }
+}
+
+void AudioBridge::setTrackAudioInput(TrackId trackId, const juce::String& deviceId) {
+    auto* track = getAudioTrack(trackId);
+    if (!track) {
+        DBG("AudioBridge::setTrackAudioInput - track not found: " << trackId);
+        return;
+    }
+
+    DBG("AudioBridge::setTrackAudioInput - trackId=" << trackId << " deviceId='" << deviceId
+                                                     << "'");
+
+    if (deviceId.isEmpty()) {
+        // Disable input - clear all assignments
+        auto* playbackContext = edit_.getCurrentPlaybackContext();
+        if (playbackContext) {
+            for (auto* inputDeviceInstance : playbackContext->getAllInputs()) {
+                inputDeviceInstance->removeTarget(track->itemID, nullptr);
+            }
+        }
+        DBG("  -> Cleared audio input");
+    } else {
+        // Enable input - route default or specific device to this track
+        auto* playbackContext = edit_.getCurrentPlaybackContext();
+        if (playbackContext) {
+            auto allInputs = playbackContext->getAllInputs();
+
+            if (deviceId == "default" && !allInputs.isEmpty()) {
+                // Use first available input device
+                auto* firstInput = allInputs.getFirst();
+                auto result = firstInput->setTarget(track->itemID, false, nullptr);
+                if (result.has_value()) {
+                    (*result)->recordEnabled = false;  // Don't auto-enable recording
+                    DBG("  -> Routed default input to track");
+                }
+            } else {
+                // Find specific device by name and route it
+                for (auto* inputDeviceInstance : allInputs) {
+                    if (inputDeviceInstance->owner.getName() == deviceId) {
+                        auto result = inputDeviceInstance->setTarget(track->itemID, false, nullptr);
+                        if (result.has_value()) {
+                            (*result)->recordEnabled = false;
+                            DBG("  -> Routed input '" << deviceId << "' to track");
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+juce::String AudioBridge::getTrackAudioOutput(TrackId trackId) const {
+    auto* track = const_cast<AudioBridge*>(this)->getAudioTrack(trackId);
+    if (!track) {
+        return {};
+    }
+
+    if (track->isMuted(false)) {
+        return {};  // Muted = disabled output
+    }
+
+    auto& output = track->getOutput();
+    if (output.usesDefaultAudioOut()) {
+        return "master";
+    }
+
+    // Return the output device name
+    return output.getOutputName();
+}
+
+juce::String AudioBridge::getTrackAudioInput(TrackId trackId) const {
+    auto* track = const_cast<AudioBridge*>(this)->getAudioTrack(trackId);
+    if (!track) {
+        return {};
+    }
+
+    // Check if any input device is routed to this track
+    auto* playbackContext = edit_.getCurrentPlaybackContext();
+    if (playbackContext) {
+        for (auto* inputDeviceInstance : playbackContext->getAllInputs()) {
+            auto targets = inputDeviceInstance->getTargets();
+            for (auto targetID : targets) {
+                if (targetID == track->itemID) {
+                    return inputDeviceInstance->owner.getName();
+                }
+            }
+        }
+    }
+
+    return {};  // No input assigned
+}
+
 }  // namespace magda

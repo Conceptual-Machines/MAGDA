@@ -55,6 +55,10 @@ class AudioEngine : public AudioEngineListener {
     // ===== Device Management =====
     virtual juce::AudioDeviceManager* getDeviceManager() = 0;
 
+    // ===== Audio Management =====
+    virtual class AudioBridge* getAudioBridge() = 0;
+    virtual const class AudioBridge* getAudioBridge() const = 0;
+
     // ===== MIDI Management =====
     virtual class MidiBridge* getMidiBridge() = 0;
     virtual const class MidiBridge* getMidiBridge() const = 0;

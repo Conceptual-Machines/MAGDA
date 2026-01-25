@@ -142,10 +142,10 @@ class TracktionEngineWrapper : public AudioEngine,
      * @brief Get the AudioBridge for TrackManager-to-Tracktion synchronization
      * @return Pointer to AudioBridge, or nullptr if not initialized
      */
-    AudioBridge* getAudioBridge() {
+    AudioBridge* getAudioBridge() override {
         return audioBridge_.get();
     }
-    const AudioBridge* getAudioBridge() const {
+    const AudioBridge* getAudioBridge() const override {
         return audioBridge_.get();
     }
 

@@ -409,27 +409,48 @@ void TrackHeadersPanel::populateAudioInputOptions(RoutingSelector* selector) {
     // Get current audio device
     auto* currentDevice = deviceManager->getCurrentAudioDevice();
     if (currentDevice) {
-        auto inputChannelNames = currentDevice->getInputChannelNames();
+        // Get only the ACTIVE/ENABLED input channels
+        auto activeInputChannels = currentDevice->getActiveInputChannels();
 
         // Add "None" option
         options.push_back({1, "None"});
 
-        if (inputChannelNames.size() > 0) {
+        // Count how many channels are actually enabled
+        int numActiveChannels = activeInputChannels.countNumberOfSetBits();
+
+        if (numActiveChannels > 0) {
             options.push_back({0, "", true});  // separator
 
-            // Add each input channel as an option (starting from ID 10)
-            int id = 10;
-            for (int i = 0; i < inputChannelNames.size(); ++i) {
-                // Create pair names for stereo (Input 1-2, Input 3-4, etc.)
-                if (i % 2 == 0) {
-                    if (i + 1 < inputChannelNames.size()) {
-                        options.push_back(
-                            {id++, "Input " + juce::String(i + 1) + "-" + juce::String(i + 2)});
-                    } else {
-                        // Odd number of channels - add single channel
-                        options.push_back({id++, inputChannelNames[i]});
-                    }
+            // Build list of active channel indices
+            juce::Array<int> activeIndices;
+            for (int i = 0; i < activeInputChannels.getHighestBit() + 1; ++i) {
+                if (activeInputChannels[i]) {
+                    activeIndices.add(i);
                 }
+            }
+
+            // Add stereo pairs first (starting from ID 10)
+            int id = 10;
+            for (int i = 0; i < activeIndices.size(); i += 2) {
+                if (i + 1 < activeIndices.size()) {
+                    // Stereo pair - show as "1-2", "3-4", etc.
+                    int ch1 = activeIndices[i] + 1;
+                    int ch2 = activeIndices[i + 1] + 1;
+                    juce::String pairName = juce::String(ch1) + "-" + juce::String(ch2);
+                    options.push_back({id++, pairName});
+                }
+            }
+
+            // Add separator before mono channels (only if we have multiple channels)
+            if (activeIndices.size() > 1) {
+                options.push_back({0, "", true});  // separator
+            }
+
+            // Add individual mono channels (starting from ID 100 to avoid conflicts)
+            id = 100;
+            for (int i = 0; i < activeIndices.size(); ++i) {
+                int channelNum = activeIndices[i] + 1;
+                options.push_back({id++, juce::String(channelNum) + " (mono)"});
             }
         }
     } else {
@@ -455,27 +476,48 @@ void TrackHeadersPanel::populateAudioOutputOptions(RoutingSelector* selector) {
     // Get current audio device
     auto* currentDevice = deviceManager->getCurrentAudioDevice();
     if (currentDevice) {
-        auto outputChannelNames = currentDevice->getOutputChannelNames();
+        // Get only the ACTIVE/ENABLED output channels
+        auto activeOutputChannels = currentDevice->getActiveOutputChannels();
 
         // Add "Master" as default output
         options.push_back({1, "Master"});
 
-        if (outputChannelNames.size() > 0) {
+        // Count how many channels are actually enabled
+        int numActiveChannels = activeOutputChannels.countNumberOfSetBits();
+
+        if (numActiveChannels > 0) {
             options.push_back({0, "", true});  // separator
 
-            // Add each output channel pair as an option (starting from ID 10)
-            int id = 10;
-            for (int i = 0; i < outputChannelNames.size(); ++i) {
-                // Create pair names for stereo (Output 1-2, Output 3-4, etc.)
-                if (i % 2 == 0) {
-                    if (i + 1 < outputChannelNames.size()) {
-                        options.push_back(
-                            {id++, "Output " + juce::String(i + 1) + "-" + juce::String(i + 2)});
-                    } else {
-                        // Odd number of channels - add single channel
-                        options.push_back({id++, outputChannelNames[i]});
-                    }
+            // Build list of active channel indices
+            juce::Array<int> activeIndices;
+            for (int i = 0; i < activeOutputChannels.getHighestBit() + 1; ++i) {
+                if (activeOutputChannels[i]) {
+                    activeIndices.add(i);
                 }
+            }
+
+            // Add stereo pairs first (starting from ID 10)
+            int id = 10;
+            for (int i = 0; i < activeIndices.size(); i += 2) {
+                if (i + 1 < activeIndices.size()) {
+                    // Stereo pair - show as "1-2", "3-4", etc.
+                    int ch1 = activeIndices[i] + 1;
+                    int ch2 = activeIndices[i + 1] + 1;
+                    juce::String pairName = juce::String(ch1) + "-" + juce::String(ch2);
+                    options.push_back({id++, pairName});
+                }
+            }
+
+            // Add separator before mono channels (only if we have multiple channels)
+            if (activeIndices.size() > 1) {
+                options.push_back({0, "", true});  // separator
+            }
+
+            // Add individual mono channels (starting from ID 100 to avoid conflicts)
+            id = 100;
+            for (int i = 0; i < activeIndices.size(); ++i) {
+                int channelNum = activeIndices[i] + 1;
+                options.push_back({id++, juce::String(channelNum) + " (mono)"});
             }
         }
     } else {
@@ -594,6 +636,117 @@ void TrackHeadersPanel::setupMidiCallbacks(TrackHeader& header, TrackId trackId)
 
         // Note: TrackManager will notify all listeners (including inspector) via
         // trackPropertyChanged callback
+    };
+
+    // Handle MIDI input enabled/disabled toggle
+    header.midiInSelector->onEnabledChanged = [this, trackId, midiBridge, &header](bool enabled) {
+        DBG("TrackHeadersPanel MIDI input enabled changed - trackId=" << trackId << " enabled="
+                                                                      << (int)enabled);
+
+        if (enabled) {
+            // Enable: Set to currently selected option or default to "All Inputs"
+            int selectedId = header.midiInSelector->getSelectedId();
+            DBG("  -> Enabling with selectedId=" << selectedId);
+
+            if (selectedId == 1) {
+                TrackManager::getInstance().setTrackMidiInput(trackId, "all");
+            } else if (selectedId >= 10) {
+                auto midiInputs = midiBridge->getAvailableMidiInputs();
+                int deviceIndex = selectedId - 10;
+                if (deviceIndex >= 0 && deviceIndex < static_cast<int>(midiInputs.size())) {
+                    TrackManager::getInstance().setTrackMidiInput(trackId,
+                                                                  midiInputs[deviceIndex].id);
+                } else {
+                    // Default to "all" if device not found
+                    TrackManager::getInstance().setTrackMidiInput(trackId, "all");
+                }
+            } else {
+                // Default to "all" for any other case
+                DBG("  -> Defaulting to All Inputs");
+                TrackManager::getInstance().setTrackMidiInput(trackId, "all");
+            }
+        } else {
+            // Disable: Clear MIDI input
+            DBG("  -> Disabling (clearing MIDI input)");
+            TrackManager::getInstance().setTrackMidiInput(trackId, "");
+        }
+    };
+
+    // Handle MIDI output selection changes
+    header.midiOutSelector->onSelectionChanged = [this, trackId, midiBridge](int selectedId) {
+        DBG("TrackHeadersPanel MIDI output selector changed - trackId=" << trackId << " selectedId="
+                                                                        << selectedId);
+
+        if (selectedId == 2) {
+            // "None" selected
+            DBG("  -> Clearing MIDI output via TrackManager");
+            TrackManager::getInstance().setTrackMidiOutput(trackId, "");
+        } else if (selectedId >= 10) {
+            // Specific device selected
+            auto midiOutputs = midiBridge->getAvailableMidiOutputs();
+            int deviceIndex = selectedId - 10;
+            if (deviceIndex >= 0 && deviceIndex < static_cast<int>(midiOutputs.size())) {
+                DBG("  -> Setting to device via TrackManager: " << midiOutputs[deviceIndex].name);
+                TrackManager::getInstance().setTrackMidiOutput(trackId,
+                                                               midiOutputs[deviceIndex].id);
+            }
+        }
+    };
+
+    // Handle MIDI output enabled/disabled toggle
+    header.midiOutSelector->onEnabledChanged = [this, trackId, midiBridge, &header](bool enabled) {
+        DBG("TrackHeadersPanel MIDI output enabled changed - trackId=" << trackId << " enabled="
+                                                                       << (int)enabled);
+
+        if (enabled) {
+            int selectedId = header.midiOutSelector->getSelectedId();
+            if (selectedId >= 10) {
+                auto midiOutputs = midiBridge->getAvailableMidiOutputs();
+                int deviceIndex = selectedId - 10;
+                if (deviceIndex >= 0 && deviceIndex < static_cast<int>(midiOutputs.size())) {
+                    TrackManager::getInstance().setTrackMidiOutput(trackId,
+                                                                   midiOutputs[deviceIndex].id);
+                } else {
+                    // No specific device selected, can't enable without a device
+                    DBG("  -> No device selected, can't enable");
+                }
+            } else {
+                // Default to first available device
+                auto midiOutputs = midiBridge->getAvailableMidiOutputs();
+                if (!midiOutputs.empty()) {
+                    DBG("  -> Defaulting to first MIDI output");
+                    TrackManager::getInstance().setTrackMidiOutput(trackId, midiOutputs[0].id);
+                }
+            }
+        } else {
+            TrackManager::getInstance().setTrackMidiOutput(trackId, "");
+        }
+    };
+
+    // Handle audio input enabled/disabled toggle
+    header.audioInSelector->onEnabledChanged = [this, trackId, &header](bool enabled) {
+        DBG("TrackHeadersPanel audio input enabled changed - trackId=" << trackId << " enabled="
+                                                                       << (int)enabled);
+
+        if (enabled) {
+            // TODO: Get selected audio input device and route it
+            TrackManager::getInstance().setTrackAudioInput(trackId, "default");
+        } else {
+            TrackManager::getInstance().setTrackAudioInput(trackId, "");
+        }
+    };
+
+    // Handle audio output enabled/disabled toggle
+    header.audioOutSelector->onEnabledChanged = [this, trackId, &header](bool enabled) {
+        DBG("TrackHeadersPanel audio output enabled changed - trackId=" << trackId << " enabled="
+                                                                        << (int)enabled);
+
+        if (enabled) {
+            // Always defaults to master
+            TrackManager::getInstance().setTrackAudioOutput(trackId, "master");
+        } else {
+            TrackManager::getInstance().setTrackAudioOutput(trackId, "");
+        }
     };
 }
 
@@ -729,9 +882,101 @@ void TrackHeadersPanel::trackPropertyChanged(int trackId) {
         header.volumeLabel->setValue(gainToDb(track->volume), juce::dontSendNotification);
         header.panLabel->setValue(track->pan, juce::dontSendNotification);
 
+        // Update MIDI routing selector to match track state
+        updateMidiRoutingSelectorFromTrack(header, track);
+
         updateTrackHeaderLayout();
         repaint();
     }
+}
+
+void TrackHeadersPanel::updateMidiRoutingSelectorFromTrack(TrackHeader& header,
+                                                           const TrackInfo* track) {
+    if (!track || !audioEngine_) {
+        return;
+    }
+
+    auto* midiBridge = audioEngine_->getMidiBridge();
+
+    // Update MIDI Input selector
+    if (header.midiInSelector && midiBridge) {
+        juce::String currentMidiInput = track->midiInputDevice;
+        DBG("TrackHeadersPanel::updateMidiRoutingSelectorFromTrack - trackId="
+            << track->id << " midiInputDevice='" << currentMidiInput << "'");
+
+        if (currentMidiInput.isEmpty()) {
+            DBG("  -> Setting MIDI In to None (ID 2) and DISABLED");
+            header.midiInSelector->setSelectedId(2);
+            header.midiInSelector->setEnabled(false);
+        } else if (currentMidiInput == "all") {
+            DBG("  -> Setting MIDI In to All Inputs (ID 1) and ENABLED");
+            header.midiInSelector->setSelectedId(1);
+            header.midiInSelector->setEnabled(true);
+        } else {
+            auto midiInputs = midiBridge->getAvailableMidiInputs();
+            int selectedId = 2;
+            for (size_t i = 0; i < midiInputs.size(); ++i) {
+                if (midiInputs[i].id == currentMidiInput) {
+                    selectedId = 10 + static_cast<int>(i);
+                    DBG("  -> Found MIDI In device at index " << i << ", setting to ID "
+                                                              << selectedId << " and ENABLED");
+                    break;
+                }
+            }
+            header.midiInSelector->setSelectedId(selectedId);
+            header.midiInSelector->setEnabled(selectedId != 2);
+        }
+    }
+
+    // Update MIDI Output selector
+    if (header.midiOutSelector && midiBridge) {
+        juce::String currentMidiOutput = track->midiOutputDevice;
+        if (currentMidiOutput.isEmpty()) {
+            header.midiOutSelector->setSelectedId(2);  // "None"
+            header.midiOutSelector->setEnabled(false);
+        } else {
+            auto midiOutputs = midiBridge->getAvailableMidiOutputs();
+            int selectedId = 2;
+            for (size_t i = 0; i < midiOutputs.size(); ++i) {
+                if (midiOutputs[i].id == currentMidiOutput) {
+                    selectedId = 10 + static_cast<int>(i);
+                    break;
+                }
+            }
+            header.midiOutSelector->setSelectedId(selectedId);
+            header.midiOutSelector->setEnabled(selectedId != 2);
+        }
+    }
+
+    // Update Audio Input selector
+    if (header.audioInSelector) {
+        juce::String currentAudioInput = track->audioInputDevice;
+        if (currentAudioInput.isEmpty()) {
+            header.audioInSelector->setSelectedId(2);  // "None"
+            header.audioInSelector->setEnabled(false);
+        } else {
+            // TODO: Parse audio input and find in list
+            header.audioInSelector->setEnabled(true);
+        }
+    }
+
+    // Update Audio Output selector
+    if (header.audioOutSelector) {
+        juce::String currentAudioOutput = track->audioOutputDevice;
+        if (currentAudioOutput.isEmpty()) {
+            // No output selected - disabled
+            header.audioOutSelector->setSelectedId(2);  // "None"
+            header.audioOutSelector->setEnabled(false);
+        } else if (currentAudioOutput == "master") {
+            // Master output selected - enabled
+            header.audioOutSelector->setSelectedId(1);  // Master
+            header.audioOutSelector->setEnabled(true);
+        } else {
+            // TODO: Find specific output in list
+            header.audioOutSelector->setEnabled(true);
+        }
+    }
+    // TODO: Update audio input/output selectors when implemented
 }
 
 void TrackHeadersPanel::paint(juce::Graphics& g) {
@@ -1069,42 +1314,8 @@ void TrackHeadersPanel::setupTrackHeaderWithId(TrackHeader& header, int trackId)
         showAutomationMenu(trackId, header.automationButton.get());
     };
 
-    // Routing selector callbacks - sync enabled state back to header flags
-    header.audioInSelector->onEnabledChanged = [this, trackId](bool enabled) {
-        int index = TrackManager::getInstance().getTrackIndex(trackId);
-        if (index >= 0 && index < static_cast<int>(trackHeaders.size())) {
-            trackHeaders[index]->audioInEnabled = enabled;
-            updateTrackHeaderLayout();
-            repaint();
-        }
-    };
-
-    header.audioOutSelector->onEnabledChanged = [this, trackId](bool enabled) {
-        int index = TrackManager::getInstance().getTrackIndex(trackId);
-        if (index >= 0 && index < static_cast<int>(trackHeaders.size())) {
-            trackHeaders[index]->audioOutEnabled = enabled;
-            updateTrackHeaderLayout();
-            repaint();
-        }
-    };
-
-    header.midiInSelector->onEnabledChanged = [this, trackId](bool enabled) {
-        int index = TrackManager::getInstance().getTrackIndex(trackId);
-        if (index >= 0 && index < static_cast<int>(trackHeaders.size())) {
-            trackHeaders[index]->midiInEnabled = enabled;
-            updateTrackHeaderLayout();
-            repaint();
-        }
-    };
-
-    header.midiOutSelector->onEnabledChanged = [this, trackId](bool enabled) {
-        int index = TrackManager::getInstance().getTrackIndex(trackId);
-        if (index >= 0 && index < static_cast<int>(trackHeaders.size())) {
-            trackHeaders[index]->midiOutEnabled = enabled;
-            updateTrackHeaderLayout();
-            repaint();
-        }
-    };
+    // NOTE: Routing selector onEnabledChanged callbacks are set up in setupMidiCallbacks
+    // and similar methods - these store routing state in TrackManager, not just local flags
 
     // Populate audio input/output options from device manager
     populateAudioInputOptions(header.audioInSelector.get());

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include "../audio/AudioBridge.hpp"
 #include "../audio/MidiBridge.hpp"
 #include "../engine/AudioEngine.hpp"
 #include "ModulatorEngine.hpp"
@@ -30,12 +31,28 @@ TrackId TrackManager::createTrack(const juce::String& name, TrackType type) {
     track.name = name.isEmpty() ? generateTrackName() : name;
     track.colour = TrackInfo::getDefaultColor(static_cast<int>(tracks_.size()));
 
+    // Set default routing - all enabled by default
+    track.audioOutputDevice = "master";  // Audio always routes to master
+    track.midiInputDevice = "all";       // MIDI listens to all inputs
+    track.audioInputDevice = "default";  // Audio input enabled (not functional yet)
+    // midiOutputDevice left empty - requires specific device selection
+
+    TrackId trackId = track.id;
     tracks_.push_back(track);
     notifyTracksChanged();
 
-    DBG("Created track: " << track.name << " (id=" << track.id
-                          << ", type=" << getTrackTypeName(type) << ")");
-    return track.id;
+    DBG("Created track: " << track.name << " (id=" << trackId << ", type=" << getTrackTypeName(type)
+                          << ")");
+
+    // Initialize MIDI monitoring for this track if audioEngine is available
+    if (audioEngine_) {
+        if (auto* midiBridge = audioEngine_->getMidiBridge()) {
+            midiBridge->setTrackMidiInput(trackId, "all");
+            midiBridge->startMonitoring(trackId);
+        }
+    }
+
+    return trackId;
 }
 
 TrackId TrackManager::createGroupTrack(const juce::String& name) {
@@ -404,7 +421,12 @@ void TrackManager::setTrackAudioInput(TrackId trackId, const juce::String& devic
     // Update track state
     track->audioInputDevice = deviceId;
 
-    // TODO: Forward to audio routing system when implemented
+    // Forward to AudioBridge for actual routing
+    if (audioEngine_) {
+        if (auto* audioBridge = audioEngine_->getAudioBridge()) {
+            audioBridge->setTrackAudioInput(trackId, deviceId);
+        }
+    }
 
     // Notify listeners
     notifyTrackPropertyChanged(trackId);
@@ -422,7 +444,12 @@ void TrackManager::setTrackAudioOutput(TrackId trackId, const juce::String& rout
     // Update track state
     track->audioOutputDevice = routing;
 
-    // TODO: Forward to audio routing system when implemented
+    // Forward to AudioBridge for actual routing
+    if (audioEngine_) {
+        if (auto* audioBridge = audioEngine_->getAudioBridge()) {
+            audioBridge->setTrackAudioOutput(trackId, routing);
+        }
+    }
 
     // Notify listeners
     notifyTrackPropertyChanged(trackId);

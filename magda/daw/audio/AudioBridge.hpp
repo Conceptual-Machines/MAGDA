@@ -225,6 +225,37 @@ class AudioBridge : public TrackManagerListener, public juce::Timer {
      */
     bool consumeMidiActivity(TrackId trackId);
 
+    // =========================================================================
+    // Audio Routing
+    // =========================================================================
+
+    /**
+     * @brief Set audio output destination for a track
+     * @param trackId The MAGDA track ID
+     * @param destination Output destination: "master" for default, deviceID for specific output,
+     * empty to disable
+     */
+    void setTrackAudioOutput(TrackId trackId, const juce::String& destination);
+
+    /**
+     * @brief Set audio input source for a track
+     * @param trackId The MAGDA track ID
+     * @param deviceId Input device ID, "default" for default input, empty to disable
+     */
+    void setTrackAudioInput(TrackId trackId, const juce::String& deviceId);
+
+    /**
+     * @brief Get current audio output destination for a track
+     * @return Output destination string
+     */
+    juce::String getTrackAudioOutput(TrackId trackId) const;
+
+    /**
+     * @brief Get current audio input source for a track
+     * @return Input device ID
+     */
+    juce::String getTrackAudioInput(TrackId trackId) const;
+
   private:
     // Timer callback for metering updates (runs on message thread)
     void timerCallback() override;
