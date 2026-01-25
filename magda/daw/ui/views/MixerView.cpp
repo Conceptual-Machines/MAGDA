@@ -17,7 +17,6 @@ namespace magda {
 namespace {
 constexpr float MIN_DB = -60.0f;
 constexpr float MAX_DB = 6.0f;
-constexpr float UNITY_DB = 0.0f;
 
 // Convert linear gain (0-1) to dB
 float gainToDb(float gain) {
@@ -33,38 +32,28 @@ float dbToGain(float db) {
     return std::pow(10.0f, db / 20.0f);
 }
 
-// Convert dB to normalized fader position (0-1) with proper scaling
-// Unity (0dB) at ~75% position
-float dbToFaderPos(float db) {
+// Convert dB to normalized meter position (0-1) with power curve
+// Used consistently for meters, labels, and faders across the app
+float dbToMeterPos(float db) {
     if (db <= MIN_DB)
         return 0.0f;
     if (db >= MAX_DB)
         return 1.0f;
 
-    // Use a curve that puts 0dB at 0.75
-    if (db < UNITY_DB) {
-        // Below unity: map MIN_DB..0dB to 0..0.75
-        return 0.75f * (db - MIN_DB) / (UNITY_DB - MIN_DB);
-    } else {
-        // Above unity: map 0dB..MAX_DB to 0.75..1.0
-        return 0.75f + 0.25f * (db - UNITY_DB) / (MAX_DB - UNITY_DB);
-    }
+    float normalized = (db - MIN_DB) / (MAX_DB - MIN_DB);
+    return std::pow(normalized, 3.0f);
 }
 
-// Convert fader position to dB
-float faderPosToDb(float pos) {
+// Convert meter position back to dB (inverse of dbToMeterPos)
+float meterPosToDb(float pos) {
     if (pos <= 0.0f)
         return MIN_DB;
     if (pos >= 1.0f)
         return MAX_DB;
 
-    if (pos < 0.75f) {
-        // Below unity
-        return MIN_DB + (pos / 0.75f) * (UNITY_DB - MIN_DB);
-    } else {
-        // Above unity
-        return UNITY_DB + ((pos - 0.75f) / 0.25f) * (MAX_DB - UNITY_DB);
-    }
+    // Inverse of x^3 is x^(1/3)
+    float normalized = std::pow(pos, 1.0f / 3.0f);
+    return MIN_DB + normalized * (MAX_DB - MIN_DB);
 }
 
 }  // namespace
@@ -121,8 +110,8 @@ class MixerView::ChannelStrip::LevelMeter : public juce::Component {
         g.setColour(DarkTheme::getColour(DarkTheme::SURFACE));
         g.fillRoundedRectangle(bounds, 1.0f);
 
-        // Meter fill (using fader scaling to align with dB labels)
-        float displayLevel = dbToFaderPos(gainToDb(level));
+        // Meter fill (using consistent scaling across all views)
+        float displayLevel = dbToMeterPos(gainToDb(level));
         float meterHeight = bounds.getHeight() * displayLevel;
         auto fillBounds = bounds;
         fillBounds = fillBounds.removeFromBottom(meterHeight);
@@ -182,9 +171,9 @@ void MixerView::ChannelStrip::updateFromTrack(const TrackInfo& track) {
         trackLabel->setText(isMaster_ ? "Master" : track.name, juce::dontSendNotification);
     }
     if (volumeFader) {
-        // Convert linear gain to fader position
+        // Convert linear gain to fader position (using consistent meter scaling)
         float db = gainToDb(track.volume);
-        float faderPos = dbToFaderPos(db);
+        float faderPos = dbToMeterPos(db);
         volumeFader->setValue(faderPos, juce::dontSendNotification);
     }
     if (panKnob) {
@@ -281,7 +270,7 @@ void MixerView::ChannelStrip::setupControls() {
     volumeFader->onValueChange = [this]() {
         // Convert fader position to dB, then to linear gain for TrackManager
         float faderPos = static_cast<float>(volumeFader->getValue());
-        float db = faderPosToDb(faderPos);
+        float db = meterPosToDb(faderPos);
         float gain = dbToGain(db);
         TrackManager::getInstance().setTrackVolume(trackId_, gain);
         // Update fader label
@@ -468,9 +457,8 @@ void MixerView::ChannelStrip::drawDbLabels(juce::Graphics& g) {
     g.setFont(FontManager::getInstance().getUIFont(metrics.labelFontSize));
 
     for (float db : dbValues) {
-        // Convert dB to Y position - MUST match JUCE's formula exactly:
-        // sliderPos = sliderRegionStart + (1 - valueProportional) * sliderRegionSize
-        float faderPos = dbToFaderPos(db);
+        // Convert dB to Y position using consistent meter scaling
+        float faderPos = dbToMeterPos(db);
         float yNorm = 1.0f - faderPos;
         float y = effectiveTop + yNorm * effectiveHeight;
 

@@ -13,7 +13,6 @@ namespace magda {
 namespace {
 constexpr float MIN_DB = -60.0f;
 constexpr float MAX_DB = 6.0f;  // Allow +6 dB headroom
-constexpr float UNITY_DB = 0.0f;
 
 float gainToDb(float gain) {
     if (gain <= 0.0f)
@@ -27,30 +26,27 @@ float dbToGain(float db) {
     return std::pow(10.0f, db / 20.0f);
 }
 
-float dbToFaderPos(float db) {
+// Convert dB to normalized meter position (0-1) with power curve
+// Used consistently for meters, labels, and faders across the app
+float dbToMeterPos(float db) {
     if (db <= MIN_DB)
         return 0.0f;
     if (db >= MAX_DB)
         return 1.0f;
 
-    if (db < UNITY_DB) {
-        return 0.75f * (db - MIN_DB) / (UNITY_DB - MIN_DB);
-    } else {
-        return 0.75f + 0.25f * (db - UNITY_DB) / (MAX_DB - UNITY_DB);
-    }
+    float normalized = (db - MIN_DB) / (MAX_DB - MIN_DB);
+    return std::pow(normalized, 3.0f);
 }
 
-float faderPosToDb(float pos) {
+// Convert meter position back to dB (inverse of dbToMeterPos)
+float meterPosToDb(float pos) {
     if (pos <= 0.0f)
         return MIN_DB;
     if (pos >= 1.0f)
         return MAX_DB;
 
-    if (pos < 0.75f) {
-        return MIN_DB + (pos / 0.75f) * (UNITY_DB - MIN_DB);
-    } else {
-        return UNITY_DB + ((pos - 0.75f) / 0.25f) * (MAX_DB - UNITY_DB);
-    }
+    float normalized = std::pow(pos, 1.0f / 3.0f);
+    return MIN_DB + normalized * (MAX_DB - MIN_DB);
 }
 }  // namespace
 
@@ -106,7 +102,7 @@ class MasterChannelStrip::LevelMeter : public juce::Component {
 
         // Meter fill (using fader scaling to match dB labels)
         float db = gainToDb(level);
-        float displayLevel = dbToFaderPos(db);
+        float displayLevel = dbToMeterPos(db);
         float meterHeight = bounds.getHeight() * displayLevel;
         auto fillBounds = bounds;
         fillBounds = fillBounds.removeFromBottom(meterHeight);
@@ -203,7 +199,7 @@ void MasterChannelStrip::setupControls() {
     volumeSlider->setLookAndFeel(&mixerLookAndFeel_);
     volumeSlider->onValueChange = [this]() {
         float faderPos = static_cast<float>(volumeSlider->getValue());
-        float db = faderPosToDb(faderPos);
+        float db = meterPosToDb(faderPos);
         float gain = dbToGain(db);
         TrackManager::getInstance().setMasterVolume(gain);
         // Update volume label
@@ -413,7 +409,7 @@ void MasterChannelStrip::updateFromMasterState() {
 
     // Convert linear gain to fader position
     float db = gainToDb(master.volume);
-    float faderPos = dbToFaderPos(db);
+    float faderPos = dbToMeterPos(db);
     volumeSlider->setValue(faderPos, juce::dontSendNotification);
 
     // Update volume label
@@ -513,7 +509,7 @@ void MasterChannelStrip::drawDbLabels(juce::Graphics& g) {
     for (float db : dbValues) {
         // Convert dB to Y position - MUST match JUCE's formula exactly:
         // sliderPos = sliderRegionStart + (1 - valueProportional) * sliderRegionSize
-        float faderPos = dbToFaderPos(db);
+        float faderPos = dbToMeterPos(db);
         float yNorm = 1.0f - faderPos;
         float y = effectiveTop + yNorm * effectiveHeight;
 
