@@ -13,6 +13,9 @@ namespace magda {
 
 namespace te = tracktion;
 
+// Forward declaration
+class AudioBridge;
+
 /**
  * @brief Bridges MAGDA's MIDI model to Tracktion Engine's MIDI system
  *
@@ -24,10 +27,16 @@ namespace te = tracktion;
  *
  * Similar to AudioBridge, but for MIDI.
  */
-class MidiBridge {
+class MidiBridge : public juce::MidiInputCallback {
   public:
     explicit MidiBridge(te::Engine& engine);
-    ~MidiBridge() = default;
+    ~MidiBridge() override;
+
+    /**
+     * @brief Set AudioBridge reference for triggering MIDI activity
+     * Must be called after AudioBridge is created
+     */
+    void setAudioBridge(AudioBridge* audioBridge);
 
     // =========================================================================
     // MIDI Device Enumeration
@@ -123,13 +132,23 @@ class MidiBridge {
     bool isMonitoring(TrackId trackId) const;
 
   private:
+    // MidiInputCallback implementation
+    void handleIncomingMidiMessage(juce::MidiInput* source,
+                                   const juce::MidiMessage& message) override;
+
     te::Engine& engine_;
+
+    // AudioBridge reference for triggering MIDI activity (not owned)
+    AudioBridge* audioBridge_ = nullptr;
 
     // Track MIDI input routing (trackId → MIDI device ID)
     std::unordered_map<TrackId, juce::String> trackMidiInputs_;
 
     // Tracks being monitored for MIDI activity
     std::unordered_set<TrackId> monitoredTracks_;
+
+    // Active MIDI input listeners (deviceId → MidiInput)
+    std::unordered_map<juce::String, std::unique_ptr<juce::MidiInput>> activeMidiInputs_;
 
     // Synchronization for UI thread access
     juce::CriticalSection routingLock_;

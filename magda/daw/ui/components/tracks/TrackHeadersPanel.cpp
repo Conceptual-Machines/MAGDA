@@ -562,13 +562,6 @@ void TrackHeadersPanel::setupMidiCallbacks(TrackHeader& header, TrackId trackId)
             // "All Inputs" selected - set special "all" device ID
             midiBridge->setTrackMidiInput(trackId, "all");
             midiBridge->startMonitoring(trackId);
-
-            // TEST: Trigger MIDI activity indicator to show it's working
-            if (auto* teWrapper = dynamic_cast<TracktionEngineWrapper*>(audioEngine_)) {
-                if (auto* bridge = teWrapper->getAudioBridge()) {
-                    bridge->triggerMidiActivity(trackId);
-                }
-            }
         } else if (selectedId >= 10) {
             // Specific device selected
             auto midiInputs = midiBridge->getAvailableMidiInputs();
@@ -576,13 +569,6 @@ void TrackHeadersPanel::setupMidiCallbacks(TrackHeader& header, TrackId trackId)
             if (deviceIndex >= 0 && deviceIndex < static_cast<int>(midiInputs.size())) {
                 midiBridge->setTrackMidiInput(trackId, midiInputs[deviceIndex].id);
                 midiBridge->startMonitoring(trackId);
-
-                // TEST: Trigger MIDI activity indicator to show it's working
-                if (auto* teWrapper = dynamic_cast<TracktionEngineWrapper*>(audioEngine_)) {
-                    if (auto* bridge = teWrapper->getAudioBridge()) {
-                        bridge->triggerMidiActivity(trackId);
-                    }
-                }
             }
         }
     };

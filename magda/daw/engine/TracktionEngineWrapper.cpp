@@ -46,6 +46,9 @@ bool TracktionEngineWrapper::initialize() {
             // Create MidiBridge for MIDI device management
             midiBridge_ = std::make_unique<MidiBridge>(*engine_);
 
+            // Connect MidiBridge to AudioBridge for MIDI activity monitoring
+            midiBridge_->setAudioBridge(audioBridge_.get());
+
             std::cout << "Tracktion Engine initialized with Edit, AudioBridge, and MidiBridge"
                       << std::endl;
         } else {

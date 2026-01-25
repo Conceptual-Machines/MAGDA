@@ -1,9 +1,37 @@
 #include "MidiBridge.hpp"
 
+#include "AudioBridge.hpp"
+
 namespace magda {
 
 MidiBridge::MidiBridge(te::Engine& engine) : engine_(engine) {
     DBG("MidiBridge initialized");
+}
+
+void MidiBridge::setAudioBridge(AudioBridge* audioBridge) {
+    audioBridge_ = audioBridge;
+}
+
+MidiBridge::~MidiBridge() {
+    // IMPORTANT: Release MIDI inputs carefully to avoid CoreMIDI crashes
+    // Don't hold lock while destroying MIDI inputs (can cause deadlock)
+    std::unordered_map<juce::String, std::unique_ptr<juce::MidiInput>> inputsToDestroy;
+
+    {
+        juce::ScopedLock lock(routingLock_);
+        inputsToDestroy = std::move(activeMidiInputs_);
+        activeMidiInputs_.clear();
+        trackMidiInputs_.clear();
+        monitoredTracks_.clear();
+    }
+
+    // Destroy MIDI inputs outside of lock
+    for (auto& [deviceId, midiInput] : inputsToDestroy) {
+        if (midiInput) {
+            midiInput->stop();
+        }
+    }
+    inputsToDestroy.clear();
 }
 
 std::vector<MidiDeviceInfo> MidiBridge::getAvailableMidiInputs() const {
@@ -46,20 +74,38 @@ std::vector<MidiDeviceInfo> MidiBridge::getAvailableMidiOutputs() const {
 }
 
 void MidiBridge::enableMidiInput(const juce::String& deviceId) {
-    auto& deviceManager = engine_.getDeviceManager();
-    auto device = deviceManager.findMidiInputDeviceForID(deviceId);
-    if (device) {
-        device->setEnabled(true);
-        DBG("Enabled MIDI input: " << deviceId);
+    juce::ScopedLock lock(routingLock_);
+
+    // Check if already listening
+    if (activeMidiInputs_.find(deviceId) != activeMidiInputs_.end()) {
+        return;  // Already active
+    }
+
+    // Open MIDI input and start listening
+    auto availableDevices = juce::MidiInput::getAvailableDevices();
+
+    for (const auto& deviceInfo : availableDevices) {
+        if (deviceInfo.identifier == deviceId) {
+            auto midiInput = juce::MidiInput::openDevice(deviceInfo.identifier, this);
+            if (midiInput) {
+                midiInput->start();
+                activeMidiInputs_[deviceId] = std::move(midiInput);
+                DBG("Started MIDI activity monitoring for: " << deviceInfo.name);
+            }
+            break;
+        }
     }
 }
 
 void MidiBridge::disableMidiInput(const juce::String& deviceId) {
-    auto& deviceManager = engine_.getDeviceManager();
-    auto device = deviceManager.findMidiInputDeviceForID(deviceId);
-    if (device) {
-        device->setEnabled(false);
-        DBG("Disabled MIDI input: " << deviceId);
+    // Stop our MIDI input listener
+    juce::ScopedLock lock(routingLock_);
+    auto it = activeMidiInputs_.find(deviceId);
+    if (it != activeMidiInputs_.end()) {
+        if (it->second) {
+            it->second->stop();
+        }
+        activeMidiInputs_.erase(it);
     }
 }
 
@@ -74,13 +120,18 @@ void MidiBridge::setTrackMidiInput(TrackId trackId, const juce::String& midiDevi
     if (midiDeviceId.isEmpty()) {
         // Clear routing
         trackMidiInputs_.erase(trackId);
-        DBG("Cleared MIDI input for track " << trackId);
     } else {
         trackMidiInputs_[trackId] = midiDeviceId;
-        DBG("Set MIDI input for track " << trackId << " to device: " << midiDeviceId);
 
         // Auto-enable the device if not already enabled
-        if (!isMidiInputEnabled(midiDeviceId)) {
+        if (midiDeviceId == "all") {
+            // Special case: enable ALL MIDI input devices
+            auto availableDevices = juce::MidiInput::getAvailableDevices();
+            for (const auto& deviceInfo : availableDevices) {
+                enableMidiInput(deviceInfo.identifier);
+            }
+        } else {
+            // Single device
             enableMidiInput(midiDeviceId);
         }
     }
@@ -100,10 +151,57 @@ void MidiBridge::clearTrackMidiInput(TrackId trackId) {
     setTrackMidiInput(trackId, {});
 }
 
+void MidiBridge::handleIncomingMidiMessage(juce::MidiInput* source,
+                                           const juce::MidiMessage& message) {
+    if (!source || !audioBridge_) {
+        return;
+    }
+
+    // ONLY trigger activity indicator for note on messages
+    // Ignore MIDI clock, CC, etc. to avoid constant "on" state
+    if (!message.isNoteOn()) {
+        return;
+    }
+
+    // Get the device ID for this input
+    juce::String sourceDeviceId = source->getIdentifier();
+
+    // Find all tracks routing this MIDI input
+    juce::ScopedLock lock(routingLock_);
+
+    for (const auto& [trackId, deviceId] : trackMidiInputs_) {
+        // Check if this track is routing this device (or "all" inputs)
+        if (deviceId == sourceDeviceId || deviceId == "all") {
+            // Check if monitoring is enabled for this track
+            if (monitoredTracks_.find(trackId) != monitoredTracks_.end()) {
+                // Trigger MIDI activity indicator
+                audioBridge_->triggerMidiActivity(trackId);
+
+                // Call callbacks if set (for note/CC monitoring)
+                if (message.isNoteOn() || message.isNoteOff()) {
+                    if (onNoteEvent) {
+                        MidiNoteEvent noteEvent;
+                        noteEvent.noteNumber = message.getNoteNumber();
+                        noteEvent.velocity = message.getVelocity();
+                        noteEvent.isNoteOn = message.isNoteOn();
+                        onNoteEvent(trackId, noteEvent);
+                    }
+                } else if (message.isController()) {
+                    if (onCCEvent) {
+                        MidiCCEvent ccEvent;
+                        ccEvent.controller = message.getControllerNumber();
+                        ccEvent.value = message.getControllerValue();
+                        onCCEvent(trackId, ccEvent);
+                    }
+                }
+            }
+        }
+    }
+}
+
 void MidiBridge::startMonitoring(TrackId trackId) {
     juce::ScopedLock lock(routingLock_);
     monitoredTracks_.insert(trackId);
-    DBG("Started MIDI monitoring for track " << trackId);
 }
 
 void MidiBridge::stopMonitoring(TrackId trackId) {
