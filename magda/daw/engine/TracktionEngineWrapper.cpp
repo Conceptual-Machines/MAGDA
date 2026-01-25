@@ -281,16 +281,6 @@ void TracktionEngineWrapper::updateTriggerState() {
     bool currentlyPlaying = isPlaying();
     double currentPosition = getCurrentPosition();
 
-    // Log for debugging
-    static int callCount = 0;
-    static bool lastLoggedPlaying = false;
-    if (currentlyPlaying != lastLoggedPlaying) {
-        std::cout << ">>> TracktionEngineWrapper::updateTriggerState() - isPlaying changed to: "
-                  << currentlyPlaying << " (call #" << callCount << ")" << std::endl;
-        lastLoggedPlaying = currentlyPlaying;
-    }
-    callCount++;
-
     // Detect play start (was not playing, now playing)
     if (currentlyPlaying && !wasPlaying_) {
         justStarted_ = true;

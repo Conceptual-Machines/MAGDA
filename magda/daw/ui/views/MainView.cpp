@@ -1628,6 +1628,13 @@ void MainView::MasterHeaderPanel::setupControls() {
     peakMeter = std::make_unique<HorizontalStereoMeter>();
     addAndMakeVisible(*peakMeter);
 
+    peakValueLabel = std::make_unique<juce::Label>("peakValue", "-inf");
+    peakValueLabel->setColour(juce::Label::textColourId,
+                              DarkTheme::getColour(DarkTheme::TEXT_SECONDARY));
+    peakValueLabel->setFont(FontManager::getInstance().getUIFont(9.0f));
+    peakValueLabel->setJustificationType(juce::Justification::centredLeft);
+    addAndMakeVisible(*peakValueLabel);
+
     // VU meter with label
     vuLabel = std::make_unique<juce::Label>("vu", "VU");
     vuLabel->setColour(juce::Label::textColourId, DarkTheme::getColour(DarkTheme::TEXT_SECONDARY));
@@ -1637,6 +1644,13 @@ void MainView::MasterHeaderPanel::setupControls() {
 
     vuMeter = std::make_unique<HorizontalStereoMeter>();
     addAndMakeVisible(*vuMeter);
+
+    vuValueLabel = std::make_unique<juce::Label>("vuValue", "-inf");
+    vuValueLabel->setColour(juce::Label::textColourId,
+                            DarkTheme::getColour(DarkTheme::TEXT_SECONDARY));
+    vuValueLabel->setFont(FontManager::getInstance().getUIFont(9.0f));
+    vuValueLabel->setJustificationType(juce::Justification::centredLeft);
+    addAndMakeVisible(*vuValueLabel);
 }
 
 void MainView::MasterHeaderPanel::paint(juce::Graphics& g) {
@@ -1668,11 +1682,14 @@ void MainView::MasterHeaderPanel::resized() {
     int remainingHeight = contentArea.getHeight();
     int meterRowHeight = (remainingHeight - 2) / 2;  // 2px gap between meters
     int labelWidth = 28;
+    int valueWidth = 36;
 
     // Peak meter row
     auto peakRow = contentArea.removeFromTop(meterRowHeight);
     peakLabel->setBounds(peakRow.removeFromLeft(labelWidth));
     peakRow.removeFromLeft(2);
+    peakValueLabel->setBounds(peakRow.removeFromRight(valueWidth));
+    peakRow.removeFromRight(2);
     peakMeter->setBounds(peakRow);
 
     contentArea.removeFromTop(2);  // Spacing between meters
@@ -1681,6 +1698,8 @@ void MainView::MasterHeaderPanel::resized() {
     auto vuRow = contentArea.removeFromTop(meterRowHeight);
     vuLabel->setBounds(vuRow.removeFromLeft(labelWidth));
     vuRow.removeFromLeft(2);
+    vuValueLabel->setBounds(vuRow.removeFromRight(valueWidth));
+    vuRow.removeFromRight(2);
     vuMeter->setBounds(vuRow);
 }
 
@@ -1703,11 +1722,33 @@ void MainView::MasterHeaderPanel::setPeakLevels(float leftPeak, float rightPeak)
     if (peakMeter) {
         peakMeter->setLevels(leftPeak, rightPeak);
     }
+
+    // Update peak value label (show max of both channels, hold peak)
+    float maxPeak = std::max(leftPeak, rightPeak);
+    if (maxPeak > peakHoldValue_) {
+        peakHoldValue_ = maxPeak;
+    }
+    if (peakValueLabel) {
+        float db = gainToDb(peakHoldValue_);
+        juce::String text = (db <= MIN_DB) ? "-inf" : juce::String(db, 1);
+        peakValueLabel->setText(text, juce::dontSendNotification);
+    }
 }
 
 void MainView::MasterHeaderPanel::setVuLevels(float leftVu, float rightVu) {
     if (vuMeter) {
         vuMeter->setLevels(leftVu, rightVu);
+    }
+
+    // Update VU value label (show max of both channels, hold peak)
+    float maxVu = std::max(leftVu, rightVu);
+    if (maxVu > vuHoldValue_) {
+        vuHoldValue_ = maxVu;
+    }
+    if (vuValueLabel) {
+        float db = gainToDb(vuHoldValue_);
+        juce::String text = (db <= MIN_DB) ? "-inf" : juce::String(db, 1);
+        vuValueLabel->setText(text, juce::dontSendNotification);
     }
 }
 

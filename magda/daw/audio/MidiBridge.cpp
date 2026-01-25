@@ -51,7 +51,6 @@ std::vector<MidiDeviceInfo> MidiBridge::getAvailableMidiInputs() const {
         devices.push_back(info);
     }
 
-    DBG("Found " << devices.size() << " MIDI input devices");
     return devices;
 }
 

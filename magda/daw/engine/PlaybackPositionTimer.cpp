@@ -26,17 +26,6 @@ bool PlaybackPositionTimer::isRunning() const {
 }
 
 void PlaybackPositionTimer::timerCallback() {
-    static int timerCallCount = 0;
-    static bool lastPlaying = false;
-    bool currentlyPlaying = engine_.isPlaying();
-
-    if (currentlyPlaying != lastPlaying) {
-        std::cout << ">>> PlaybackPositionTimer - playing state changed to: " << currentlyPlaying
-                  << " (timer call #" << timerCallCount << ")" << std::endl;
-        lastPlaying = currentlyPlaying;
-    }
-    timerCallCount++;
-
     // Update trigger state for transport-synced devices (tone generator, etc.)
     engine_.updateTriggerState();
 
