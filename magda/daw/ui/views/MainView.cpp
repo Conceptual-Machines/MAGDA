@@ -22,7 +22,6 @@ namespace magda {
 namespace {
 constexpr float MIN_DB = -60.0f;
 constexpr float MAX_DB = 6.0f;
-constexpr float UNITY_DB = 0.0f;
 
 float gainToDb(float gain) {
     if (gain <= 0.0f)
@@ -36,18 +35,20 @@ float dbToGain(float db) {
     return std::pow(10.0f, db / 20.0f);
 }
 
-// Convert dB to normalized fader position (0-1) with unity (0dB) at 0.75
-float dbToFaderPos(float db) {
+// Convert dB to normalized meter position (0-1) with power curve
+// Matches the track meter scaling in TrackHeadersPanel
+float dbToMeterPos(float db) {
     if (db <= MIN_DB)
         return 0.0f;
     if (db >= MAX_DB)
         return 1.0f;
 
-    if (db < UNITY_DB) {
-        return 0.75f * (db - MIN_DB) / (UNITY_DB - MIN_DB);
-    } else {
-        return 0.75f + 0.25f * (db - UNITY_DB) / (MAX_DB - UNITY_DB);
-    }
+    // Normalize to 0-1 range
+    float normalized = (db - MIN_DB) / (MAX_DB - MIN_DB);
+
+    // Apply power curve: y = x^3
+    // -12 dB → ~38%, 0 dB → ~75%, +6 dB → 100%
+    return std::pow(normalized, 3.0f);
 }
 
 }  // namespace
@@ -1523,8 +1524,8 @@ class MainView::MasterHeaderPanel::HorizontalStereoMeter : public juce::Componen
         g.setColour(DarkTheme::getColour(DarkTheme::SURFACE));
         g.fillRoundedRectangle(bounds, 1.0f);
 
-        // Meter fill (using dB-scaled level)
-        float displayLevel = dbToFaderPos(gainToDb(level));
+        // Meter fill (using same scaling as track meters for visual consistency)
+        float displayLevel = dbToMeterPos(gainToDb(level));
         float meterWidth = bounds.getWidth() * displayLevel;
         auto fillBounds = bounds.withWidth(meterWidth);
 
@@ -1723,13 +1724,10 @@ void MainView::MasterHeaderPanel::setPeakLevels(float leftPeak, float rightPeak)
         peakMeter->setLevels(leftPeak, rightPeak);
     }
 
-    // Update peak value label (show max of both channels, hold peak)
+    // Update peak value label (show current max of both channels)
     float maxPeak = std::max(leftPeak, rightPeak);
-    if (maxPeak > peakHoldValue_) {
-        peakHoldValue_ = maxPeak;
-    }
     if (peakValueLabel) {
-        float db = gainToDb(peakHoldValue_);
+        float db = gainToDb(maxPeak);
         juce::String text = (db <= MIN_DB) ? "-inf" : juce::String(db, 1);
         peakValueLabel->setText(text, juce::dontSendNotification);
     }
@@ -1740,13 +1738,10 @@ void MainView::MasterHeaderPanel::setVuLevels(float leftVu, float rightVu) {
         vuMeter->setLevels(leftVu, rightVu);
     }
 
-    // Update VU value label (show max of both channels, hold peak)
+    // Update VU value label (show current max of both channels)
     float maxVu = std::max(leftVu, rightVu);
-    if (maxVu > vuHoldValue_) {
-        vuHoldValue_ = maxVu;
-    }
     if (vuValueLabel) {
-        float db = gainToDb(vuHoldValue_);
+        float db = gainToDb(maxVu);
         juce::String text = (db <= MIN_DB) ? "-inf" : juce::String(db, 1);
         vuValueLabel->setText(text, juce::dontSendNotification);
     }

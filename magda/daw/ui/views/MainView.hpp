@@ -315,8 +315,6 @@ class MainView::MasterHeaderPanel : public juce::Component, public TrackManagerL
     std::unique_ptr<juce::Label> vuLabel;              // "VU" label
     std::unique_ptr<juce::Label> peakValueLabel;       // Peak dB value
     std::unique_ptr<juce::Label> vuValueLabel;         // VU dB value
-    float peakHoldValue_ = 0.0f;                       // Held peak for display
-    float vuHoldValue_ = 0.0f;                         // Held VU for display
 
     void setupControls();
 
