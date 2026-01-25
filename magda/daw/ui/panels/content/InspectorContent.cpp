@@ -1,5 +1,7 @@
 #include "InspectorContent.hpp"
 
+#include "../../../audio/MidiBridge.hpp"
+#include "../../../engine/AudioEngine.hpp"
 #include "../../state/TimelineController.hpp"
 #include "../../themes/DarkTheme.hpp"
 #include "../../themes/FontManager.hpp"
@@ -142,42 +144,25 @@ InspectorContent::InspectorContent() {
     // Audio input selector
     audioInSelector_ =
         std::make_unique<magda::RoutingSelector>(magda::RoutingSelector::Type::AudioIn);
-    audioInSelector_->setOptions({
-        {1, "Input 1"},
-        {2, "Input 2"},
-        {3, "Input 1+2 (Stereo)"},
-        {0, "", true},
-        {10, "External Sidechain"},
-    });
-    audioInSelector_->setSelectedId(1);
+    // Options will be populated from audio device manager in setAudioEngine()
     addChildComponent(*audioInSelector_);
 
     // Audio output selector
     audioOutSelector_ =
         std::make_unique<magda::RoutingSelector>(magda::RoutingSelector::Type::AudioOut);
-    audioOutSelector_->setOptions({
-        {1, "Master"},
-        {2, "Output 1-2"},
-        {3, "Output 3-4"},
-        {0, "", true},
-        {10, "Bus 1"},
-        {11, "Bus 2"},
-    });
-    audioOutSelector_->setSelectedId(1);
+    // Options will be populated from audio device manager in setAudioEngine()
     addChildComponent(*audioOutSelector_);
 
     // MIDI input selector
     midiInSelector_ =
         std::make_unique<magda::RoutingSelector>(magda::RoutingSelector::Type::MidiIn);
-    // Options should be populated from MidiBridge
-    midiInSelector_->setSelectedId(1);
+    // Options will be populated from MidiBridge in setAudioEngine()
     addChildComponent(*midiInSelector_);
 
     // MIDI output selector
     midiOutSelector_ =
         std::make_unique<magda::RoutingSelector>(magda::RoutingSelector::Type::MidiOut);
-    // Options should be populated from MidiBridge
-    midiOutSelector_->setSelectedId(1);
+    // Options will be populated from MidiBridge in setAudioEngine()
     addChildComponent(*midiOutSelector_);
 
     // ========================================================================
@@ -421,6 +406,14 @@ void InspectorContent::setTimelineController(magda::TimelineController* controll
     // Refresh display with new tempo info if a clip is selected
     if (currentSelectionType_ == magda::SelectionType::Clip) {
         updateFromSelectedClip();
+    }
+}
+
+void InspectorContent::setAudioEngine(magda::AudioEngine* engine) {
+    audioEngine_ = engine;
+    // Populate routing selectors with real device options
+    if (audioEngine_) {
+        populateRoutingSelectors();
     }
 }
 
@@ -1135,6 +1128,217 @@ void InspectorContent::updateFromSelectedNotes() {
 
     resized();
     repaint();
+}
+
+void InspectorContent::populateRoutingSelectors() {
+    populateAudioInputOptions();
+    populateAudioOutputOptions();
+    populateMidiInputOptions();
+    populateMidiOutputOptions();
+
+    // Wire up callbacks to update track routing
+    if (!audioEngine_)
+        return;
+
+    auto* midiBridge = audioEngine_->getMidiBridge();
+    if (!midiBridge)
+        return;
+
+    // MIDI Input selector callback
+    midiInSelector_->onSelectionChanged = [this, midiBridge](int selectedId) {
+        if (selectedTrackId_ == magda::INVALID_TRACK_ID)
+            return;
+
+        if (selectedId == 2) {
+            // "None" selected
+            midiBridge->clearTrackMidiInput(selectedTrackId_);
+            midiBridge->stopMonitoring(selectedTrackId_);
+        } else if (selectedId == 1) {
+            // "All Inputs" selected
+            midiBridge->setTrackMidiInput(selectedTrackId_, "all");
+            midiBridge->startMonitoring(selectedTrackId_);
+        } else if (selectedId >= 10) {
+            // Specific device selected
+            auto midiInputs = midiBridge->getAvailableMidiInputs();
+            int deviceIndex = selectedId - 10;
+            if (deviceIndex >= 0 && deviceIndex < static_cast<int>(midiInputs.size())) {
+                midiBridge->setTrackMidiInput(selectedTrackId_, midiInputs[deviceIndex].id);
+                midiBridge->startMonitoring(selectedTrackId_);
+            }
+        }
+    };
+
+    // MIDI Output selector callback
+    midiOutSelector_->onSelectionChanged = [this, midiBridge](int selectedId) {
+        if (selectedTrackId_ == magda::INVALID_TRACK_ID)
+            return;
+
+        if (selectedId == 1) {
+            // "None" selected - clear output
+            // TODO: Implement MIDI output routing when needed
+        } else if (selectedId >= 10) {
+            // Specific device selected
+            auto midiOutputs = midiBridge->getAvailableMidiOutputs();
+            int deviceIndex = selectedId - 10;
+            if (deviceIndex >= 0 && deviceIndex < static_cast<int>(midiOutputs.size())) {
+                // TODO: Implement MIDI output routing when needed
+            }
+        }
+    };
+}
+
+void InspectorContent::populateAudioInputOptions() {
+    if (!audioInSelector_ || !audioEngine_) {
+        return;
+    }
+
+    auto* deviceManager = audioEngine_->getDeviceManager();
+    if (!deviceManager) {
+        return;
+    }
+
+    std::vector<magda::RoutingSelector::RoutingOption> options;
+
+    // Get current audio device
+    auto* currentDevice = deviceManager->getCurrentAudioDevice();
+    if (currentDevice) {
+        auto inputChannelNames = currentDevice->getInputChannelNames();
+
+        // Add "None" option
+        options.push_back({1, "None"});
+
+        if (inputChannelNames.size() > 0) {
+            options.push_back({0, "", true});  // separator
+
+            // Add each input channel as an option (starting from ID 10)
+            int id = 10;
+            for (int i = 0; i < inputChannelNames.size(); ++i) {
+                // Create pair names for stereo (Input 1-2, Input 3-4, etc.)
+                if (i % 2 == 0) {
+                    if (i + 1 < inputChannelNames.size()) {
+                        options.push_back(
+                            {id++, "Input " + juce::String(i + 1) + "-" + juce::String(i + 2)});
+                    } else {
+                        // Odd number of channels - add single channel
+                        options.push_back({id++, inputChannelNames[i]});
+                    }
+                }
+            }
+        }
+    } else {
+        options.push_back({1, "None"});
+        options.push_back({2, "(No Device Active)"});
+    }
+
+    audioInSelector_->setOptions(options);
+}
+
+void InspectorContent::populateAudioOutputOptions() {
+    if (!audioOutSelector_ || !audioEngine_) {
+        return;
+    }
+
+    auto* deviceManager = audioEngine_->getDeviceManager();
+    if (!deviceManager) {
+        return;
+    }
+
+    std::vector<magda::RoutingSelector::RoutingOption> options;
+
+    // Get current audio device
+    auto* currentDevice = deviceManager->getCurrentAudioDevice();
+    if (currentDevice) {
+        auto outputChannelNames = currentDevice->getOutputChannelNames();
+
+        // Add "Master" as default output
+        options.push_back({1, "Master"});
+
+        if (outputChannelNames.size() > 0) {
+            options.push_back({0, "", true});  // separator
+
+            // Add each output channel pair as an option (starting from ID 10)
+            int id = 10;
+            for (int i = 0; i < outputChannelNames.size(); ++i) {
+                // Create pair names for stereo (Output 1-2, Output 3-4, etc.)
+                if (i % 2 == 0) {
+                    if (i + 1 < outputChannelNames.size()) {
+                        options.push_back(
+                            {id++, "Output " + juce::String(i + 1) + "-" + juce::String(i + 2)});
+                    } else {
+                        // Odd number of channels - add single channel
+                        options.push_back({id++, outputChannelNames[i]});
+                    }
+                }
+            }
+        }
+    } else {
+        options.push_back({1, "Master"});
+        options.push_back({2, "(No Device Active)"});
+    }
+
+    audioOutSelector_->setOptions(options);
+}
+
+void InspectorContent::populateMidiInputOptions() {
+    if (!midiInSelector_ || !audioEngine_) {
+        return;
+    }
+
+    auto* midiBridge = audioEngine_->getMidiBridge();
+    if (!midiBridge) {
+        return;
+    }
+
+    // Get available MIDI inputs from MidiBridge
+    auto midiInputs = midiBridge->getAvailableMidiInputs();
+
+    // Build options list
+    std::vector<magda::RoutingSelector::RoutingOption> options;
+    options.push_back({1, "All Inputs"});  // ID 1 = all inputs
+    options.push_back({2, "None"});        // ID 2 = no input
+
+    if (!midiInputs.empty()) {
+        options.push_back({0, "", true});  // separator
+
+        // Add each MIDI device as an option (starting from ID 10)
+        int id = 10;
+        for (const auto& device : midiInputs) {
+            options.push_back({id++, device.name});
+        }
+    }
+
+    midiInSelector_->setOptions(options);
+}
+
+void InspectorContent::populateMidiOutputOptions() {
+    if (!midiOutSelector_ || !audioEngine_) {
+        return;
+    }
+
+    auto* midiBridge = audioEngine_->getMidiBridge();
+    if (!midiBridge) {
+        return;
+    }
+
+    // Get available MIDI outputs from MidiBridge
+    auto midiOutputs = midiBridge->getAvailableMidiOutputs();
+
+    // Build options list
+    std::vector<magda::RoutingSelector::RoutingOption> options;
+    options.push_back({1, "None"});         // ID 1 = no output
+    options.push_back({2, "All Outputs"});  // ID 2 = all outputs
+
+    if (!midiOutputs.empty()) {
+        options.push_back({0, "", true});  // separator
+
+        // Add each MIDI device as an option (starting from ID 10)
+        int id = 10;
+        for (const auto& device : midiOutputs) {
+            options.push_back({id++, device.name});
+        }
+    }
+
+    midiOutSelector_->setOptions(options);
 }
 
 }  // namespace magda::daw::ui

@@ -160,6 +160,11 @@ class InspectorContent : public PanelContent,
     void showModsPanelControls(bool show);
     void showMacrosPanelControls(bool show);
     void updateSelectionDisplay();
+    void populateRoutingSelectors();
+    void populateAudioInputOptions();
+    void populateAudioOutputOptions();
+    void populateMidiInputOptions();
+    void populateMidiOutputOptions();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(InspectorContent)
 };

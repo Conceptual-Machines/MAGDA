@@ -139,6 +139,7 @@ MainWindow::MainComponent::MainComponent(AudioEngine* externalEngine) {
     addAndMakeVisible(*transportPanel);
 
     leftPanel = std::make_unique<LeftPanel>();
+    leftPanel->setAudioEngine(externalEngine);
     leftPanel->onCollapseChanged = [this](bool collapsed) {
         leftPanelCollapsed = collapsed;
         resized();
@@ -146,6 +147,7 @@ MainWindow::MainComponent::MainComponent(AudioEngine* externalEngine) {
     addAndMakeVisible(*leftPanel);
 
     rightPanel = std::make_unique<RightPanel>();
+    rightPanel->setAudioEngine(externalEngine);
     rightPanel->onCollapseChanged = [this](bool collapsed) {
         rightPanelCollapsed = collapsed;
         resized();
@@ -153,6 +155,7 @@ MainWindow::MainComponent::MainComponent(AudioEngine* externalEngine) {
     addAndMakeVisible(*rightPanel);
 
     bottomPanel = std::make_unique<BottomPanel>();
+    bottomPanel->setAudioEngine(externalEngine);
     addAndMakeVisible(*bottomPanel);
 
     footerBar = std::make_unique<FooterBar>();

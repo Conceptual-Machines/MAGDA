@@ -11,6 +11,11 @@
 #include "content/PanelContentFactory.hpp"
 #include "state/PanelController.hpp"
 
+namespace magda {
+class AudioEngine;
+class TimelineController;
+}  // namespace magda
+
 namespace magda::daw::ui {
 
 /**
@@ -52,6 +57,18 @@ class TabbedPanel : public juce::Component, public PanelStateListener {
      * @brief Callback when collapse state changes
      */
     std::function<void(bool)> onCollapseChanged;
+
+    /**
+     * @brief Set the audio engine reference for panels that need it
+     * This reference will be passed to content that implements setAudioEngine()
+     */
+    void setAudioEngine(magda::AudioEngine* engine);
+
+    /**
+     * @brief Set the timeline controller reference for panels that need it
+     * This reference will be passed to content that implements setTimelineController()
+     */
+    void setTimelineController(magda::TimelineController* controller);
 
   protected:
     /**
@@ -102,6 +119,10 @@ class TabbedPanel : public juce::Component, public PanelStateListener {
     // Cache of content instances (lazy creation)
     std::unordered_map<PanelContentType, std::unique_ptr<PanelContent>> contentCache_;
     PanelContent* activeContent_ = nullptr;
+
+    // References to pass to content (non-owning)
+    magda::AudioEngine* audioEngine_ = nullptr;
+    magda::TimelineController* timelineController_ = nullptr;
 
     void setupCollapseButton();
     void updateFromState();
