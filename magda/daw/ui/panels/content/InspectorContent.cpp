@@ -583,10 +583,7 @@ void InspectorContent::tracksChanged() {
 }
 
 void InspectorContent::trackPropertyChanged(int trackId) {
-    DBG("InspectorContent::trackPropertyChanged - trackId=" << trackId << " selectedTrackId="
-                                                            << selectedTrackId_);
     if (static_cast<magda::TrackId>(trackId) == selectedTrackId_) {
-        DBG("  -> Updating inspector from track");
         updateFromSelectedTrack();
     }
 }
@@ -1513,15 +1510,11 @@ void InspectorContent::updateRoutingSelectorsFromTrack() {
 
     // Update MIDI input selector from track state
     juce::String currentMidiInput = track->midiInputDevice;
-    DBG("InspectorContent::updateRoutingSelectorsFromTrack - trackId="
-        << selectedTrackId_ << " currentMidiInput='" << currentMidiInput << "'");
 
     if (currentMidiInput.isEmpty()) {
-        DBG("  -> Setting MIDI In to None (ID 2) and DISABLED");
         midiInSelector_->setSelectedId(2);
         midiInSelector_->setEnabled(false);
     } else if (currentMidiInput == "all") {
-        DBG("  -> Setting MIDI In to All Inputs (ID 1) and ENABLED");
         midiInSelector_->setSelectedId(1);
         midiInSelector_->setEnabled(true);
     } else {

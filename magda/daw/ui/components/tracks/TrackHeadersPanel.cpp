@@ -901,15 +901,11 @@ void TrackHeadersPanel::updateMidiRoutingSelectorFromTrack(TrackHeader& header,
     // Update MIDI Input selector
     if (header.midiInSelector && midiBridge) {
         juce::String currentMidiInput = track->midiInputDevice;
-        DBG("TrackHeadersPanel::updateMidiRoutingSelectorFromTrack - trackId="
-            << track->id << " midiInputDevice='" << currentMidiInput << "'");
 
         if (currentMidiInput.isEmpty()) {
-            DBG("  -> Setting MIDI In to None (ID 2) and DISABLED");
             header.midiInSelector->setSelectedId(2);
             header.midiInSelector->setEnabled(false);
         } else if (currentMidiInput == "all") {
-            DBG("  -> Setting MIDI In to All Inputs (ID 1) and ENABLED");
             header.midiInSelector->setSelectedId(1);
             header.midiInSelector->setEnabled(true);
         } else {
