@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "../audio/MidiBridge.hpp"
+#include "../engine/AudioEngine.hpp"
 #include "ModulatorEngine.hpp"
 #include "RackInfo.hpp"
 
@@ -333,6 +335,97 @@ void TrackManager::setTrackType(TrackId trackId, TrackType type) {
         track->type = type;
         notifyTrackPropertyChanged(trackId);
     }
+}
+
+void TrackManager::setAudioEngine(AudioEngine* audioEngine) {
+    audioEngine_ = audioEngine;
+}
+
+// ============================================================================
+// Track Routing Setters
+// ============================================================================
+
+void TrackManager::setTrackMidiInput(TrackId trackId, const juce::String& deviceId) {
+    auto* track = getTrack(trackId);
+    if (!track) {
+        return;
+    }
+
+    DBG("TrackManager::setTrackMidiInput - trackId=" << trackId << " deviceId='" << deviceId
+                                                     << "'");
+
+    // Update track state
+    track->midiInputDevice = deviceId;
+
+    // Forward to MidiBridge for actual device setup
+    if (audioEngine_) {
+        if (auto* midiBridge = audioEngine_->getMidiBridge()) {
+            if (deviceId.isEmpty()) {
+                midiBridge->clearTrackMidiInput(trackId);
+                midiBridge->stopMonitoring(trackId);
+            } else {
+                midiBridge->setTrackMidiInput(trackId, deviceId);
+                midiBridge->startMonitoring(trackId);
+            }
+        }
+    }
+
+    // Notify listeners (inspector, track headers will update)
+    notifyTrackPropertyChanged(trackId);
+}
+
+void TrackManager::setTrackMidiOutput(TrackId trackId, const juce::String& deviceId) {
+    auto* track = getTrack(trackId);
+    if (!track) {
+        return;
+    }
+
+    DBG("TrackManager::setTrackMidiOutput - trackId=" << trackId << " deviceId='" << deviceId
+                                                      << "'");
+
+    // Update track state
+    track->midiOutputDevice = deviceId;
+
+    // TODO: Forward to MidiBridge when MIDI output routing is implemented
+
+    // Notify listeners
+    notifyTrackPropertyChanged(trackId);
+}
+
+void TrackManager::setTrackAudioInput(TrackId trackId, const juce::String& deviceId) {
+    auto* track = getTrack(trackId);
+    if (!track) {
+        return;
+    }
+
+    DBG("TrackManager::setTrackAudioInput - trackId=" << trackId << " deviceId='" << deviceId
+                                                      << "'");
+
+    // Update track state
+    track->audioInputDevice = deviceId;
+
+    // TODO: Forward to audio routing system when implemented
+
+    // Notify listeners
+    notifyTrackPropertyChanged(trackId);
+}
+
+void TrackManager::setTrackAudioOutput(TrackId trackId, const juce::String& routing) {
+    auto* track = getTrack(trackId);
+    if (!track) {
+        return;
+    }
+
+    DBG("TrackManager::setTrackAudioOutput - trackId=" << trackId << " routing='" << routing
+                                                       << "'");
+
+    // Update track state
+    track->audioOutputDevice = routing;
+
+    // TODO: Forward to audio routing system when implemented
+
+    // Notify listeners
+    notifyTrackPropertyChanged(trackId);
 }
 
 // ============================================================================

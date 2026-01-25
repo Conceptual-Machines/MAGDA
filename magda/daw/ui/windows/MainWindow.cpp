@@ -115,6 +115,9 @@ MainWindow::MainComponent::MainComponent(AudioEngine* externalEngine) {
         std::cout << "MainComponent created internal audio engine" << std::endl;
     }
 
+    // Initialize TrackManager with audio engine for routing operations
+    TrackManager::getInstance().setAudioEngine(externalEngine);
+
     // Initialize panel sizes from LayoutConfig
     auto& layout = LayoutConfig::getInstance();
     transportHeight = layout.defaultTransportHeight;

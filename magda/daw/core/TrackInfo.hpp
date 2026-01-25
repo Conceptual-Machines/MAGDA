@@ -30,6 +30,12 @@ struct TrackInfo {
     bool soloed = false;
     bool recordArmed = false;
 
+    // Routing
+    juce::String midiInputDevice;    // MIDI input device ID ("all", device ID, or empty for none)
+    juce::String midiOutputDevice;   // MIDI output device ID (device ID or empty for none)
+    juce::String audioInputDevice;   // Audio input device/channel (device ID or empty for none)
+    juce::String audioOutputDevice;  // Audio output routing (default: "master")
+
     // Signal chain - ordered list of nodes (devices or racks) on this track
     std::vector<ChainElement> chainElements;
 
@@ -56,6 +62,10 @@ struct TrackInfo {
           muted(other.muted),
           soloed(other.soloed),
           recordArmed(other.recordArmed),
+          midiInputDevice(other.midiInputDevice),
+          midiOutputDevice(other.midiOutputDevice),
+          audioInputDevice(other.audioInputDevice),
+          audioOutputDevice(other.audioOutputDevice),
           viewSettings(other.viewSettings) {
         chainElements.reserve(other.chainElements.size());
         for (const auto& element : other.chainElements) {
@@ -77,6 +87,10 @@ struct TrackInfo {
             muted = other.muted;
             soloed = other.soloed;
             recordArmed = other.recordArmed;
+            midiInputDevice = other.midiInputDevice;
+            midiOutputDevice = other.midiOutputDevice;
+            audioInputDevice = other.audioInputDevice;
+            audioOutputDevice = other.audioOutputDevice;
             viewSettings = other.viewSettings;
             chainElements.clear();
             chainElements.reserve(other.chainElements.size());

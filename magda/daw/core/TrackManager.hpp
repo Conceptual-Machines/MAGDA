@@ -10,6 +10,9 @@
 
 namespace magda {
 
+// Forward declarations
+class AudioEngine;
+
 /**
  * @brief Master channel state
  */
@@ -72,6 +75,12 @@ class TrackManager {
     TrackManager(const TrackManager&) = delete;
     TrackManager& operator=(const TrackManager&) = delete;
 
+    /**
+     * @brief Set the audio engine reference for routing operations
+     * Should be called once during app initialization
+     */
+    void setAudioEngine(AudioEngine* audioEngine);
+
     // Track operations
     TrackId createTrack(const juce::String& name = "", TrackType type = TrackType::Audio);
     TrackId createGroupTrack(const juce::String& name = "");
@@ -109,6 +118,12 @@ class TrackManager {
     void setTrackSoloed(TrackId trackId, bool soloed);
     void setTrackRecordArmed(TrackId trackId, bool armed);
     void setTrackType(TrackId trackId, TrackType type);
+
+    // Track routing setters (notify listeners and forward to bridges)
+    void setTrackMidiInput(TrackId trackId, const juce::String& deviceId);
+    void setTrackMidiOutput(TrackId trackId, const juce::String& deviceId);
+    void setTrackAudioInput(TrackId trackId, const juce::String& deviceId);
+    void setTrackAudioOutput(TrackId trackId, const juce::String& routing);
 
     // View settings
     void setTrackVisible(TrackId trackId, ViewMode mode, bool visible);
@@ -344,6 +359,7 @@ class TrackManager {
 
     std::vector<TrackInfo> tracks_;
     std::vector<TrackManagerListener*> listeners_;
+    AudioEngine* audioEngine_ = nullptr;  // Non-owning pointer for routing operations
     int nextTrackId_ = 1;
     int nextDeviceId_ = 1;
     int nextRackId_ = 1;

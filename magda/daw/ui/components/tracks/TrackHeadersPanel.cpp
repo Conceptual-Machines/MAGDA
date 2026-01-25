@@ -575,28 +575,25 @@ void TrackHeadersPanel::setupMidiCallbacks(TrackHeader& header, TrackId trackId)
                                                                        << selectedId);
 
         if (selectedId == 2) {
-            // "None" selected - clear MIDI input and stop monitoring
-            DBG("  -> Clearing MIDI input");
-            midiBridge->clearTrackMidiInput(trackId);
-            midiBridge->stopMonitoring(trackId);
+            // "None" selected
+            DBG("  -> Clearing MIDI input via TrackManager");
+            TrackManager::getInstance().setTrackMidiInput(trackId, "");
         } else if (selectedId == 1) {
-            // "All Inputs" selected - set special "all" device ID
-            DBG("  -> Setting to All Inputs");
-            midiBridge->setTrackMidiInput(trackId, "all");
-            midiBridge->startMonitoring(trackId);
+            // "All Inputs" selected
+            DBG("  -> Setting to All Inputs via TrackManager");
+            TrackManager::getInstance().setTrackMidiInput(trackId, "all");
         } else if (selectedId >= 10) {
             // Specific device selected
             auto midiInputs = midiBridge->getAvailableMidiInputs();
             int deviceIndex = selectedId - 10;
             if (deviceIndex >= 0 && deviceIndex < static_cast<int>(midiInputs.size())) {
-                DBG("  -> Setting to device: " << midiInputs[deviceIndex].name);
-                midiBridge->setTrackMidiInput(trackId, midiInputs[deviceIndex].id);
-                midiBridge->startMonitoring(trackId);
+                DBG("  -> Setting to device via TrackManager: " << midiInputs[deviceIndex].name);
+                TrackManager::getInstance().setTrackMidiInput(trackId, midiInputs[deviceIndex].id);
             }
         }
 
-        // Note: MidiBridge will trigger onTrackMidiRoutingChanged callback
-        // which the inspector listens to for sync
+        // Note: TrackManager will notify all listeners (including inspector) via
+        // trackPropertyChanged callback
     };
 }
 
