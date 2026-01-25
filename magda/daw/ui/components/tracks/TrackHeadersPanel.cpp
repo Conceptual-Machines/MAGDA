@@ -146,15 +146,15 @@ class MidiActivityIndicator : public juce::Component {
         float dotY = bounds.getY() + 2.0f;  // Small padding from top
         auto dotBounds = juce::Rectangle<float>(dotX, dotY, dotSize, dotSize);
 
-        // Inactive state: dim dot
-        g.setColour(DarkTheme::getColour(DarkTheme::SURFACE));
+        // Inactive state: visible cyan dot (dimmed)
+        g.setColour(juce::Colour(0xFF00AACC).withAlpha(0.4f));
         g.fillEllipse(dotBounds);
 
-        // Active state: cyan glow
+        // Active state: bright cyan glow
         if (activity_ > 0.01f) {
-            auto activeColor = juce::Colour(0xFF00DDFF).withAlpha(activity_);
+            auto activeColor = juce::Colour(0xFF00FFFF).withAlpha(activity_);
             g.setColour(activeColor);
-            g.fillEllipse(dotBounds.reduced(1.0f));
+            g.fillEllipse(dotBounds);
         }
     }
 
@@ -275,6 +275,7 @@ TrackHeadersPanel::TrackHeader::TrackHeader(const juce::String& trackName) : nam
 
     // MIDI activity indicator
     midiIndicator = std::make_unique<MidiActivityIndicator>();
+    midiIndicator->setAlwaysOnTop(true);  // Ensure always visible on top
 }
 
 TrackHeadersPanel::TrackHeadersPanel(AudioEngine* audioEngine) : audioEngine_(audioEngine) {
@@ -353,6 +354,11 @@ void TrackHeadersPanel::timerCallback() {
                 static_cast<TrackMeter*>(header->meterComponent.get())
                     ->setLevels(data.peakL, data.peakR);
             }
+        }
+
+        // Check for MIDI activity from audio thread
+        if (bridge->consumeMidiActivity(header->trackId)) {
+            header->midiActivity = 1.0f;  // Trigger full brightness
         }
 
         // Decay MIDI activity indicator
@@ -556,6 +562,13 @@ void TrackHeadersPanel::setupMidiCallbacks(TrackHeader& header, TrackId trackId)
             // "All Inputs" selected - set special "all" device ID
             midiBridge->setTrackMidiInput(trackId, "all");
             midiBridge->startMonitoring(trackId);
+
+            // TEST: Trigger MIDI activity indicator to show it's working
+            if (auto* teWrapper = dynamic_cast<TracktionEngineWrapper*>(audioEngine_)) {
+                if (auto* bridge = teWrapper->getAudioBridge()) {
+                    bridge->triggerMidiActivity(trackId);
+                }
+            }
         } else if (selectedId >= 10) {
             // Specific device selected
             auto midiInputs = midiBridge->getAvailableMidiInputs();
@@ -563,6 +576,13 @@ void TrackHeadersPanel::setupMidiCallbacks(TrackHeader& header, TrackId trackId)
             if (deviceIndex >= 0 && deviceIndex < static_cast<int>(midiInputs.size())) {
                 midiBridge->setTrackMidiInput(trackId, midiInputs[deviceIndex].id);
                 midiBridge->startMonitoring(trackId);
+
+                // TEST: Trigger MIDI activity indicator to show it's working
+                if (auto* teWrapper = dynamic_cast<TracktionEngineWrapper*>(audioEngine_)) {
+                    if (auto* bridge = teWrapper->getAudioBridge()) {
+                        bridge->triggerMidiActivity(trackId);
+                    }
+                }
             }
         }
     };
@@ -1201,6 +1221,7 @@ void TrackHeadersPanel::updateTrackHeaderLayout() {
             // MIDI indicator spans full track height
             header.midiIndicator->setBounds(midiArea);
             header.midiIndicator->setVisible(header.midiInEnabled);
+            header.midiIndicator->toFront(false);  // Ensure it's on top
 
             // Apply indentation based on depth for TCP area
             int indent = header.depth * INDENT_WIDTH;

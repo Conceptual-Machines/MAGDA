@@ -208,6 +208,23 @@ class AudioBridge : public TrackManagerListener, public juce::Timer {
         return justLoopedFlag_.load(std::memory_order_acquire);
     }
 
+    // =========================================================================
+    // MIDI Activity Monitoring
+    // =========================================================================
+
+    /**
+     * @brief Trigger MIDI activity for a track (audio thread safe)
+     * @param trackId The track that received MIDI
+     */
+    void triggerMidiActivity(TrackId trackId);
+
+    /**
+     * @brief Check and clear MIDI activity flag for a track (UI thread)
+     * @param trackId The track to check
+     * @return true if MIDI activity occurred since last check
+     */
+    bool consumeMidiActivity(TrackId trackId);
+
   private:
     // Timer callback for metering updates (runs on message thread)
     void timerCallback() override;
@@ -247,6 +264,10 @@ class AudioBridge : public TrackManagerListener, public juce::Timer {
     std::atomic<bool> transportPlaying_{false};
     std::atomic<bool> justStartedFlag_{false};
     std::atomic<bool> justLoopedFlag_{false};
+
+    // MIDI activity flags (audio thread writes, UI thread reads/clears - lock-free)
+    static constexpr int kMaxTracks = 128;
+    std::array<std::atomic<bool>, kMaxTracks> midiActivityFlags_;
 
     // Synchronization
     juce::CriticalSection mappingLock_;  // Protects mapping updates

@@ -484,6 +484,24 @@ void AudioBridge::updateTransportState(bool isPlaying, bool justStarted, bool ju
     }
 }
 
+// =============================================================================
+// MIDI Activity Monitoring
+// =============================================================================
+
+void AudioBridge::triggerMidiActivity(TrackId trackId) {
+    if (trackId >= 0 && trackId < kMaxTracks) {
+        midiActivityFlags_[trackId].store(true, std::memory_order_release);
+    }
+}
+
+bool AudioBridge::consumeMidiActivity(TrackId trackId) {
+    if (trackId >= 0 && trackId < kMaxTracks) {
+        // Read and clear flag atomically
+        return midiActivityFlags_[trackId].exchange(false, std::memory_order_acq_rel);
+    }
+    return false;
+}
+
 void AudioBridge::updateMetering() {
     // This would be called from the audio thread
     // For now, we use the timer callback for metering
