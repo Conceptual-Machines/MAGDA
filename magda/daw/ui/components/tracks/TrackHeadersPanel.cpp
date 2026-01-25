@@ -571,12 +571,17 @@ void TrackHeadersPanel::setupMidiCallbacks(TrackHeader& header, TrackId trackId)
 
     // Handle MIDI input selection changes
     header.midiInSelector->onSelectionChanged = [this, trackId, midiBridge](int selectedId) {
+        DBG("TrackHeadersPanel MIDI input selector changed - trackId=" << trackId << " selectedId="
+                                                                       << selectedId);
+
         if (selectedId == 2) {
             // "None" selected - clear MIDI input and stop monitoring
+            DBG("  -> Clearing MIDI input");
             midiBridge->clearTrackMidiInput(trackId);
             midiBridge->stopMonitoring(trackId);
         } else if (selectedId == 1) {
             // "All Inputs" selected - set special "all" device ID
+            DBG("  -> Setting to All Inputs");
             midiBridge->setTrackMidiInput(trackId, "all");
             midiBridge->startMonitoring(trackId);
         } else if (selectedId >= 10) {
@@ -584,10 +589,14 @@ void TrackHeadersPanel::setupMidiCallbacks(TrackHeader& header, TrackId trackId)
             auto midiInputs = midiBridge->getAvailableMidiInputs();
             int deviceIndex = selectedId - 10;
             if (deviceIndex >= 0 && deviceIndex < static_cast<int>(midiInputs.size())) {
+                DBG("  -> Setting to device: " << midiInputs[deviceIndex].name);
                 midiBridge->setTrackMidiInput(trackId, midiInputs[deviceIndex].id);
                 midiBridge->startMonitoring(trackId);
             }
         }
+
+        // Note: MidiBridge will trigger onTrackMidiRoutingChanged callback
+        // which the inspector listens to for sync
     };
 }
 

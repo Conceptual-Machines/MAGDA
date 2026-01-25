@@ -414,6 +414,22 @@ void InspectorContent::setAudioEngine(magda::AudioEngine* engine) {
     // Populate routing selectors with real device options
     if (audioEngine_) {
         populateRoutingSelectors();
+
+        // Listen to MIDI routing changes from MidiBridge
+        auto* midiBridge = audioEngine_->getMidiBridge();
+        if (midiBridge) {
+            midiBridge->onTrackMidiRoutingChanged = [this](magda::TrackId trackId,
+                                                           const juce::String& deviceId) {
+                DBG("InspectorContent: MIDI routing changed callback - trackId="
+                    << trackId << " deviceId='" << deviceId
+                    << "' selectedTrackId=" << selectedTrackId_);
+                // Only update if this is the currently selected track
+                if (trackId == selectedTrackId_) {
+                    DBG("  -> Updating routing selectors");
+                    updateRoutingSelectorsFromTrack();
+                }
+            };
+        }
     }
 }
 
@@ -581,7 +597,10 @@ void InspectorContent::tracksChanged() {
 }
 
 void InspectorContent::trackPropertyChanged(int trackId) {
+    DBG("InspectorContent::trackPropertyChanged - trackId=" << trackId << " selectedTrackId="
+                                                            << selectedTrackId_);
     if (static_cast<magda::TrackId>(trackId) == selectedTrackId_) {
+        DBG("  -> Updating inspector from track");
         updateFromSelectedTrack();
     }
 }
@@ -862,6 +881,8 @@ void InspectorContent::updateSelectionDisplay() {
 }
 
 void InspectorContent::updateFromSelectedTrack() {
+    DBG("InspectorContent::updateFromSelectedTrack - trackId=" << selectedTrackId_);
+
     if (selectedTrackId_ == magda::INVALID_TRACK_ID) {
         showTrackControls(false);
         noSelectionLabel_.setVisible(true);
@@ -1149,15 +1170,20 @@ void InspectorContent::populateRoutingSelectors() {
 
     // MIDI Input selector callback
     midiInSelector_->onSelectionChanged = [this, midiBridge](int selectedId) {
+        DBG("InspectorContent MIDI input selector changed - selectedId="
+            << selectedId << " trackId=" << selectedTrackId_);
+
         if (selectedTrackId_ == magda::INVALID_TRACK_ID)
             return;
 
         if (selectedId == 2) {
             // "None" selected
+            DBG("  -> Clearing MIDI input");
             midiBridge->clearTrackMidiInput(selectedTrackId_);
             midiBridge->stopMonitoring(selectedTrackId_);
         } else if (selectedId == 1) {
             // "All Inputs" selected
+            DBG("  -> Setting to All Inputs");
             midiBridge->setTrackMidiInput(selectedTrackId_, "all");
             midiBridge->startMonitoring(selectedTrackId_);
         } else if (selectedId >= 10) {
@@ -1165,6 +1191,7 @@ void InspectorContent::populateRoutingSelectors() {
             auto midiInputs = midiBridge->getAvailableMidiInputs();
             int deviceIndex = selectedId - 10;
             if (deviceIndex >= 0 && deviceIndex < static_cast<int>(midiInputs.size())) {
+                DBG("  -> Setting to specific device: " << midiInputs[deviceIndex].name);
                 midiBridge->setTrackMidiInput(selectedTrackId_, midiInputs[deviceIndex].id);
                 midiBridge->startMonitoring(selectedTrackId_);
             }
@@ -1346,21 +1373,28 @@ void InspectorContent::populateMidiOutputOptions() {
 
 void InspectorContent::updateRoutingSelectorsFromTrack() {
     if (selectedTrackId_ == magda::INVALID_TRACK_ID || !audioEngine_) {
+        DBG("InspectorContent::updateRoutingSelectorsFromTrack - invalid track or no engine");
         return;
     }
 
     auto* midiBridge = audioEngine_->getMidiBridge();
     if (!midiBridge) {
+        DBG("InspectorContent::updateRoutingSelectorsFromTrack - no MIDI bridge");
         return;
     }
 
     // Update MIDI input selector
     juce::String currentMidiInput = midiBridge->getTrackMidiInput(selectedTrackId_);
+    DBG("InspectorContent::updateRoutingSelectorsFromTrack - trackId="
+        << selectedTrackId_ << " currentMidiInput='" << currentMidiInput << "'");
+
     if (currentMidiInput.isEmpty()) {
         // No input selected
+        DBG("  -> Setting to None (ID 2)");
         midiInSelector_->setSelectedId(2);  // "None"
     } else if (currentMidiInput == "all") {
         // All inputs selected
+        DBG("  -> Setting to All Inputs (ID 1)");
         midiInSelector_->setSelectedId(1);  // "All Inputs"
     } else {
         // Specific device selected - find it in the list
@@ -1369,8 +1403,12 @@ void InspectorContent::updateRoutingSelectorsFromTrack() {
         for (size_t i = 0; i < midiInputs.size(); ++i) {
             if (midiInputs[i].id == currentMidiInput) {
                 selectedId = 10 + static_cast<int>(i);
+                DBG("  -> Found device at index " << i << ", setting to ID " << selectedId);
                 break;
             }
+        }
+        if (selectedId == 2) {
+            DBG("  -> Device not found in list, defaulting to None");
         }
         midiInSelector_->setSelectedId(selectedId);
     }

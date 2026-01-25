@@ -97,6 +97,13 @@ class MidiBridge : public juce::MidiInputCallback {
      */
     void clearTrackMidiInput(TrackId trackId);
 
+    /**
+     * @brief Callback when track MIDI routing changes
+     * Parameters: (trackId, newDeviceId)
+     * Called when setTrackMidiInput or clearTrackMidiInput is called
+     */
+    std::function<void(TrackId, const juce::String&)> onTrackMidiRoutingChanged;
+
     // =========================================================================
     // MIDI Monitoring (for visualization)
     // =========================================================================

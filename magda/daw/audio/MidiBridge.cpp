@@ -115,25 +115,32 @@ bool MidiBridge::isMidiInputEnabled(const juce::String& deviceId) const {
 }
 
 void MidiBridge::setTrackMidiInput(TrackId trackId, const juce::String& midiDeviceId) {
-    juce::ScopedLock lock(routingLock_);
+    {
+        juce::ScopedLock lock(routingLock_);
 
-    if (midiDeviceId.isEmpty()) {
-        // Clear routing
-        trackMidiInputs_.erase(trackId);
-    } else {
-        trackMidiInputs_[trackId] = midiDeviceId;
-
-        // Auto-enable the device if not already enabled
-        if (midiDeviceId == "all") {
-            // Special case: enable ALL MIDI input devices
-            auto availableDevices = juce::MidiInput::getAvailableDevices();
-            for (const auto& deviceInfo : availableDevices) {
-                enableMidiInput(deviceInfo.identifier);
-            }
+        if (midiDeviceId.isEmpty()) {
+            // Clear routing
+            trackMidiInputs_.erase(trackId);
         } else {
-            // Single device
-            enableMidiInput(midiDeviceId);
+            trackMidiInputs_[trackId] = midiDeviceId;
+
+            // Auto-enable the device if not already enabled
+            if (midiDeviceId == "all") {
+                // Special case: enable ALL MIDI input devices
+                auto availableDevices = juce::MidiInput::getAvailableDevices();
+                for (const auto& deviceInfo : availableDevices) {
+                    enableMidiInput(deviceInfo.identifier);
+                }
+            } else {
+                // Single device
+                enableMidiInput(midiDeviceId);
+            }
         }
+    }
+
+    // Notify listeners (outside of lock to avoid deadlocks)
+    if (onTrackMidiRoutingChanged) {
+        onTrackMidiRoutingChanged(trackId, midiDeviceId);
     }
 }
 
@@ -148,7 +155,7 @@ juce::String MidiBridge::getTrackMidiInput(TrackId trackId) const {
 }
 
 void MidiBridge::clearTrackMidiInput(TrackId trackId) {
-    setTrackMidiInput(trackId, {});
+    setTrackMidiInput(trackId, {});  // This will trigger the callback
 }
 
 void MidiBridge::handleIncomingMidiMessage(juce::MidiInput* source,
