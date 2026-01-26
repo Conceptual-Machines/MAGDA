@@ -15,42 +15,21 @@ jobs:
       with:
         submodules: recursive
 
-    - name: Install dependencies (Linux)
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          build-essential \
-          cmake \
-          ninja-build \
-          pkg-config \
-          libgtk-3-dev \
-          libasound2-dev \
-          libjack-jackd2-dev \
-          ladspa-sdk \
-          libcurl4-openssl-dev \
-          libfreetype6-dev \
-          libx11-dev \
-          libxcomposite-dev \
-          libxcursor-dev \
-          libxext-dev \
-          libxinerama-dev \
-          libxrandr-dev \
-          libxrender-dev \
-          libwebkit2gtk-4.1-dev \
-          libglu1-mesa-dev \
-          mesa-common-dev
+    - name: Build Docker image
+      run: docker build -t magda-build .
 
-    - name: Configure CMake
+    - name: Configure CMake in Docker
       run: |
-        cmake -B build -G Ninja \
-          -DCMAKE_BUILD_TYPE=Debug \
-          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-          -DMAGDA_BUILD_TESTS=ON
+        docker run --rm -v $PWD:/workspace magda-build \
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DMAGDA_BUILD_TESTS=ON
 
-    - name: Build
+    - name: Build in Docker
       run: |
-        echo "Building with $(nproc) cores..."
-        cmake --build build --config Debug -j$(nproc) -- -v
+        docker run --rm -v $PWD:/workspace magda-build \
+          bash -c "echo 'Building with $(nproc) cores...' && cmake --build build --config Debug -j$(nproc) -- -v"
 
     - name: Check build artifacts
       run: |
@@ -58,12 +37,12 @@ jobs:
         ls -la build/tests/ || echo "tests directory not found"
         find build -name "magda_tests" -type f || echo "magda_tests executable not found"
 
-    - name: Run tests
+    - name: Run tests in Docker
       run: |
         if [ -f build/tests/magda_tests ]; then
           echo "Running tests..."
-          cd build
-          ./tests/magda_tests
+          docker run --rm -v $PWD:/workspace magda-build \
+            ./build/tests/magda_tests
         else
           echo "❌ Tests executable not found at build/tests/magda_tests"
           echo "Build directory contents:"
@@ -84,21 +63,22 @@ jobs:
       with:
         submodules: recursive
 
-    - name: Install clang-format and clang-tidy
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y clang-format clang-tidy
+    - name: Build Docker image
+      run: docker build -t magda-build .
 
     - name: Check code formatting
       run: |
-        echo "Checking code formatting with clang-format..."
-        find magda/daw magda/agents tests -name "*.cpp" -o -name "*.hpp" -o -name "*.h" 2>/dev/null | \
-          xargs clang-format --dry-run --Werror 2>&1 | tee format-check.log || true
+        docker run --rm -v $PWD:/workspace magda-build \
+          bash -c "
+            echo 'Checking code formatting with clang-format...'
+            find magda/daw magda/agents tests -name '*.cpp' -o -name '*.hpp' -o -name '*.h' 2>/dev/null | \
+              xargs clang-format --dry-run --Werror 2>&1 | tee format-check.log || true
 
-        if grep -q "warning:" format-check.log; then
-          echo "❌ Format check found issues"
-          echo "Run 'make format' to fix formatting issues"
-          exit 1
-        else
-          echo "✅ Format check passed!"
-        fi
+            if grep -q 'warning:' format-check.log; then
+              echo '❌ Format check found issues'
+              echo 'Run make format to fix formatting issues'
+              exit 1
+            else
+              echo '✅ Format check passed!'
+            fi
+          "
