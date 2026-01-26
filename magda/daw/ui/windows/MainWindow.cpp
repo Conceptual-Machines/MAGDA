@@ -184,6 +184,16 @@ MainWindow::MainWindow(AudioEngine* audioEngine)
 }
 
 MainWindow::~MainWindow() {
+#if JUCE_DEBUG
+    // Print profiling report if enabled, then shutdown to clear JUCE objects
+    auto& monitor = magda::PerformanceMonitor::getInstance();
+    if (monitor.isEnabled()) {
+        auto report = monitor.generateReport();
+        std::cout << "\n" << report.toStdString() << std::endl;
+        monitor.shutdown();  // Clear stats map before JUCE cleanup
+    }
+#endif
+
 #if JUCE_MAC
     // Clear the macOS menu bar
     juce::MenuBarModel::setMacMainMenu(nullptr);
