@@ -26,7 +26,7 @@ namespace magda::daw::ui {
  *   [Pagination: < Page 1/4 >]
  *   [Params: 4x4 grid]
  */
-class DeviceSlotComponent : public NodeComponent {
+class DeviceSlotComponent : public NodeComponent, public juce::Timer {
   public:
     static constexpr int BASE_SLOT_WIDTH = 200;
     static constexpr int NUM_PARAMS_PER_PAGE = 16;
@@ -117,6 +117,9 @@ class DeviceSlotComponent : public NodeComponent {
 
     // Mouse handling
     void mouseDown(const juce::MouseEvent& e) override;
+
+    // Timer callback (from juce::Timer)
+    void timerCallback() override;
 
   private:
     magda::DeviceInfo device_;

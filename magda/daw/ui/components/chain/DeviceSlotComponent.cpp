@@ -348,9 +348,33 @@ DeviceSlotComponent::DeviceSlotComponent(const magda::DeviceInfo& device) : devi
     if (isInternalDevice()) {
         createCustomUI();
     }
+
+    // Start timer to sync UI button state with actual window state (10 FPS)
+    startTimer(100);
 }
 
-DeviceSlotComponent::~DeviceSlotComponent() = default;
+DeviceSlotComponent::~DeviceSlotComponent() {
+    stopTimer();
+}
+
+void DeviceSlotComponent::timerCallback() {
+    // Update UI button state to match actual plugin window state
+    if (uiButton_) {
+        auto* audioEngine = magda::TrackManager::getInstance().getAudioEngine();
+        if (audioEngine) {
+            if (auto* bridge = audioEngine->getAudioBridge()) {
+                bool isOpen = bridge->isPluginWindowOpen(device_.id);
+                bool currentState = uiButton_->getToggleState();
+
+                // Only update if state changed to avoid unnecessary repaints
+                if (isOpen != currentState) {
+                    uiButton_->setToggleState(isOpen, juce::dontSendNotification);
+                    uiButton_->setActive(isOpen);
+                }
+            }
+        }
+    }
+}
 
 void DeviceSlotComponent::setNodePath(const magda::ChainNodePath& path) {
     NodeComponent::setNodePath(path);

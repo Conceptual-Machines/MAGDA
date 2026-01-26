@@ -16,8 +16,8 @@ TrackManager& TrackManager::getInstance() {
 }
 
 TrackManager::TrackManager() {
-    // Create 11 default tracks to match test meter levels (6 to -60 dB)
-    createDefaultTracks(11);
+    // Create one bare track by default
+    createDefaultTracks(1);
 }
 
 // ============================================================================
@@ -2412,43 +2412,6 @@ void TrackManager::createDefaultTracks(int count) {
     clearAllTracks();
     for (int i = 0; i < count; ++i) {
         createTrack();
-    }
-
-    // Add test devices and rack to track 1 for development
-    if (!tracks_.empty()) {
-        auto& track1 = tracks_[0];
-
-        // Add a built-in test tone device (transport-synced sine wave)
-        DeviceInfo device;
-        device.id = nextDeviceId_++;
-        device.name = "Test Tone";
-        device.pluginId = "tone";  // Built-in tone generator plugin ID
-        device.manufacturer = "MAGDA";
-        device.format = PluginFormat::Internal;
-        device.isInstrument = true;  // Generates audio
-        device.gainDb = 0.0f;        // Unity gain (level param controls output)
-        device.gainValue = 1.0f;     // Linear equivalent
-        track1.chainElements.push_back(makeDeviceElement(device));
-
-        // Add a rack with one chain
-        RackInfo rack;
-        rack.id = nextRackId_++;
-        rack.name = "FX Rack";
-
-        ChainInfo chain;
-        chain.id = nextChainId_++;
-        chain.name = "Chain 1";
-
-        // Add a device to the chain
-        DeviceInfo chainDevice;
-        chainDevice.id = nextDeviceId_++;
-        chainDevice.name = "Pro-C 2";
-        chainDevice.manufacturer = "FabFilter";
-        chainDevice.format = PluginFormat::VST3;
-        chain.elements.push_back(makeDeviceElement(chainDevice));
-
-        rack.chains.push_back(std::move(chain));
-        track1.chainElements.push_back(makeRackElement(std::move(rack)));
     }
 }
 

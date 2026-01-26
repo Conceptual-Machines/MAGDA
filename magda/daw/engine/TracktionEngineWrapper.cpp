@@ -6,7 +6,9 @@
 #include "../audio/MidiBridge.hpp"
 #include "../core/DeviceInfo.hpp"
 #include "../core/TrackManager.hpp"
+#include "MagdaUIBehaviour.hpp"
 #include "PluginScanCoordinator.hpp"
+#include "PluginWindowManager.hpp"
 
 namespace magda {
 
@@ -18,8 +20,9 @@ TracktionEngineWrapper::~TracktionEngineWrapper() {
 
 bool TracktionEngineWrapper::initialize() {
     try {
-        // Initialize Tracktion Engine
-        engine_ = std::make_unique<tracktion::Engine>("MAGDA");
+        // Initialize Tracktion Engine with custom UIBehaviour for plugin windows
+        auto uiBehaviour = std::make_unique<MagdaUIBehaviour>();
+        engine_ = std::make_unique<tracktion::Engine>("MAGDA", std::move(uiBehaviour), nullptr);
 
         // Register ToneGeneratorPlugin (not registered by default)
         engine_->getPluginManager().createBuiltInType<tracktion::ToneGeneratorPlugin>();
@@ -125,6 +128,13 @@ bool TracktionEngineWrapper::initialize() {
             audioBridge_ = std::make_unique<AudioBridge>(*engine_, *currentEdit_);
             audioBridge_->syncAll();
 
+            // Create PluginWindowManager for safe window lifecycle
+            // Must be created AFTER AudioBridge, destroyed BEFORE AudioBridge
+            pluginWindowManager_ = std::make_unique<PluginWindowManager>(*engine_, *currentEdit_);
+
+            // Tell AudioBridge about the window manager for delegation
+            audioBridge_->setPluginWindowManager(pluginWindowManager_.get());
+
             // Enable all MIDI input devices (redundant now but keeps the API consistent)
             audioBridge_->enableAllMidiInputDevices();
 
@@ -159,7 +169,15 @@ void TracktionEngineWrapper::shutdown() {
         engine_->getDeviceManager().removeChangeListener(this);
     }
 
-    // Destroy bridges first (they reference Edit and/or Engine)
+    // CRITICAL: Close all plugin windows FIRST (before plugins are destroyed)
+    // This prevents malloc errors from windows trying to access destroyed plugins
+    if (pluginWindowManager_) {
+        std::cout << "Closing all plugin windows..." << std::endl;
+        pluginWindowManager_->closeAllWindows();
+        pluginWindowManager_.reset();
+    }
+
+    // Destroy bridges (they reference Edit and/or Engine)
     if (audioBridge_) {
         audioBridge_.reset();
     }

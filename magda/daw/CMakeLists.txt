@@ -103,8 +103,10 @@ set(DAW_CORE_SOURCES
     core/MidiNoteCommands.cpp
     core/ParameterUtils.cpp
     engine/TracktionEngineWrapper.cpp
+    engine/MagdaUIBehaviour.cpp
     engine/PluginScanner.cpp
     engine/PluginScanCoordinator.cpp
+    engine/PluginWindowManager.cpp
     # Audio integration
     audio/AudioBridge.cpp
     audio/DeviceProcessor.cpp
@@ -248,6 +250,7 @@ set(DAW_HEADERS
     core/MidiNoteCommands.hpp
     engine/AudioEngine.hpp
     engine/TracktionEngineWrapper.hpp
+    engine/MagdaUIBehaviour.hpp
     engine/PlaybackPositionTimer.hpp
     # Interfaces
     interfaces/clip_interface.hpp

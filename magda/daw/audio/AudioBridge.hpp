@@ -17,6 +17,7 @@ namespace magda {
 
 // Forward declarations
 namespace te = tracktion;
+class PluginWindowManager;
 
 /**
  * @brief Result of attempting to load a plugin
@@ -402,7 +403,19 @@ class AudioBridge : public TrackManagerListener, public juce::Timer {
     void onMidiDevicesAvailable();
 
     // =========================================================================
-    // Plugin Editor Windows
+    // Plugin Window Manager
+    // =========================================================================
+
+    /**
+     * @brief Set the plugin window manager (for delegation)
+     * @param manager Pointer to PluginWindowManager (owned by TracktionEngineWrapper)
+     */
+    void setPluginWindowManager(PluginWindowManager* manager) {
+        windowManager_ = manager;
+    }
+
+    // =========================================================================
+    // Plugin Editor Windows (delegates to PluginWindowManager)
     // =========================================================================
 
     /**
@@ -488,9 +501,11 @@ class AudioBridge : public TrackManagerListener, public juce::Timer {
     std::vector<std::pair<TrackId, juce::String>> pendingMidiRoutes_;
     void applyPendingMidiRoutes();
 
-    // Plugin window state tracking
-    std::unordered_map<DeviceId, bool> openPluginWindows_;
-    mutable juce::CriticalSection windowStateLock_;
+    // Plugin window manager (owned by TracktionEngineWrapper, destroyed before us)
+    PluginWindowManager* windowManager_ = nullptr;
+
+    // Shutdown flag to prevent operations during cleanup
+    std::atomic<bool> isShuttingDown_{false};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AudioBridge)
 };

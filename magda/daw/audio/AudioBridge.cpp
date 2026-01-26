@@ -2,6 +2,7 @@
 
 #include <iostream>
 
+#include "../engine/PluginWindowManager.hpp"
 #include "../profiling/PerformanceProfiler.hpp"
 
 namespace magda {
@@ -21,8 +22,19 @@ AudioBridge::AudioBridge(te::Engine& engine, te::Edit& edit) : engine_(engine), 
 }
 
 AudioBridge::~AudioBridge() {
+    std::cout << "AudioBridge::~AudioBridge - starting cleanup" << std::endl;
+
+    // Set shutdown flag FIRST to prevent timer callbacks and other operations
+    isShuttingDown_.store(true, std::memory_order_release);
+
+    // Stop timer immediately
     stopTimer();
+
+    // Remove listener to stop receiving notifications
     TrackManager::getInstance().removeListener(this);
+
+    // NOTE: Plugin windows are now closed by PluginWindowManager BEFORE AudioBridge
+    // is destroyed (in TracktionEngineWrapper::shutdown()). No window cleanup needed here.
 
     // Remove all meter clients before clearing mappings
     {
@@ -511,8 +523,10 @@ void AudioBridge::syncTrackPlugins(TrackId trackId) {
         }
 
         for (auto deviceId : toRemove) {
-            // Close plugin window before removing device
-            hidePluginWindow(deviceId);
+            // Close plugin window before removing device (via PluginWindowManager)
+            if (windowManager_) {
+                windowManager_->closeWindowsForDevice(deviceId);
+            }
 
             auto it = deviceToPlugin_.find(deviceId);
             if (it != deviceToPlugin_.end()) {
@@ -667,23 +681,15 @@ void AudioBridge::applyPendingMidiRoutes() {
 }
 
 void AudioBridge::timerCallback() {
+    // Skip all operations if shutting down
+    if (isShuttingDown_.load(std::memory_order_acquire)) {
+        return;
+    }
+
     // Apply any pending MIDI routes now that playback context may be available
     applyPendingMidiRoutes();
 
-    // Sync window states - detect if windows were closed externally by user
-    {
-        juce::ScopedLock lock(windowStateLock_);
-        for (auto& [deviceId, isOpen] : openPluginWindows_) {
-            if (isOpen) {
-                // Check if window is actually still open
-                bool actuallyOpen = isPluginWindowOpen(deviceId);
-                if (!actuallyOpen) {
-                    // Window was closed externally - update our tracking
-                    isOpen = false;
-                }
-            }
-        }
-    }
+    // NOTE: Window state sync is now handled by PluginWindowManager's timer
 
     // Update metering from level measurers (runs at 30 FPS on message thread)
     juce::ScopedLock lock(mappingLock_);
@@ -1418,76 +1424,45 @@ juce::String AudioBridge::getTrackMidiInput(TrackId trackId) const {
 }
 
 // =============================================================================
-// Plugin Editor Windows
+// Plugin Editor Windows (delegates to PluginWindowManager)
 // =============================================================================
 
 void AudioBridge::showPluginWindow(DeviceId deviceId) {
-    auto plugin = getPlugin(deviceId);
-    if (!plugin) {
-        DBG("AudioBridge::showPluginWindow - plugin not found for deviceId=" << deviceId);
-        return;
-    }
-
-    // Check if this is an external plugin with a UI
-    if (auto* extPlugin = dynamic_cast<te::ExternalPlugin*>(plugin.get())) {
-        // Use Tracktion's built-in window state management
-        if (extPlugin->windowState) {
-            extPlugin->windowState->showWindowExplicitly();
-            DBG("Showing plugin window for: " << extPlugin->getName());
-
-            // Track window state
-            juce::ScopedLock lock(windowStateLock_);
-            openPluginWindows_[deviceId] = true;
-        } else {
-            DBG("Plugin has no windowState: " << extPlugin->getName());
+    if (windowManager_) {
+        auto plugin = getPlugin(deviceId);
+        if (plugin) {
+            windowManager_->showPluginWindow(deviceId, plugin);
         }
-    } else {
-        // For internal plugins, we could show a generic parameter editor
-        // For now, just log
-        DBG("Plugin is not external, no window to show: " << plugin->getName());
     }
 }
 
 void AudioBridge::hidePluginWindow(DeviceId deviceId) {
-    auto plugin = getPlugin(deviceId);
-    if (!plugin) {
-        return;
-    }
-
-    if (auto* extPlugin = dynamic_cast<te::ExternalPlugin*>(plugin.get())) {
-        if (extPlugin->windowState) {
-            extPlugin->windowState->closeWindowExplicitly();
-            DBG("Hiding plugin window for: " << extPlugin->getName());
-
-            // Update window state
-            juce::ScopedLock lock(windowStateLock_);
-            openPluginWindows_[deviceId] = false;
+    if (windowManager_) {
+        auto plugin = getPlugin(deviceId);
+        if (plugin) {
+            windowManager_->hidePluginWindow(deviceId, plugin);
         }
     }
 }
 
 bool AudioBridge::isPluginWindowOpen(DeviceId deviceId) const {
-    auto plugin = const_cast<AudioBridge*>(this)->getPlugin(deviceId);
-    if (!plugin) {
-        return false;
-    }
-
-    if (auto* extPlugin = dynamic_cast<te::ExternalPlugin*>(plugin.get())) {
-        if (extPlugin->windowState) {
-            return extPlugin->windowState->isWindowShowing();
+    if (windowManager_) {
+        auto plugin = const_cast<AudioBridge*>(this)->getPlugin(deviceId);
+        if (plugin) {
+            return windowManager_->isPluginWindowOpen(deviceId, plugin);
         }
     }
     return false;
 }
 
 bool AudioBridge::togglePluginWindow(DeviceId deviceId) {
-    if (isPluginWindowOpen(deviceId)) {
-        hidePluginWindow(deviceId);
-        return false;
-    } else {
-        showPluginWindow(deviceId);
-        return true;
+    if (windowManager_) {
+        auto plugin = getPlugin(deviceId);
+        if (plugin) {
+            return windowManager_->togglePluginWindow(deviceId, plugin);
+        }
     }
+    return false;
 }
 
 }  // namespace magda

@@ -17,6 +17,7 @@ namespace magda {
 class AudioBridge;
 class MidiBridge;
 class PluginScanCoordinator;
+class PluginWindowManager;
 
 /**
  * @brief Tracktion Engine implementation of AudioEngine
@@ -165,6 +166,17 @@ class TracktionEngineWrapper : public AudioEngine,
     }
 
     /**
+     * @brief Get the PluginWindowManager for safe plugin window lifecycle management
+     * @return Pointer to PluginWindowManager, or nullptr if not initialized
+     */
+    PluginWindowManager* getPluginWindowManager() {
+        return pluginWindowManager_.get();
+    }
+    const PluginWindowManager* getPluginWindowManager() const {
+        return pluginWindowManager_.get();
+    }
+
+    /**
      * @brief Get the Tracktion Engine instance
      */
     tracktion::Engine* getEngine() {
@@ -289,6 +301,9 @@ class TracktionEngineWrapper : public AudioEngine,
 
     // MIDI bridge for MIDI device management and routing
     std::unique_ptr<MidiBridge> midiBridge_;
+
+    // Plugin window manager for safe window lifecycle
+    std::unique_ptr<PluginWindowManager> pluginWindowManager_;
 
     // Test tone generator (for Phase 1 testing)
     tracktion::Plugin::Ptr testTonePlugin_;
