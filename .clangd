@@ -15,13 +15,12 @@ Diagnostics:
     - bugprone-narrowing-conversions
     - cppcoreguidelines-narrowing-conversions
     - readability-identifier-length
-    - unused-includes  # Often wrong with forward declarations
     - misc-use-internal-linkage
     - cppcoreguidelines-avoid-non-const-global-variables  # TEST_CASE macros
     - readability-identifier-naming  # Don't enforce naming on macros
 
-  # Don't show warnings from system/third-party headers
-  UnusedIncludes: None
+  # Analyze unused includes (can have false positives with templates/forward declarations)
+  UnusedIncludes: Strict
 
 InlayHints:
   # Show type hints
