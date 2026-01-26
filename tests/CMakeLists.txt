@@ -6,6 +6,7 @@ set(TEST_SOURCES
     test_modulation.cpp
     test_parameter_utils.cpp
     test_plugin_loading.cpp
+    test_plugin_window_manager.cpp
 )
 
 # Create test executable
@@ -16,6 +17,8 @@ target_link_libraries(magda_tests
     PRIVATE
     magda_daw
     Catch2::Catch2WithMain
+    juce::juce_core
+    juce::juce_gui_basics
 )
 
 # Include directories
