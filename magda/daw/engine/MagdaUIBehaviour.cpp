@@ -39,7 +39,12 @@ PluginEditorWindow::PluginEditorWindow(tracktion::Plugin& plugin,
                      DocumentWindow::minimiseButton | DocumentWindow::closeButton),
       plugin_(plugin),
       state_(state) {
-    setUsingNativeTitleBar(true);
+    // IMPORTANT: Do NOT use native title bar!
+    // With native title bar, macOS controls the close button behavior and may
+    // try to close the window after closeButtonPressed() returns, conflicting
+    // with Tracktion's window ownership. Using JUCE's title bar gives us
+    // complete control - nothing happens after closeButtonPressed() unless we do it.
+    setUsingNativeTitleBar(false);
 
     // Try to create the plugin's editor
     std::unique_ptr<juce::Component> editor;
@@ -98,12 +103,19 @@ PluginEditorWindow::~PluginEditorWindow() {
 }
 
 void PluginEditorWindow::closeButtonPressed() {
-    DBG("PluginEditorWindow::closeButtonPressed - setting close requested flag");
-    // Just set a flag - PluginWindowManager will detect this and close properly
-    // from OUTSIDE the window's event handler (avoiding malloc errors)
-    // We don't call setVisible(false) because that can trigger internal JUCE state changes
-    // that interfere with the subsequent closeWindowExplicitly() call.
-    closeRequested_ = true;
+    DBG("PluginEditorWindow::closeButtonPressed - scheduling deferred close");
+    // IMPORTANT: We cannot call closeWindowExplicitly() directly here because it
+    // deletes this window (via pluginWindow.reset()), but we're still inside
+    // this window's member function. Deleting 'this' while in a member function
+    // causes memory corruption when the function tries to return.
+    //
+    // Solution: Defer the close to happen after this method returns completely.
+    // We capture a reference to state_ (which outlives the window) to call close later.
+    auto& state = state_;
+    juce::MessageManager::callAsync([&state]() {
+        DBG("PluginEditorWindow - executing deferred close");
+        state.closeWindowExplicitly();
+    });
 }
 
 void PluginEditorWindow::moved() {

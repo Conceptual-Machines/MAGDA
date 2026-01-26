@@ -67,29 +67,52 @@ class MagdaDAWApplication : public JUCEApplication {
     }
 
     void shutdown() override {
+        std::cout << "=== SHUTDOWN START ===" << std::endl;
+        std::cout.flush();
+
         // Shutdown all singletons BEFORE JUCE cleanup to prevent static cleanup issues
         // This clears all JUCE objects (Strings, Colours, etc.) while JUCE is still alive
+        std::cout << "[1] ModulatorEngine shutdown..." << std::endl;
+        std::cout.flush();
         magda::ModulatorEngine::getInstance().shutdown();  // Destroy timer
-        magda::TrackManager::getInstance().shutdown();     // Clear tracks with JUCE objects
-        magda::ClipManager::getInstance().shutdown();      // Clear clips with JUCE objects
+
+        std::cout << "[2] TrackManager shutdown..." << std::endl;
+        std::cout.flush();
+        magda::TrackManager::getInstance().shutdown();  // Clear tracks with JUCE objects
+
+        std::cout << "[3] ClipManager shutdown..." << std::endl;
+        std::cout.flush();
+        magda::ClipManager::getInstance().shutdown();  // Clear clips with JUCE objects
 
         // Clear default LookAndFeel BEFORE destroying windows
         // This ensures components switch away from our custom L&F before we delete them
+        std::cout << "[4] Clearing LookAndFeel..." << std::endl;
+        std::cout.flush();
         juce::LookAndFeel::setDefaultLookAndFeel(nullptr);
 
         // Graceful shutdown - destroy UI
+        std::cout << "[5] Destroying MainWindow..." << std::endl;
+        std::cout.flush();
         mainWindow_.reset();
 
         // Now destroy engine
+        std::cout << "[6] Destroying DAW engine..." << std::endl;
+        std::cout.flush();
         daw_engine_.reset();
 
         // Destroy our custom LookAndFeel (no components reference it now)
+        std::cout << "[7] Destroying LookAndFeel..." << std::endl;
+        std::cout.flush();
         lookAndFeel_.reset();
 
         // Release fonts before JUCE's leak detector runs
+        std::cout << "[8] FontManager shutdown..." << std::endl;
+        std::cout.flush();
         magda::FontManager::getInstance().shutdown();
 
         std::cout << "👋 MAGDA shutdown complete" << std::endl;
+        std::cout << "=== SHUTDOWN END ===" << std::endl;
+        std::cout.flush();
     }
 
     void systemRequestedQuit() override {

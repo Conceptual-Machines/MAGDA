@@ -184,6 +184,9 @@ MainWindow::MainWindow(AudioEngine* audioEngine)
 }
 
 MainWindow::~MainWindow() {
+    std::cout << "  [5a] MainWindow::~MainWindow start" << std::endl;
+    std::cout.flush();
+
 #if JUCE_DEBUG
     // Print profiling report if enabled, then shutdown to clear JUCE objects
     auto& monitor = magda::PerformanceMonitor::getInstance();
@@ -195,9 +198,14 @@ MainWindow::~MainWindow() {
 #endif
 
 #if JUCE_MAC
+    std::cout << "  [5b] Clearing macOS menu bar..." << std::endl;
+    std::cout.flush();
     // Clear the macOS menu bar
     juce::MenuBarModel::setMacMainMenu(nullptr);
 #endif
+
+    std::cout << "  [5c] MainWindow::~MainWindow - about to destroy content" << std::endl;
+    std::cout.flush();
 }
 
 void MainWindow::closeButtonPressed() {
@@ -482,17 +490,66 @@ void MainWindow::MainComponent::setupDeviceLoadingCallback() {
 }
 
 MainWindow::MainComponent::~MainComponent() {
+    std::cout << "    [5d] MainComponent::~MainComponent start" << std::endl;
+    std::cout.flush();
+
     // Stop position timer before destroying
+    std::cout << "    [5e] Stopping position timer..." << std::endl;
+    std::cout.flush();
     if (positionTimer_) {
         positionTimer_->stop();
+        positionTimer_.reset();
     }
 
     // Unregister audio engine listener before destruction
+    std::cout << "    [5f] Removing audio engine listener..." << std::endl;
+    std::cout.flush();
     if (audioEngine_ && mainView) {
         mainView->getTimelineController().removeAudioEngineListener(audioEngine_.get());
     }
 
+    std::cout << "    [5g] Removing ViewModeController listener..." << std::endl;
+    std::cout.flush();
     ViewModeController::getInstance().removeListener(this);
+
+    // Explicitly reset unique_ptrs in order to see which one crashes
+    std::cout << "    [5h] Destroying loadingOverlay_..." << std::endl;
+    std::cout.flush();
+    loadingOverlay_.reset();
+
+    std::cout << "    [5i] Destroying mainView..." << std::endl;
+    std::cout.flush();
+    mainView.reset();
+
+    std::cout << "    [5j] Destroying sessionView..." << std::endl;
+    std::cout.flush();
+    sessionView.reset();
+
+    std::cout << "    [5k] Destroying mixerView..." << std::endl;
+    std::cout.flush();
+    mixerView.reset();
+
+    std::cout << "    [5l] Destroying panels..." << std::endl;
+    std::cout.flush();
+    transportPanel.reset();
+    leftPanel.reset();
+    rightPanel.reset();
+    bottomPanel.reset();
+    footerBar.reset();
+
+    std::cout << "    [5m] Destroying resize handles..." << std::endl;
+    std::cout.flush();
+    transportResizer.reset();
+    leftResizer.reset();
+    rightResizer.reset();
+    bottomResizer.reset();
+
+    std::cout << "    [5n] Destroying internal audioEngine_..." << std::endl;
+    std::cout.flush();
+    audioEngine_.reset();
+
+    std::cout << "    [5o] MainComponent::~MainComponent complete" << std::endl;
+    std::cout.flush();
 }
 
 bool MainWindow::MainComponent::keyPressed(const juce::KeyPress& key) {

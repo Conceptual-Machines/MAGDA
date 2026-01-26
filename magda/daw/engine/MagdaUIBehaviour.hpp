@@ -35,7 +35,8 @@ class MagdaUIBehaviour : public tracktion::UIBehaviour {
  * @brief Window component that displays a plugin's native editor UI
  *
  * This is a DocumentWindow subclass that wraps the plugin's AudioProcessorEditor
- * and manages its lifecycle.
+ * and manages its lifecycle. Uses JUCE's title bar (not native) so we have complete
+ * control over window close behavior.
  */
 class PluginEditorWindow : public juce::DocumentWindow {
   public:
@@ -45,25 +46,9 @@ class PluginEditorWindow : public juce::DocumentWindow {
     void closeButtonPressed() override;
     void moved() override;
 
-    /**
-     * @brief Check if close has been requested (user clicked X)
-     * PluginWindowManager polls this to safely close the window from outside
-     */
-    bool isCloseRequested() const {
-        return closeRequested_;
-    }
-
-    /**
-     * @brief Clear the close request flag (after handling it)
-     */
-    void clearCloseRequest() {
-        closeRequested_ = false;
-    }
-
   private:
     tracktion::Plugin& plugin_;
     tracktion::PluginWindowState& state_;
-    bool closeRequested_ = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PluginEditorWindow)
 };

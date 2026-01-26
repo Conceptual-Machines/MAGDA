@@ -161,6 +161,8 @@ bool TracktionEngineWrapper::initialize() {
 }
 
 void TracktionEngineWrapper::shutdown() {
+    std::cout << "TracktionEngineWrapper::shutdown - starting..." << std::endl;
+
     // Release test tone plugin first (before Edit is destroyed)
     testTonePlugin_.reset();
 
@@ -184,12 +186,35 @@ void TracktionEngineWrapper::shutdown() {
     if (midiBridge_) {
         midiBridge_.reset();
     }
+
+    // CRITICAL: Stop transport and release playback context BEFORE destroying Edit
+    // This ensures audio/MIDI devices are properly released
     if (currentEdit_) {
+        std::cout << "Stopping transport and releasing playback context..." << std::endl;
+        auto& transport = currentEdit_->getTransport();
+
+        // Stop playback if running
+        if (transport.isPlaying()) {
+            transport.stop(false, false);
+        }
+
+        // Release the playback context - this frees audio/MIDI device resources
+        transport.freePlaybackContext();
+
+        std::cout << "Destroying Edit..." << std::endl;
         currentEdit_.reset();
     }
+
+    // Close audio/MIDI devices before destroying engine
     if (engine_) {
+        std::cout << "Closing audio devices..." << std::endl;
+        auto& dm = engine_->getDeviceManager();
+        dm.closeDevices();
+
+        std::cout << "Destroying Tracktion Engine..." << std::endl;
         engine_.reset();
     }
+
     std::cout << "Tracktion Engine shutdown complete" << std::endl;
 }
 

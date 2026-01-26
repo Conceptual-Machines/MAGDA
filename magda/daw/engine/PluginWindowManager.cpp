@@ -2,8 +2,6 @@
 
 #include <iostream>
 
-#include "MagdaUIBehaviour.hpp"
-
 namespace magda {
 
 PluginWindowManager::PluginWindowManager(te::Engine& engine, te::Edit& edit)
@@ -48,20 +46,12 @@ void PluginWindowManager::showPluginWindow(DeviceId deviceId, te::Plugin::Ptr pl
 
     if (auto* extPlugin = dynamic_cast<te::ExternalPlugin*>(plugin.get())) {
         if (extPlugin->windowState) {
-            // If window exists but is hidden, just make it visible again
-            if (extPlugin->windowState->pluginWindow &&
-                !extPlugin->windowState->pluginWindow->isVisible()) {
-                DBG("  -> Making hidden window visible for: " << extPlugin->getName());
-                extPlugin->windowState->pluginWindow->setVisible(true);
-                extPlugin->windowState->pluginWindow->toFront(true);
-            } else {
-                // No window or window is already visible - use showWindowExplicitly
-                DBG("  -> Calling showWindowExplicitly() for: " << extPlugin->getName());
-                extPlugin->windowState->showWindowExplicitly();
-            }
+            DBG("  -> Calling showWindowExplicitly() for: " << extPlugin->getName());
+            extPlugin->windowState->showWindowExplicitly();
 
             bool showing = extPlugin->windowState->isWindowShowing();
-            DBG("  -> After show, isWindowShowing=" << (showing ? "true" : "false"));
+            DBG("  -> After showWindowExplicitly, isWindowShowing=" << (showing ? "true"
+                                                                                : "false"));
 
             // Track this window
             {
@@ -90,12 +80,12 @@ void PluginWindowManager::hidePluginWindow(DeviceId deviceId, te::Plugin::Ptr pl
     }
 
     if (auto* extPlugin = dynamic_cast<te::ExternalPlugin*>(plugin.get())) {
-        if (extPlugin->windowState && extPlugin->windowState->pluginWindow) {
-            DBG("PluginWindowManager::hidePluginWindow - hiding window for: "
+        if (extPlugin->windowState) {
+            DBG("PluginWindowManager::hidePluginWindow - closing window for: "
                 << extPlugin->getName());
-            // Just hide the window instead of destroying it to avoid malloc errors
-            // The window will be properly destroyed when the plugin is unloaded
-            extPlugin->windowState->pluginWindow->setVisible(false);
+            // Use Tracktion's API to properly close the window.
+            // This is safe now that we use JUCE's title bar (not native macOS).
+            extPlugin->windowState->closeWindowExplicitly();
 
             // Update tracking
             {
@@ -127,7 +117,8 @@ bool PluginWindowManager::togglePluginWindow(DeviceId deviceId, te::Plugin::Ptr 
     }
 }
 
-bool PluginWindowManager::isPluginWindowOpen(DeviceId deviceId, te::Plugin::Ptr plugin) const {
+bool PluginWindowManager::isPluginWindowOpen(DeviceId /* deviceId */,
+                                             te::Plugin::Ptr plugin) const {
     if (isShuttingDown_.load(std::memory_order_acquire)) {
         return false;
     }
@@ -137,9 +128,8 @@ bool PluginWindowManager::isPluginWindowOpen(DeviceId deviceId, te::Plugin::Ptr 
     }
 
     if (auto* extPlugin = dynamic_cast<te::ExternalPlugin*>(plugin.get())) {
-        if (extPlugin->windowState && extPlugin->windowState->pluginWindow) {
-            // Check actual visibility of the window component
-            return extPlugin->windowState->pluginWindow->isVisible();
+        if (extPlugin->windowState) {
+            return extPlugin->windowState->isWindowShowing();
         }
     }
     return false;
@@ -215,8 +205,10 @@ void PluginWindowManager::timerCallback() {
         return;
     }
 
-    // Check for windows that have requested close (user clicked X)
-    std::vector<std::pair<DeviceId, te::Plugin::Ptr>> windowsToClose;
+    // Track window state changes and notify listeners
+    // Close handling is now done directly in PluginEditorWindow::closeButtonPressed()
+    // via state_.closeWindowExplicitly() since we use JUCE's title bar (not native).
+    std::vector<std::pair<DeviceId, bool>> stateChanges;
 
     {
         juce::ScopedLock lock(windowLock_);
@@ -230,59 +222,24 @@ void PluginWindowManager::timerCallback() {
                 continue;
             }
 
-            // Check if this window has the closeRequested flag set
-            // We need to find the actual window component to check the flag
-            if (extPlugin->windowState->isWindowShowing()) {
-                // The window might be a PluginEditorWindow - check for close request
-                if (auto* window = extPlugin->windowState->pluginWindow.get()) {
-                    if (auto* editorWindow = dynamic_cast<PluginEditorWindow*>(window)) {
-                        if (editorWindow->isCloseRequested()) {
-                            DBG("PluginWindowManager::timerCallback - close requested for device "
-                                << deviceId);
-                            editorWindow->clearCloseRequest();
-                            windowsToClose.push_back({deviceId, info.plugin});
-                            info.wasOpen = false;
-                        }
-                    }
-                }
-            }
-
-            // Also track window state changes for other purposes
+            // Track window state changes
             bool currentlyShowing = extPlugin->windowState->isWindowShowing();
             if (!info.wasOpen && currentlyShowing) {
                 info.wasOpen = true;
+                stateChanges.push_back({deviceId, true});
             } else if (info.wasOpen && !currentlyShowing) {
-                // Window was closed some other way - update tracking
+                // Window was closed (via closeButtonPressed or other means)
                 info.wasOpen = false;
+                stateChanges.push_back({deviceId, false});
             }
         }
     }
 
-    // Handle windows that requested close - just hide them instead of destroying
-    // This avoids the malloc error that occurs when closeWindowExplicitly() is called.
-    // The window stays alive in memory but hidden until the plugin is unloaded.
-    for (const auto& [deviceId, plugin] : windowsToClose) {
-        // Capture plugin ptr (ref counted) to keep it alive during async call
-        te::Plugin::Ptr pluginCopy = plugin;
-        auto deviceIdCopy = deviceId;
-        auto callback = onWindowStateChanged;
-
-        juce::MessageManager::callAsync([pluginCopy, deviceIdCopy, callback]() {
-            if (pluginCopy) {
-                if (auto* extPlugin = dynamic_cast<te::ExternalPlugin*>(pluginCopy.get())) {
-                    if (extPlugin->windowState && extPlugin->windowState->pluginWindow) {
-                        DBG("PluginWindowManager - hiding window for device " << deviceIdCopy);
-                        // Just hide the window instead of destroying it
-                        // This allows re-showing with showWindowExplicitly()
-                        extPlugin->windowState->pluginWindow->setVisible(false);
-                    }
-                }
-            }
-
-            if (callback) {
-                callback(deviceIdCopy, false);
-            }
-        });
+    // Notify about state changes
+    for (const auto& [deviceId, isOpen] : stateChanges) {
+        if (onWindowStateChanged) {
+            onWindowStateChanged(deviceId, isOpen);
+        }
     }
 }
 
