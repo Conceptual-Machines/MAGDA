@@ -146,6 +146,7 @@ class DeviceSlotComponent : public NodeComponent, public juce::Timer {
 
     void updatePageControls();
     void updateParamModulation();  // Update mod/macro pointers for params
+    void updateParameterSlots();   // Reload parameter data for current page
     void goToPrevPage();
     void goToNextPage();
 
