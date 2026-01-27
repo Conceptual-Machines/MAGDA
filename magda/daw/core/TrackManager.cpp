@@ -1284,19 +1284,30 @@ void TrackManager::updateDeviceParameters(DeviceId deviceId,
     }
 }
 
+void TrackManager::setDeviceVisibleParameters(DeviceId deviceId,
+                                              const std::vector<int>& visibleParams) {
+    // Search all tracks for the device and update visible parameters
+    for (auto& track : tracks_) {
+        for (auto& element : track.chainElements) {
+            if (std::holds_alternative<DeviceInfo>(element)) {
+                auto& device = std::get<DeviceInfo>(element);
+                if (device.id == deviceId) {
+                    device.visibleParameters = visibleParams;
+                    // Don't notify - this is called during device loading, not user interaction
+                    return;
+                }
+            }
+        }
+    }
+}
+
 void TrackManager::setDeviceParameterValue(const ChainNodePath& devicePath, int paramIndex,
                                            float value) {
     if (auto* device = getDeviceInChainByPath(devicePath)) {
-        DBG("setDeviceParameterValue: deviceId=" << device->id << " paramIndex=" << paramIndex
-                                                 << " value=" << value
-                                                 << " params.size=" << device->parameters.size());
         if (paramIndex >= 0 && paramIndex < static_cast<int>(device->parameters.size())) {
             device->parameters[static_cast<size_t>(paramIndex)].currentValue = value;
-            // Log all param values for debugging
-            for (size_t i = 0; i < device->parameters.size(); ++i) {
-                DBG("  param[" << i << "] = " << device->parameters[i].currentValue);
-            }
-            notifyDevicePropertyChanged(device->id);
+            // Use granular notification - only sync this one parameter, not all 543
+            notifyDeviceParameterChanged(device->id, paramIndex, value);
         }
     }
 }

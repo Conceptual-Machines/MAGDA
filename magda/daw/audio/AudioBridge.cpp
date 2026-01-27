@@ -108,8 +108,21 @@ void AudioBridge::masterChannelChanged() {
     // TODO: Handle master mute (may need different approach than track mute)
 }
 
+void AudioBridge::deviceParameterChanged(DeviceId deviceId, int paramIndex, float newValue) {
+    // A single device parameter changed - sync only that parameter to processor
+    auto* processor = getDeviceProcessor(deviceId);
+    if (!processor) {
+        return;
+    }
+
+    // For ExternalPluginProcessor, use setParameterByIndex for efficient single-param sync
+    if (auto* extProcessor = dynamic_cast<ExternalPluginProcessor*>(processor)) {
+        extProcessor->setParameterByIndex(paramIndex, newValue);
+    }
+}
+
 void AudioBridge::devicePropertyChanged(DeviceId deviceId) {
-    // A device property changed (gain, level, etc.) - sync to processor
+    // A device property changed (gain, bypass, etc.) - sync to processor
     DBG("AudioBridge::devicePropertyChanged deviceId=" << deviceId);
 
     auto* processor = getDeviceProcessor(deviceId);
@@ -187,9 +200,7 @@ te::Plugin::Ptr AudioBridge::loadBuiltInPlugin(const TrackId TRACK_ID, const juc
             track->pluginList.insertPlugin(plugin, -1, nullptr);
     }
 
-    if (plugin) {
-        std::cout << "Loaded built-in plugin: " << type << " on track " << TRACK_ID << std::endl;
-    } else {
+    if (!plugin) {
         std::cerr << "Failed to load built-in plugin: " << type << std::endl;
     }
 
@@ -287,8 +298,6 @@ te::Plugin::Ptr AudioBridge::addLevelMeterToTrack(TrackId trackId) {
     auto& plugins = track->pluginList;
     for (int i = plugins.size() - 1; i >= 0; --i) {
         if (auto* levelMeter = dynamic_cast<te::LevelMeterPlugin*>(plugins[i])) {
-            std::cout << "Removing existing LevelMeter at position " << i << std::endl;
-
             // Unregister meter client from the old LevelMeter
             {
                 juce::ScopedLock lock(mappingLock_);
@@ -313,9 +322,6 @@ te::Plugin::Ptr AudioBridge::addLevelMeterToTrack(TrackId trackId) {
             // Create or get existing client
             auto [it, inserted] = meterClients_.try_emplace(trackId);
             levelMeter->measurer.addClient(it->second);
-
-            std::cout << "Registered meter client for track " << trackId
-                      << " with LevelMeter at end of plugin chain" << std::endl;
         }
     }
 
@@ -465,8 +471,6 @@ bool AudioBridge::pushParameterChange(DeviceId deviceId, int paramIndex, float v
 void AudioBridge::syncAll() {
     auto& tm = TrackManager::getInstance();
     const auto& tracks = tm.getTracks();
-
-    std::cout << "AudioBridge: syncing " << tracks.size() << " tracks" << std::endl;
 
     for (const auto& track : tracks) {
         ensureTrackMapping(track.id);

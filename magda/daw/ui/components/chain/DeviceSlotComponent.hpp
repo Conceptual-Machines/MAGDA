@@ -6,6 +6,7 @@
 #include "ParamSlotComponent.hpp"
 #include "ToneGeneratorUI.hpp"
 #include "core/DeviceInfo.hpp"
+#include "core/TrackManager.hpp"
 #include "ui/components/common/SvgButton.hpp"
 #include "ui/components/common/TextSlider.hpp"
 
@@ -20,17 +21,22 @@ namespace magda::daw::ui {
  * Listens to SelectionManager for mod selection changes to support
  * contextual modulation display (only show selected mod's link amount).
  *
+ * Listens to TrackManager::deviceParameterChanged() to update UI when parameters
+ * change from plugin side (preset loads, automation, native UI edits).
+ *
  * Layout:
  *   [Header: mod, macro, name, gain, ui, on, delete]
  *   [Content header: manufacturer / device name]
  *   [Pagination: < Page 1/4 >]
- *   [Params: 4x4 grid]
+ *   [Params: 4 or 8 columns × 4 rows (dynamic based on param count)]
  */
-class DeviceSlotComponent : public NodeComponent, public juce::Timer {
+class DeviceSlotComponent : public NodeComponent,
+                            public juce::Timer,
+                            public magda::TrackManagerListener {
   public:
-    static constexpr int BASE_SLOT_WIDTH = 200;
-    static constexpr int NUM_PARAMS_PER_PAGE = 16;
-    static constexpr int PARAMS_PER_ROW = 4;
+    static constexpr int BASE_SLOT_WIDTH = 400;  // Maximum width (8 columns)
+    static constexpr int NUM_PARAMS_PER_PAGE = 32;
+    static constexpr int PARAMS_PER_ROW = 8;  // Maximum columns
     static constexpr int PARAM_CELL_WIDTH = 48;
     static constexpr int PARAM_CELL_HEIGHT = 28;
     static constexpr int PAGINATION_HEIGHT = 18;
@@ -118,8 +124,12 @@ class DeviceSlotComponent : public NodeComponent, public juce::Timer {
     // Mouse handling
     void mouseDown(const juce::MouseEvent& e) override;
 
-    // Timer callback (from juce::Timer)
+    // Timer callback (from juce::Timer) - for UI button state polling
     void timerCallback() override;
+
+    // TrackManagerListener - only implement parameter change notification
+    void tracksChanged() override {}
+    void deviceParameterChanged(magda::DeviceId deviceId, int paramIndex, float newValue) override;
 
   private:
     magda::DeviceInfo device_;
@@ -147,6 +157,7 @@ class DeviceSlotComponent : public NodeComponent, public juce::Timer {
     void updatePageControls();
     void updateParamModulation();  // Update mod/macro pointers for params
     void updateParameterSlots();   // Reload parameter data for current page
+    void updateParameterValues();  // Update only parameter values (for polling)
     void goToPrevPage();
     void goToNextPage();
 
@@ -158,6 +169,12 @@ class DeviceSlotComponent : public NodeComponent, public juce::Timer {
     // Helper to create custom UI for internal devices
     void createCustomUI();
     void updateCustomUI();
+
+    // Dynamic layout helpers
+    int getVisibleParamCount() const;
+    int getParamsPerRow() const;
+    int getParamsPerPage() const;
+    int getDynamicSlotWidth() const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DeviceSlotComponent)
 };

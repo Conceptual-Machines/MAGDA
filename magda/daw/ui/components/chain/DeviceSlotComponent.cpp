@@ -12,6 +12,7 @@
 #include "core/TrackManager.hpp"
 #include "engine/AudioEngine.hpp"
 #include "ui/debug/DebugSettings.hpp"
+#include "ui/dialogs/ParameterConfigDialog.hpp"
 #include "ui/themes/DarkTheme.hpp"
 #include "ui/themes/FontManager.hpp"
 #include "ui/themes/SmallButtonLookAndFeel.hpp"
@@ -19,6 +20,9 @@
 namespace magda::daw::ui {
 
 DeviceSlotComponent::DeviceSlotComponent(const magda::DeviceInfo& device) : device_(device) {
+    // Register as TrackManager listener for parameter updates from plugin
+    magda::TrackManager::getInstance().addListener(this);
+
     setNodeName(device.name);
     setBypassed(device.bypassed);
 
@@ -306,9 +310,10 @@ DeviceSlotComponent::DeviceSlotComponent(const magda::DeviceInfo& device) : devi
         addAndMakeVisible(*paramSlots_[i]);
     }
 
-    // Initialize pagination based on parameter count
-    int paramCount = static_cast<int>(device.parameters.size());
-    totalPages_ = (paramCount + NUM_PARAMS_PER_PAGE - 1) / NUM_PARAMS_PER_PAGE;
+    // Initialize pagination based on visible parameter count
+    int visibleCount = getVisibleParamCount();
+    int paramsPerPage = getParamsPerPage();
+    totalPages_ = (visibleCount + paramsPerPage - 1) / paramsPerPage;
     if (totalPages_ < 1)
         totalPages_ = 1;
     currentPage_ = device_.currentParameterPage;
@@ -318,6 +323,21 @@ DeviceSlotComponent::DeviceSlotComponent(const magda::DeviceInfo& device) : devi
     if (currentPage_ < 0)
         currentPage_ = 0;
     updatePageControls();
+
+    // Apply saved parameter configuration if available and parameters are loaded
+    if (!device_.uniqueId.isEmpty() && !device_.parameters.empty()) {
+        magda::DeviceInfo tempDevice = device_;
+        if (ParameterConfigDialog::applyConfigToDevice(tempDevice.uniqueId, tempDevice)) {
+            // Config was loaded successfully - update TrackManager with the visible parameters
+            if (!tempDevice.visibleParameters.empty()) {
+                magda::TrackManager::getInstance().setDeviceVisibleParameters(
+                    device_.id, tempDevice.visibleParameters);
+                // Update our local copy
+                device_.visibleParameters = tempDevice.visibleParameters;
+                device_.gainParameterIndex = tempDevice.gainParameterIndex;
+            }
+        }
+    }
 
     // Load parameters for current page
     updateParameterSlots();
@@ -335,6 +355,7 @@ DeviceSlotComponent::DeviceSlotComponent(const magda::DeviceInfo& device) : devi
 }
 
 DeviceSlotComponent::~DeviceSlotComponent() {
+    magda::TrackManager::getInstance().removeListener(this);
     stopTimer();
 }
 
@@ -357,6 +378,44 @@ void DeviceSlotComponent::timerCallback() {
     }
 }
 
+void DeviceSlotComponent::deviceParameterChanged(magda::DeviceId deviceId, int paramIndex,
+                                                 float newValue) {
+    // Only respond to changes for our device
+    if (deviceId != device_.id) {
+        return;
+    }
+
+    // Update local cache
+    if (paramIndex >= 0 && paramIndex < static_cast<int>(device_.parameters.size())) {
+        device_.parameters[static_cast<size_t>(paramIndex)].currentValue = newValue;
+    }
+
+    // Find which param slot (if any) on the current page displays this parameter
+    const int paramsPerPage = getParamsPerPage();
+    const int pageOffset = currentPage_ * paramsPerPage;
+    const bool useVisibilityFilter = !device_.visibleParameters.empty();
+
+    for (int slotIndex = 0; slotIndex < NUM_PARAMS_PER_PAGE; ++slotIndex) {
+        const int visibleParamIndex = pageOffset + slotIndex;
+
+        int actualParamIndex;
+        if (useVisibilityFilter) {
+            if (visibleParamIndex >= static_cast<int>(device_.visibleParameters.size())) {
+                continue;
+            }
+            actualParamIndex = device_.visibleParameters[static_cast<size_t>(visibleParamIndex)];
+        } else {
+            actualParamIndex = visibleParamIndex;
+        }
+
+        // If this slot displays the changed parameter, update its UI
+        if (actualParamIndex == paramIndex && paramSlots_[slotIndex]) {
+            paramSlots_[slotIndex]->setParamValue(newValue);
+            break;
+        }
+    }
+}
+
 void DeviceSlotComponent::setNodePath(const magda::ChainNodePath& path) {
     NodeComponent::setNodePath(path);
     // Now that nodePath_ is valid, update param slots with the device path
@@ -367,7 +426,7 @@ int DeviceSlotComponent::getPreferredWidth() const {
     if (collapsed_) {
         return getLeftPanelsWidth() + COLLAPSED_WIDTH + getRightPanelsWidth();
     }
-    return getTotalWidth(BASE_SLOT_WIDTH);
+    return getTotalWidth(getDynamicSlotWidth());
 }
 
 void DeviceSlotComponent::updateFromDevice(const magda::DeviceInfo& device) {
@@ -377,6 +436,28 @@ void DeviceSlotComponent::updateFromDevice(const magda::DeviceInfo& device) {
     onButton_->setToggleState(!device.bypassed, juce::dontSendNotification);
     onButton_->setActive(!device.bypassed);
     gainSlider_.setValue(device.gainDb, juce::dontSendNotification);
+
+    // Apply saved parameter configuration if parameters are now available
+    if (!device_.uniqueId.isEmpty() && !device_.parameters.empty()) {
+        magda::DeviceInfo tempDevice = device_;
+        DBG("Attempting to load config for " << device_.name << " (uniqueId=" << device_.uniqueId
+                                             << ")");
+        if (ParameterConfigDialog::applyConfigToDevice(tempDevice.uniqueId, tempDevice)) {
+            // Config was loaded successfully - update TrackManager with the visible parameters
+            if (!tempDevice.visibleParameters.empty()) {
+                DBG("Config loaded - " << tempDevice.visibleParameters.size() << " visible params");
+                magda::TrackManager::getInstance().setDeviceVisibleParameters(
+                    device_.id, tempDevice.visibleParameters);
+                // Update our local copy
+                device_.visibleParameters = tempDevice.visibleParameters;
+                device_.gainParameterIndex = tempDevice.gainParameterIndex;
+            } else {
+                DBG("Config loaded but visibleParameters is empty");
+            }
+        } else {
+            DBG("No saved config found");
+        }
+    }
 
     // Update current page from device state
     currentPage_ = device.currentParameterPage;
@@ -396,9 +477,10 @@ void DeviceSlotComponent::updateFromDevice(const magda::DeviceInfo& device) {
         updateCustomUI();
     }
 
-    // Update pagination based on parameter count
-    int paramCount = static_cast<int>(device.parameters.size());
-    totalPages_ = (paramCount + NUM_PARAMS_PER_PAGE - 1) / NUM_PARAMS_PER_PAGE;
+    // Update pagination based on visible parameter count
+    int visibleCount = getVisibleParamCount();
+    int paramsPerPage = getParamsPerPage();
+    totalPages_ = (visibleCount + paramsPerPage - 1) / paramsPerPage;
     if (totalPages_ < 1)
         totalPages_ = 1;
     if (currentPage_ >= totalPages_)
@@ -542,13 +624,15 @@ void DeviceSlotComponent::resizedContent(juce::Rectangle<int> contentArea) {
             DebugSettings::getInstance().getParamValueFontSize());
 
         // Calculate cell dimensions to fill available space evenly
-        int numRows = (NUM_PARAMS_PER_PAGE + PARAMS_PER_ROW - 1) / PARAMS_PER_ROW;
-        int cellWidth = contentArea.getWidth() / PARAMS_PER_ROW;
+        int paramsPerRow = getParamsPerRow();
+        int paramsPerPage = getParamsPerPage();
+        int numRows = (paramsPerPage + paramsPerRow - 1) / paramsPerRow;
+        int cellWidth = contentArea.getWidth() / paramsPerRow;
         int cellHeight = contentArea.getHeight() / numRows;
 
         for (int i = 0; i < NUM_PARAMS_PER_PAGE; ++i) {
-            int row = i / PARAMS_PER_ROW;
-            int col = i % PARAMS_PER_ROW;
+            int row = i / paramsPerRow;
+            int col = i % paramsPerRow;
             int x = contentArea.getX() + col * cellWidth;
             int y = contentArea.getY() + row * cellHeight;
 
@@ -816,33 +900,66 @@ void DeviceSlotComponent::updatePageControls() {
 }
 
 void DeviceSlotComponent::updateParameterSlots() {
-    const int numParams = static_cast<int>(device_.parameters.size());
-    const int pageOffset = currentPage_ * NUM_PARAMS_PER_PAGE;
+    const int paramsPerPage = getParamsPerPage();
+    const int pageOffset = currentPage_ * paramsPerPage;
+
+    // Determine which parameters to show based on visibility list
+    const bool useVisibilityFilter = !device_.visibleParameters.empty();
+    const int visibleCount = getVisibleParamCount();
+
+    DBG("updateParameterSlots: device="
+        << device_.name << " useVisibilityFilter=" << (useVisibilityFilter ? 1 : 0)
+        << " visibleCount=" << visibleCount << " totalParams=" << device_.parameters.size()
+        << " visibleParameters.size=" << device_.visibleParameters.size());
 
     for (int i = 0; i < NUM_PARAMS_PER_PAGE; ++i) {
-        const int paramIndex = pageOffset + i;
+        const int slotIndex = pageOffset + i;
 
-        if (paramIndex < numParams) {
-            const auto& param = device_.parameters[static_cast<size_t>(paramIndex)];
-            paramSlots_[i]->setParamName(param.name);
-            paramSlots_[i]->setParameterInfo(param);
-            paramSlots_[i]->setParamValue(param.currentValue);
-            paramSlots_[i]->setShowEmptyText(false);
-            paramSlots_[i]->setEnabled(true);
-            paramSlots_[i]->setVisible(true);
+        if (slotIndex < visibleCount) {
+            // Map slot index to actual parameter index
+            int paramIndex;
+            if (useVisibilityFilter) {
+                // Use visible parameters list
+                paramIndex = device_.visibleParameters[static_cast<size_t>(slotIndex)];
+            } else {
+                // Show all parameters in order
+                paramIndex = slotIndex;
+            }
 
-            // Wire up value change callback with actual parameter index
-            paramSlots_[i]->onValueChanged = [this, paramIndex](double value) {
-                DBG("Param " << paramIndex << " changed to " << value << " nodePath valid="
-                             << (nodePath_.isValid() ? 1 : 0) << " trackId=" << nodePath_.trackId
-                             << " topLevelDeviceId=" << nodePath_.topLevelDeviceId);
-                if (!nodePath_.isValid()) {
-                    DBG("  ERROR: nodePath_ is invalid, cannot set parameter!");
-                    return;
-                }
-                magda::TrackManager::getInstance().setDeviceParameterValue(
-                    nodePath_, paramIndex, static_cast<float>(value));
-            };
+            if (paramIndex >= 0 && paramIndex < static_cast<int>(device_.parameters.size())) {
+                const auto& param = device_.parameters[static_cast<size_t>(paramIndex)];
+                paramSlots_[i]->setParamName(param.name);
+                paramSlots_[i]->setParameterInfo(param);
+                paramSlots_[i]->setParamValue(param.currentValue);
+                paramSlots_[i]->setShowEmptyText(false);
+                paramSlots_[i]->setEnabled(true);
+                paramSlots_[i]->setVisible(true);
+
+                // Wire up value change callback with actual parameter index
+                paramSlots_[i]->onValueChanged = [this, paramIndex](double value) {
+                    if (!nodePath_.isValid()) {
+                        return;
+                    }
+                    // Update local cache immediately for responsive UI (both DeviceSlotComponent
+                    // and TrackManager)
+                    if (paramIndex >= 0 &&
+                        paramIndex < static_cast<int>(device_.parameters.size())) {
+                        device_.parameters[static_cast<size_t>(paramIndex)].currentValue =
+                            static_cast<float>(value);
+                    }
+                    // Send value to plugin via TrackManager → AudioBridge
+                    // This will update TrackManager's copy AND sync to the plugin
+                    magda::TrackManager::getInstance().setDeviceParameterValue(
+                        nodePath_, paramIndex, static_cast<float>(value));
+                };
+            } else {
+                // Invalid parameter index
+                paramSlots_[i]->setParamName("-");
+                paramSlots_[i]->setShowEmptyText(true);
+                paramSlots_[i]->setEnabled(false);
+                paramSlots_[i]->setVisible(true);
+                paramSlots_[i]->onValueChanged = nullptr;
+            }
         } else {
             // Empty slot - show dash and disable interaction
             paramSlots_[i]->setParamName("-");
@@ -850,6 +967,35 @@ void DeviceSlotComponent::updateParameterSlots() {
             paramSlots_[i]->setEnabled(false);
             paramSlots_[i]->setVisible(true);
             paramSlots_[i]->onValueChanged = nullptr;
+        }
+    }
+}
+
+void DeviceSlotComponent::updateParameterValues() {
+    // This method ONLY updates parameter values without rewiring callbacks
+    // Used for polling updates from the engine to show real-time parameter changes
+    const int paramsPerPage = getParamsPerPage();
+    const int pageOffset = currentPage_ * paramsPerPage;
+    const bool useVisibilityFilter = !device_.visibleParameters.empty();
+    const int visibleCount = getVisibleParamCount();
+
+    for (int i = 0; i < NUM_PARAMS_PER_PAGE; ++i) {
+        const int slotIndex = pageOffset + i;
+
+        if (slotIndex < visibleCount) {
+            // Map slot index to actual parameter index
+            int paramIndex;
+            if (useVisibilityFilter) {
+                paramIndex = device_.visibleParameters[static_cast<size_t>(slotIndex)];
+            } else {
+                paramIndex = slotIndex;
+            }
+
+            if (paramIndex >= 0 && paramIndex < static_cast<int>(device_.parameters.size())) {
+                const auto& param = device_.parameters[static_cast<size_t>(paramIndex)];
+                // Update the value to show real-time changes
+                paramSlots_[i]->setParamValue(param.currentValue);
+            }
         }
     }
 }
@@ -1006,6 +1152,38 @@ void DeviceSlotComponent::updateCustomUI() {
 
         toneGeneratorUI_->updateParameters(frequency, level, waveform);
     }
+}
+
+// =============================================================================
+// Dynamic Layout Helpers
+// =============================================================================
+
+int DeviceSlotComponent::getVisibleParamCount() const {
+    // If visibleParameters list is empty, show all parameters
+    if (device_.visibleParameters.empty()) {
+        return static_cast<int>(device_.parameters.size());
+    }
+    return static_cast<int>(device_.visibleParameters.size());
+}
+
+int DeviceSlotComponent::getParamsPerRow() const {
+    int visibleCount = getVisibleParamCount();
+
+    // Determine columns based on visible parameter count
+    // Minimum 4 columns to keep header properly sized, always maintain 4 rows
+    if (visibleCount <= 16)
+        return 4;  // 4 columns × 4 rows (minimum width)
+    return 8;      // 8 columns × 4 rows (for 17-32 params)
+}
+
+int DeviceSlotComponent::getParamsPerPage() const {
+    int paramsPerRow = getParamsPerRow();
+    return paramsPerRow * 4;  // Always 4 rows
+}
+
+int DeviceSlotComponent::getDynamicSlotWidth() const {
+    int paramsPerRow = getParamsPerRow();
+    return PARAM_CELL_WIDTH * paramsPerRow;
 }
 
 }  // namespace magda::daw::ui

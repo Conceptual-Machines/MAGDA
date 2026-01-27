@@ -46,6 +46,10 @@ PluginEditorWindow::PluginEditorWindow(tracktion::Plugin& plugin,
     // complete control - nothing happens after closeButtonPressed() unless we do it.
     setUsingNativeTitleBar(false);
 
+    // Keep plugin window always on top so it doesn't go behind main window when user interacts with
+    // parameters
+    setAlwaysOnTop(true);
+
     // Try to create the plugin's editor
     std::unique_ptr<juce::Component> editor;
 
