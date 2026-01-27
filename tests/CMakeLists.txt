@@ -7,6 +7,7 @@ set(TEST_SOURCES
     test_modulation.cpp
     test_parameter_utils.cpp
     test_plugin_loading.cpp
+    test_plugin_format.cpp
     test_plugin_window_manager.cpp
     test_device_parameter_pagination.cpp
 )
