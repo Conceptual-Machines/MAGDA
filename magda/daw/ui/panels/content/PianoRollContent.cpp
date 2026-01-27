@@ -6,6 +6,7 @@
 #include "BinaryData.h"
 #include "core/MidiNoteCommands.hpp"
 #include "core/SelectionManager.hpp"
+#include "core/TrackManager.hpp"
 #include "core/UndoManager.hpp"
 #include "ui/components/common/SvgButton.hpp"
 #include "ui/components/pianoroll/PianoRollGridComponent.hpp"
@@ -155,6 +156,28 @@ PianoRollContent::PianoRollContent() {
         int newScrollY = viewport_->getViewPositionY() + deltaY;
         newScrollY = juce::jmax(0, newScrollY);
         viewport_->setViewPosition(viewport_->getViewPositionX(), newScrollY);
+    };
+
+    // Set up note preview callback for keyboard click-to-play
+    keyboard_->onNotePreview = [this](int noteNumber, int velocity, bool isNoteOn) {
+        DBG("PianoRollContent: Note preview callback - Note="
+            << noteNumber << ", Velocity=" << velocity << ", On=" << (isNoteOn ? "YES" : "NO"));
+
+        // Get track ID from currently edited clip
+        if (editingClipId_ != magda::INVALID_CLIP_ID) {
+            const auto* clip = magda::ClipManager::getInstance().getClip(editingClipId_);
+            if (clip && clip->trackId != magda::INVALID_TRACK_ID) {
+                DBG("PianoRollContent: Calling TrackManager::previewNote for track "
+                    << clip->trackId);
+                // Preview note through track's instruments
+                magda::TrackManager::getInstance().previewNote(clip->trackId, noteNumber, velocity,
+                                                               isNoteOn);
+            } else {
+                DBG("PianoRollContent: No valid clip or track ID");
+            }
+        } else {
+            DBG("PianoRollContent: No clip being edited");
+        }
     };
 
     addAndMakeVisible(keyboard_.get());

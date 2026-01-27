@@ -844,6 +844,54 @@ bool TracktionEngineWrapper::trackExists(const std::string& track_id) const {
     return trackMap_.find(track_id) != trackMap_.end();
 }
 
+void TracktionEngineWrapper::previewNoteOnTrack(const std::string& track_id, int noteNumber,
+                                                int velocity, bool isNoteOn) {
+    DBG("TracktionEngineWrapper::previewNoteOnTrack - Track="
+        << track_id << ", Note=" << noteNumber << ", Velocity=" << velocity
+        << ", On=" << (isNoteOn ? "YES" : "NO"));
+
+    if (!audioBridge_) {
+        DBG("TracktionEngineWrapper: WARNING - No AudioBridge!");
+        return;
+    }
+
+    // Convert string track ID to integer (MAGDA TrackId)
+    int magdaTrackId = std::stoi(track_id);
+    DBG("TracktionEngineWrapper: Looking up MAGDA track ID: " << magdaTrackId);
+
+    // Use AudioBridge to get the Tracktion AudioTrack
+    auto* audioTrack = audioBridge_->getAudioTrack(magdaTrackId);
+    if (!audioTrack) {
+        DBG("TracktionEngineWrapper: WARNING - Track not found in AudioBridge!");
+        return;
+    }
+
+    DBG("TracktionEngineWrapper: Track found, injecting MIDI");
+
+    // Ensure MIDI input device is in monitoring mode (always audible)
+    auto& midiInput = audioTrack->getMidiInputDevice();
+    auto currentMode = midiInput.getMonitorMode();
+    DBG("TracktionEngineWrapper: Current monitor mode: " << (int)currentMode);
+
+    if (currentMode != te::InputDevice::MonitorMode::on) {
+        DBG("TracktionEngineWrapper: Enabling monitor mode");
+        midiInput.setMonitorMode(te::InputDevice::MonitorMode::on);
+    }
+
+    // Create MIDI message
+    juce::MidiMessage message =
+        isNoteOn ? juce::MidiMessage::noteOn(1, noteNumber, (juce::uint8)velocity)
+                 : juce::MidiMessage::noteOff(1, noteNumber, (juce::uint8)velocity);
+
+    DBG("TracktionEngineWrapper: MIDI message created - " << message.getDescription());
+
+    // Inject MIDI through DeviceManager (simulates physical MIDI keyboard input)
+    // This ensures the message goes through the normal MIDI routing graph
+    DBG("TracktionEngineWrapper: Injecting MIDI through DeviceManager");
+    engine_->getDeviceManager().injectMIDIMessageToDefaultDevice(message);
+    DBG("TracktionEngineWrapper: MIDI message injected successfully");
+}
+
 // ClipInterface implementation
 
 // Helper: Convert beats to seconds using current tempo

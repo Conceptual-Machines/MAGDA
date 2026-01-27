@@ -104,6 +104,16 @@ class TracktionEngineWrapper : public AudioEngine,
     std::vector<std::string> getAllTrackIds() const override;
     bool trackExists(const std::string& track_id) const override;
 
+    /**
+     * @brief Preview a MIDI note on a track (for keyboard audition)
+     * @param track_id Track ID to send note to
+     * @param noteNumber MIDI note number (0-127)
+     * @param velocity Velocity (0-127), 0 for note-off
+     * @param isNoteOn True for note-on, false for note-off
+     */
+    void previewNoteOnTrack(const std::string& track_id, int noteNumber, int velocity,
+                            bool isNoteOn) override;
+
     // ClipInterface implementation - fixed method signatures
     std::string addMidiClip(const std::string& track_id, double start_time, double length,
                             const std::vector<MidiNote>& notes) override;
