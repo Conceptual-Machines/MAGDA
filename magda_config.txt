@@ -7,3 +7,6 @@ zoomOutSensitivity=40
 zoomInSensitivityShift=8
 zoomOutSensitivityShift=8
 scrollbarOnLeft=0
+preferredAudioDevice=M4
+preferredInputChannels=8
+preferredOutputChannels=4

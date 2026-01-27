@@ -1,5 +1,6 @@
 #include "AudioSettingsDialog.hpp"
 
+#include "../../core/Config.hpp"
 #include "../themes/DarkTheme.hpp"
 
 namespace magda {
@@ -271,6 +272,11 @@ AudioSettingsDialog::AudioSettingsDialog(juce::AudioDeviceManager* deviceManager
     }
     addAndMakeVisible(deviceNameLabel_);
 
+    // Setup "Set as Preferred" button
+    setPreferredButton_.setButtonText("Set as Preferred Device");
+    setPreferredButton_.onClick = [this]() { saveAsPreferredDevice(); };
+    addAndMakeVisible(setPreferredButton_);
+
     // Setup close button
     closeButton_.setButtonText("Close");
     closeButton_.onClick = [this]() {
@@ -297,14 +303,24 @@ void AudioSettingsDialog::resized() {
     deviceNameLabel_.setBounds(bounds.removeFromTop(30));
     bounds.removeFromTop(10);  // spacing
 
-    // Button at bottom
+    // Buttons at bottom
     const int buttonHeight = 28;
     const int buttonWidth = 80;
+    const int preferredButtonWidth = 180;
+    const int buttonSpacing = 10;
     auto buttonArea = bounds.removeFromBottom(buttonHeight);
     bounds.removeFromBottom(10);  // spacing
 
-    // Center the close button
-    closeButton_.setBounds(buttonArea.withSizeKeepingCentre(buttonWidth, buttonHeight));
+    // Calculate total width and center both buttons
+    const int totalWidth = preferredButtonWidth + buttonSpacing + buttonWidth;
+    auto centeredButtonArea = buttonArea.withSizeKeepingCentre(totalWidth, buttonHeight);
+
+    // Set as Preferred button on left
+    setPreferredButton_.setBounds(centeredButtonArea.removeFromLeft(preferredButtonWidth));
+    centeredButtonArea.removeFromLeft(buttonSpacing);
+
+    // Close button on right
+    closeButton_.setBounds(centeredButtonArea);
 
     // Split remaining space: device selector on left, channel selectors on right
     auto deviceArea = bounds.removeFromLeft(bounds.getWidth() / 2);
@@ -319,6 +335,54 @@ void AudioSettingsDialog::resized() {
 
     inputChannelSelector_->setBounds(inputArea);
     outputChannelSelector_->setBounds(bounds);
+}
+
+void AudioSettingsDialog::saveAsPreferredDevice() {
+    auto* device = deviceManager_->getCurrentAudioDevice();
+    if (!device) {
+        juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::WarningIcon, "No Device Selected",
+                                               "Please select an audio device first.");
+        return;
+    }
+
+    auto setup = deviceManager_->getAudioDeviceSetup();
+
+    // Get device name
+    juce::String deviceName = device->getName();
+
+    // Count enabled input channels
+    int inputChannelCount = 0;
+    for (int i = 0; i < setup.inputChannels.getHighestBit() + 1; ++i) {
+        if (setup.inputChannels[i]) {
+            inputChannelCount = i + 1;  // Track highest enabled channel
+        }
+    }
+
+    // Count enabled output channels
+    int outputChannelCount = 0;
+    for (int i = 0; i < setup.outputChannels.getHighestBit() + 1; ++i) {
+        if (setup.outputChannels[i]) {
+            outputChannelCount = i + 1;  // Track highest enabled channel
+        }
+    }
+
+    // Save to Config
+    auto& config = magda::Config::getInstance();
+    config.setPreferredAudioDevice(deviceName.toStdString());
+    config.setPreferredInputChannels(inputChannelCount);
+    config.setPreferredOutputChannels(outputChannelCount);
+
+    DBG("Saved preferred audio device: " << deviceName << " (" << inputChannelCount << " in / "
+                                         << outputChannelCount << " out)");
+
+    // Show confirmation
+    juce::String message = "Saved as preferred device:\n\n";
+    message += deviceName + "\n";
+    message += juce::String(inputChannelCount) + " input channels\n";
+    message += juce::String(outputChannelCount) + " output channels\n\n";
+    message += "This device will be automatically selected on next startup.";
+
+    juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon, "Device Saved", message);
 }
 
 void AudioSettingsDialog::showDialog(juce::Component* parent,
