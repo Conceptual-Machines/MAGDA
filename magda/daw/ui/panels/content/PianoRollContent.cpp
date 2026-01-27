@@ -229,6 +229,11 @@ PianoRollContent::PianoRollContent() {
     // Register as ClipManager listener
     magda::ClipManager::getInstance().addListener(this);
 
+    // Register as TimelineController listener for playhead updates
+    if (auto* controller = magda::TimelineController::getCurrent()) {
+        controller->addListener(this);
+    }
+
     // Check if there's already a selected MIDI clip
     magda::ClipId selectedClip = magda::ClipManager::getInstance().getSelectedClip();
     if (selectedClip != magda::INVALID_CLIP_ID) {
@@ -244,6 +249,11 @@ PianoRollContent::PianoRollContent() {
 PianoRollContent::~PianoRollContent() {
     timeModeButton_->setLookAndFeel(nullptr);
     magda::ClipManager::getInstance().removeListener(this);
+
+    // Unregister from TimelineController
+    if (auto* controller = magda::TimelineController::getCurrent()) {
+        controller->removeListener(this);
+    }
 }
 
 void PianoRollContent::setupGridCallbacks() {
@@ -694,6 +704,27 @@ void PianoRollContent::clipDragPreview(magda::ClipId clipId, double previewStart
 
     gridComponent_->setClipStartBeats(clipStartBeats);
     gridComponent_->setClipLengthBeats(clipLengthBeats);
+}
+
+// ============================================================================
+// TimelineStateListener
+// ============================================================================
+
+void PianoRollContent::timelineStateChanged(const magda::TimelineState& state) {
+    // General state changes (tempo, time signature, etc.)
+    updateTimeRuler();
+    updateGridSize();
+    repaint();
+}
+
+void PianoRollContent::playheadStateChanged(const magda::TimelineState& state) {
+    // Update grid component with current playback position
+    if (gridComponent_) {
+        gridComponent_->setPlayheadPosition(state.playhead.playbackPosition);
+    }
+    if (timeRuler_) {
+        timeRuler_->setPlayheadPosition(state.playhead.playbackPosition);
+    }
 }
 
 // ============================================================================

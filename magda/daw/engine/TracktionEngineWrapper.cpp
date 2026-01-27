@@ -841,6 +841,10 @@ std::string TracktionEngineWrapper::addMidiClip(const std::string& track_id, dou
         te::BeatPosition startBeat = te::BeatPosition::fromBeats(note.startBeat);
         te::BeatDuration lengthBeats = te::BeatDuration::fromBeats(note.lengthBeats);
 
+        std::cout << "Adding MIDI note: number=" << note.noteNumber << " start=" << note.startBeat
+                  << " beats, length=" << note.lengthBeats << " beats, velocity=" << note.velocity
+                  << std::endl;
+
         sequence.addNote(note.noteNumber, startBeat, lengthBeats, note.velocity,
                          0,         // colour index
                          nullptr);  // undo manager
