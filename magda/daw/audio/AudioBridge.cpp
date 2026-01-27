@@ -11,6 +11,9 @@ AudioBridge::AudioBridge(te::Engine& engine, te::Edit& edit) : engine_(engine), 
     // Register as TrackManager listener
     TrackManager::getInstance().addListener(this);
 
+    // Register as ClipManager listener
+    ClipManager::getInstance().addListener(this);
+
     // Master metering will be registered when playback context is available
     // (done in timerCallback when context exists)
 
@@ -29,8 +32,9 @@ AudioBridge::~AudioBridge() {
     // Stop timer immediately
     stopTimer();
 
-    // Remove listener to stop receiving notifications
+    // Remove listeners to stop receiving notifications
     TrackManager::getInstance().removeListener(this);
+    ClipManager::getInstance().removeListener(this);
 
     // NOTE: Plugin windows are now closed by PluginWindowManager BEFORE AudioBridge
     // is destroyed (in TracktionEngineWrapper::shutdown()). No window cleanup needed here.
@@ -148,6 +152,122 @@ void AudioBridge::devicePropertyChanged(DeviceId deviceId) {
         }
     }
     DBG("  Device not found in any track!");
+}
+
+// =============================================================================
+// ClipManagerListener implementation
+// =============================================================================
+
+void AudioBridge::clipsChanged() {
+    // Clips were added/removed - sync all clips to engine
+    // For now, we'll do this lazily - only sync when clips are actually modified
+    // This avoids unnecessary work on bulk operations
+    DBG("AudioBridge::clipsChanged - clips list changed");
+}
+
+void AudioBridge::clipPropertyChanged(ClipId clipId) {
+    // A specific clip's properties changed - sync to engine
+    syncClipToEngine(clipId);
+}
+
+void AudioBridge::clipSelectionChanged(ClipId clipId) {
+    // Selection changed - we don't need to do anything here
+    // The UI will handle this
+    juce::ignoreUnused(clipId);
+}
+
+// =============================================================================
+// Clip Synchronization
+// =============================================================================
+
+void AudioBridge::syncClipToEngine(ClipId clipId) {
+    auto* clip = ClipManager::getInstance().getClip(clipId);
+    if (!clip) {
+        DBG("syncClipToEngine: Clip not found: " << clipId);
+        return;
+    }
+
+    // Only handle MIDI clips for now
+    if (clip->type != ClipType::MIDI) {
+        return;
+    }
+
+    // Get the Tracktion AudioTrack for this MAGDA track
+    auto* audioTrack = getAudioTrack(clip->trackId);
+    if (!audioTrack) {
+        DBG("syncClipToEngine: Tracktion track not found for MAGDA track: " << clip->trackId);
+        return;
+    }
+
+    // Check if clip already exists in Tracktion Engine
+    // We'll use a simpler approach: store te::MidiClip pointer in a map
+    auto it = clipIdToEngineId_.find(clipId);
+    if (it != clipIdToEngineId_.end()) {
+        // Clip exists - for now, just return (TODO: handle updates)
+        DBG("syncClipToEngine: Clip " << clipId << " already synced");
+        return;
+    }
+
+    // Create MIDI clip directly in Tracktion Engine
+    namespace te = tracktion;
+    auto timeRange = te::TimeRange(te::TimePosition::fromSeconds(clip->startTime),
+                                   te::TimePosition::fromSeconds(clip->startTime + clip->length));
+
+    auto midiClipPtr = audioTrack->insertMIDIClip(timeRange, nullptr);
+    if (!midiClipPtr) {
+        DBG("syncClipToEngine: Failed to create MIDI clip");
+        return;
+    }
+
+    // Add notes to the clip's sequence (notes are stored in beats relative to clip)
+    auto& sequence = midiClipPtr->getSequence();
+    for (const auto& note : clip->midiNotes) {
+        te::BeatPosition startBeat = te::BeatPosition::fromBeats(note.startBeat);
+        te::BeatDuration lengthBeats = te::BeatDuration::fromBeats(note.lengthBeats);
+
+        sequence.addNote(note.noteNumber, startBeat, lengthBeats, note.velocity,
+                         0,         // colour index
+                         nullptr);  // undo manager
+    }
+
+    // Store clip ID mapping (use clip's EditItemID as string)
+    std::string engineClipId = midiClipPtr->itemID.toString().toStdString();
+    clipIdToEngineId_[clipId] = engineClipId;
+    engineIdToClipId_[engineClipId] = clipId;
+
+    DBG("syncClipToEngine: Created clip " << clipId << " with " << clip->midiNotes.size()
+                                          << " notes");
+}
+
+void AudioBridge::removeClipFromEngine(ClipId clipId) {
+    // Remove clip from engine
+    auto it = clipIdToEngineId_.find(clipId);
+    if (it == clipIdToEngineId_.end()) {
+        DBG("removeClipFromEngine: Clip not in engine: " << clipId);
+        return;
+    }
+
+    std::string engineId = it->second;
+
+    // Find the clip in Tracktion Engine and remove it
+    // We need to find which track contains this clip
+    for (auto* track : tracktion::getAudioTracks(edit_)) {
+        for (auto* clip : track->getClips()) {
+            if (clip->itemID.toString().toStdString() == engineId) {
+                // Found the clip - remove it
+                clip->removeFromParent();
+
+                // Remove from mappings
+                clipIdToEngineId_.erase(it);
+                engineIdToClipId_.erase(engineId);
+
+                DBG("removeClipFromEngine: Removed clip " << clipId);
+                return;
+            }
+        }
+    }
+
+    DBG("removeClipFromEngine: Clip not found in Tracktion Engine: " << engineId);
 }
 
 // =============================================================================

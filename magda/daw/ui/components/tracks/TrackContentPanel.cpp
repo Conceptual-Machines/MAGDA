@@ -900,6 +900,10 @@ void TrackContentPanel::rebuildClipComponents() {
             if (!clip)
                 return;
 
+            // Ensure clip is selected before opening editor
+            // (onClipSelected may have already been called, but this ensures it)
+            ClipManager::getInstance().setSelectedClip(id);
+
             auto& panelController = daw::ui::PanelController::getInstance();
 
             // Expand the bottom panel if collapsed
