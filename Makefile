@@ -157,12 +157,13 @@ lint:
 		exit 1; \
 	fi
 	@echo "📋 Analyzing magda/daw sources..."
-	@find magda/daw -name "*.cpp" -type f | \
+	@find magda/daw -name "*.cpp" -type f -exec \
 		/opt/homebrew/opt/llvm/bin/clang-tidy \
+		{} \
 		--config-file=.clang-tidy \
 		--format-style=file \
 		-p=$(BUILD_DIR) \
-		--quiet
+		--quiet \;
 	@echo "✅ Code analysis complete"
 
 # Lint recently modified files only
@@ -173,15 +174,19 @@ lint-changed:
 		echo "❌ compile_commands.json not found. Run 'make debug' first."; \
 		exit 1; \
 	fi
-	@CHANGED_FILES=$$(git diff --name-only --diff-filter=d HEAD | grep '\.cpp$$'); \
+	@CHANGED_FILES=$$(git diff --name-only --diff-filter=d HEAD | grep '\.cpp$$' || true); \
 	if [ -z "$$CHANGED_FILES" ]; then \
 		echo "No modified .cpp files found"; \
 	else \
-		echo "$$CHANGED_FILES" | xargs /opt/homebrew/opt/llvm/bin/clang-tidy \
-			--config-file=.clang-tidy \
-			--format-style=file \
-			-p=$(BUILD_DIR) \
-			--quiet; \
+		echo "Analyzing: $$CHANGED_FILES"; \
+		for file in $$CHANGED_FILES; do \
+			/opt/homebrew/opt/llvm/bin/clang-tidy \
+				$$file \
+				--config-file=.clang-tidy \
+				--format-style=file \
+				-p=$(BUILD_DIR) \
+				--quiet; \
+		done; \
 	fi
 	@echo "✅ Analysis complete"
 
@@ -197,13 +202,14 @@ lint-fix:
 	@read -p "Continue? [y/N] " -n 1 -r; \
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		find magda/daw -name "*.cpp" -type f | \
+		find magda/daw -name "*.cpp" -type f -exec \
 			/opt/homebrew/opt/llvm/bin/clang-tidy \
+			{} \
 			--config-file=.clang-tidy \
 			--format-style=file \
 			-p=$(BUILD_DIR) \
 			--fix \
-			--fix-errors; \
+			--fix-errors \;; \
 		echo "✅ Fixes applied"; \
 	else \
 		echo "❌ Cancelled"; \
