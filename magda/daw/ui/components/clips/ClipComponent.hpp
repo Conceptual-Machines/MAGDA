@@ -105,6 +105,9 @@ class ClipComponent : public juce::Component, public ClipManagerListener {
     // Stretch state
     double dragStartStretchFactor_ = 1.0;
 
+    // Cache zoom level during resize to prevent waveform stretching (absolute mode)
+    double dragStartPixelsPerSecond_ = 0.0;
+
     // Alt+drag duplicate state
     bool isDuplicating_ = false;
     ClipId duplicateClipId_ = INVALID_CLIP_ID;

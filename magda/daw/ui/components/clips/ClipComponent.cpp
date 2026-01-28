@@ -74,13 +74,26 @@ void ClipComponent::paintAudioClip(juce::Graphics& g, const ClipInfo& clip,
         auto& thumbnailManager = AudioThumbnailManager::getInstance();
 
         // Calculate the sub-rectangle for this audio source within the clip.
-        // During drag, the component width reflects previewLength_ (not yet committed),
-        // so use that to keep the waveform correctly sized.
-        double effectiveLength =
-            (isDragging_ && previewLength_ > 0.0) ? previewLength_ : clip.length;
-        double pixelsPerSecond =
-            (effectiveLength > 0.0) ? static_cast<double>(waveformArea.getWidth()) / effectiveLength
-                                    : 0.0;
+        // For resize operations (absolute mode): use cached zoom level to prevent stretching
+        // For stretch operations: recalculate to allow visual stretching
+        double pixelsPerSecond = 0.0;
+        bool isResizeMode =
+            (dragMode_ == DragMode::ResizeLeft || dragMode_ == DragMode::ResizeRight);
+        bool isStretchMode =
+            (dragMode_ == DragMode::StretchLeft || dragMode_ == DragMode::StretchRight);
+
+        if (isDragging_ && isResizeMode && dragStartPixelsPerSecond_ > 0.0) {
+            // Absolute mode resize: maintain original zoom level (no stretching)
+            pixelsPerSecond = dragStartPixelsPerSecond_;
+        } else if (isDragging_ && isStretchMode && previewLength_ > 0.0) {
+            // Stretch mode: recalculate to allow waveform stretching
+            pixelsPerSecond = static_cast<double>(waveformArea.getWidth()) / previewLength_;
+        } else {
+            // Not dragging: use current clip length
+            pixelsPerSecond = (clip.length > 0.0)
+                                  ? static_cast<double>(waveformArea.getWidth()) / clip.length
+                                  : 0.0;
+        }
         int sourceX = waveformArea.getX() + static_cast<int>(source.position * pixelsPerSecond);
         int sourceWidth = static_cast<int>(source.length * pixelsPerSecond);
 
@@ -335,6 +348,14 @@ void ClipComponent::mouseDown(const juce::MouseEvent& e) {
     previewStartTime_ = clip->startTime;
     previewLength_ = clip->length;
     isDragging_ = false;
+
+    // Cache the original zoom level to prevent waveform stretching during resize
+    auto waveformArea = getLocalBounds().reduced(2, HEADER_HEIGHT + 2);
+    if (clip->length > 0.0 && waveformArea.getWidth() > 0) {
+        dragStartPixelsPerSecond_ = static_cast<double>(waveformArea.getWidth()) / clip->length;
+    } else {
+        dragStartPixelsPerSecond_ = 0.0;
+    }
 
     // Determine drag mode based on click position
     // Shift+edge = stretch mode (time-stretches audio source along with clip)
@@ -656,10 +677,9 @@ void ClipComponent::mouseUp(const juce::MouseEvent& e) {
                 finalLength = juce::jmax(0.1, finalLength);
 
                 if (onClipResized) {
+                    // resizeClip(fromStart=true) adjusts clip->startTime and
+                    // compensates audio source positions internally
                     onClipResized(clipId_, finalLength, true);
-                }
-                if (onClipMoved) {
-                    onClipMoved(clipId_, finalStartTime);
                 }
                 break;
             }
