@@ -3,10 +3,75 @@
 #include "../../state/TimelineController.hpp"
 #include "../../themes/DarkTheme.hpp"
 #include "../../themes/FontManager.hpp"
-#include "../../utils/TimelineUtils.hpp"
-#include "audio/AudioThumbnailManager.hpp"
 
 namespace magda::daw::ui {
+
+// ============================================================================
+// ScrollNotifyingViewport - Custom viewport that notifies on scroll
+// ============================================================================
+
+class WaveformEditorContent::ScrollNotifyingViewport : public juce::Viewport {
+  public:
+    std::function<void(int, int)> onScrolled;
+    juce::Component* timeRulerToRepaint = nullptr;
+
+    void visibleAreaChanged(const juce::Rectangle<int>& newVisibleArea) override {
+        juce::Viewport::visibleAreaChanged(newVisibleArea);
+        if (onScrolled) {
+            onScrolled(getViewPositionX(), getViewPositionY());
+        }
+        if (timeRulerToRepaint) {
+            timeRulerToRepaint->repaint();
+        }
+    }
+
+    void scrollBarMoved(juce::ScrollBar* scrollBar, double newRangeStart) override {
+        juce::Viewport::scrollBarMoved(scrollBar, newRangeStart);
+        if (timeRulerToRepaint) {
+            timeRulerToRepaint->repaint();
+        }
+    }
+};
+
+// ============================================================================
+// ButtonLookAndFeel - Custom look and feel for mode toggle button
+// ============================================================================
+
+class WaveformEditorContent::ButtonLookAndFeel : public juce::LookAndFeel_V4 {
+  public:
+    ButtonLookAndFeel() {
+        setColour(juce::TextButton::buttonColourId, DarkTheme::getColour(DarkTheme::SURFACE));
+        setColour(juce::TextButton::buttonOnColourId, DarkTheme::getAccentColour().withAlpha(0.3f));
+        setColour(juce::TextButton::textColourOffId, DarkTheme::getTextColour());
+        setColour(juce::TextButton::textColourOnId, DarkTheme::getAccentColour());
+    }
+
+    void drawButtonBackground(juce::Graphics& g, juce::Button& button,
+                              const juce::Colour& backgroundColour,
+                              bool shouldDrawButtonAsHighlighted,
+                              bool shouldDrawButtonAsDown) override {
+        auto bounds = button.getLocalBounds().toFloat();
+        auto baseColour = backgroundColour;
+
+        if (shouldDrawButtonAsDown || button.getToggleState()) {
+            baseColour = button.findColour(juce::TextButton::buttonOnColourId);
+        } else if (shouldDrawButtonAsHighlighted) {
+            baseColour = baseColour.brighter(0.1f);
+        }
+
+        g.setColour(baseColour);
+        g.fillRoundedRectangle(bounds, 3.0f);
+
+        if (button.hasKeyboardFocus(false)) {
+            g.setColour(DarkTheme::getAccentColour().withAlpha(0.5f));
+            g.drawRoundedRectangle(bounds.reduced(1.0f), 3.0f, 1.0f);
+        }
+    }
+};
+
+// ============================================================================
+// Constructor / Destructor
+// ============================================================================
 
 WaveformEditorContent::WaveformEditorContent() {
     setName("WaveformEditor");
@@ -14,195 +79,96 @@ WaveformEditorContent::WaveformEditorContent() {
     // Register as ClipManager listener
     magda::ClipManager::getInstance().addListener(this);
 
+    // Create time ruler
+    timeRuler_ = std::make_unique<magda::TimeRuler>();
+    timeRuler_->setDisplayMode(magda::TimeRuler::DisplayMode::BarsBeats);
+    timeRuler_->setRelativeMode(relativeTimeMode_);
+    timeRuler_->setLeftPadding(GRID_LEFT_PADDING);
+    addAndMakeVisible(timeRuler_.get());
+
+    // Create look and feel for buttons
+    buttonLookAndFeel_ = std::make_unique<ButtonLookAndFeel>();
+
+    // Create time mode toggle button
+    timeModeButton_ = std::make_unique<juce::TextButton>("REL");
+    timeModeButton_->setTooltip("Toggle between Relative (clip) and Absolute (timeline) mode");
+    timeModeButton_->setClickingTogglesState(true);
+    timeModeButton_->setToggleState(relativeTimeMode_, juce::dontSendNotification);
+    timeModeButton_->setLookAndFeel(buttonLookAndFeel_.get());
+    timeModeButton_->onClick = [this]() { setRelativeTimeMode(timeModeButton_->getToggleState()); };
+    addAndMakeVisible(timeModeButton_.get());
+
+    // Create waveform grid component
+    gridComponent_ = std::make_unique<WaveformGridComponent>();
+    gridComponent_->setRelativeMode(relativeTimeMode_);
+    gridComponent_->setHorizontalZoom(horizontalZoom_);
+
+    // Create viewport and add grid
+    viewport_ = std::make_unique<ScrollNotifyingViewport>();
+    viewport_->setViewedComponent(gridComponent_.get(), false);
+    viewport_->setScrollBarsShown(true, true);
+    viewport_->timeRulerToRepaint = timeRuler_.get();
+    addAndMakeVisible(viewport_.get());
+
+    // Setup scroll callback
+    viewport_->onScrolled = [this](int x, int y) {
+        timeRuler_->setScrollOffset(x);
+        gridComponent_->setScrollOffset(x, y);
+    };
+
+    // Callback when waveform is edited
+    gridComponent_->onWaveformChanged = [this]() {
+        // Could add logic here if needed
+    };
+
     // Check if there's already a selected audio clip
     magda::ClipId selectedClip = magda::ClipManager::getInstance().getSelectedClip();
     if (selectedClip != magda::INVALID_CLIP_ID) {
         const auto* clip = magda::ClipManager::getInstance().getClip(selectedClip);
         if (clip && clip->type == magda::ClipType::Audio) {
-            editingClipId_ = selectedClip;
+            setClip(selectedClip);
         }
     }
 }
 
 WaveformEditorContent::~WaveformEditorContent() {
     magda::ClipManager::getInstance().removeListener(this);
+
+    // Clear look and feel before destruction
+    if (timeModeButton_) {
+        timeModeButton_->setLookAndFeel(nullptr);
+    }
 }
+
+// ============================================================================
+// Layout
+// ============================================================================
 
 void WaveformEditorContent::paint(juce::Graphics& g) {
     g.fillAll(DarkTheme::getPanelBackgroundColour());
-
-    auto bounds = getLocalBounds();
-
-    // Header area (time axis)
-    auto headerArea = bounds.removeFromTop(HEADER_HEIGHT);
-    paintHeader(g, headerArea);
-
-    // Waveform area
-    auto waveformArea = bounds.reduced(SIDE_MARGIN, 10);
-
-    if (editingClipId_ != magda::INVALID_CLIP_ID) {
-        const auto* clip = magda::ClipManager::getInstance().getClip(editingClipId_);
-        if (clip && clip->type == magda::ClipType::Audio) {
-            paintWaveform(g, waveformArea, *clip);
-        } else {
-            paintNoClipMessage(g, waveformArea);
-        }
-    } else {
-        paintNoClipMessage(g, waveformArea);
-    }
-}
-
-void WaveformEditorContent::paintHeader(juce::Graphics& g, juce::Rectangle<int> area) {
-    g.setColour(DarkTheme::getColour(DarkTheme::SURFACE));
-    g.fillRect(area);
-
-    g.setFont(FontManager::getInstance().getUIFont(9.0f));
-
-    const auto* clip = editingClipId_ != magda::INVALID_CLIP_ID
-                           ? magda::ClipManager::getInstance().getClip(editingClipId_)
-                           : nullptr;
-
-    double lengthSeconds = clip ? clip->length : 10.0;
-
-    // Get tempo and time signature from TimelineController
-    double bpm = 120.0;
-    int timeSigNumerator = 4;
-    auto* controller = magda::TimelineController::getCurrent();
-    if (controller) {
-        const auto& tempoState = controller->getState().tempo;
-        bpm = tempoState.bpm;
-        timeSigNumerator = tempoState.timeSignatureNumerator;
-    }
-
-    double secondsPerBeat = 60.0 / bpm;
-    double secondsPerBar = secondsPerBeat * timeSigNumerator;
-
-    // Determine whether to show beat subdivisions based on zoom
-    double pixelsPerBar = secondsPerBar * horizontalZoom_;
-    bool showBeats = pixelsPerBar > 60;
-
-    // Draw bar and beat lines
-    for (int bar = 1;; bar++) {
-        double barTime = (bar - 1) * secondsPerBar;
-        int barX = SIDE_MARGIN + static_cast<int>(barTime * horizontalZoom_);
-
-        if (barX >= area.getRight() - SIDE_MARGIN)
-            break;
-        if (barTime > lengthSeconds)
-            break;
-
-        if (barX >= SIDE_MARGIN) {
-            // Bar line (major)
-            g.setColour(DarkTheme::getSecondaryTextColour());
-            g.drawVerticalLine(barX, static_cast<float>(area.getY()),
-                               static_cast<float>(area.getBottom()));
-
-            // Bar number label
-            juce::String label = juce::String(bar);
-            g.drawText(label, barX + 2, area.getY(), 30, area.getHeight(),
-                       juce::Justification::centredLeft, false);
-        }
-
-        // Beat subdivisions within bar
-        if (showBeats) {
-            g.setColour(DarkTheme::getSecondaryTextColour().withAlpha(0.4f));
-            for (int beat = 2; beat <= timeSigNumerator; beat++) {
-                double beatTime = barTime + (beat - 1) * secondsPerBeat;
-                int beatX = SIDE_MARGIN + static_cast<int>(beatTime * horizontalZoom_);
-
-                if (beatX >= SIDE_MARGIN && beatX < area.getRight() - SIDE_MARGIN &&
-                    beatTime <= lengthSeconds) {
-                    g.drawVerticalLine(beatX,
-                                       static_cast<float>(area.getY() + area.getHeight() / 2),
-                                       static_cast<float>(area.getBottom()));
-                }
-            }
-        }
-    }
-
-    // Border
-    g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
-    g.drawRect(area);
-}
-
-void WaveformEditorContent::paintWaveform(juce::Graphics& g, juce::Rectangle<int> area,
-                                          const magda::ClipInfo& clip) {
-    // Background
-    g.setColour(DarkTheme::getColour(DarkTheme::TRACK_BACKGROUND));
-    g.fillRoundedRectangle(area.toFloat(), 4.0f);
-
-    if (clip.audioSources.empty()) {
-        paintNoClipMessage(g, area);
-        return;
-    }
-
-    const auto& source = clip.audioSources[0];
-
-    // Calculate waveform rectangle based on source position and length
-    int positionPixels = static_cast<int>(source.position * horizontalZoom_);
-    int widthPixels = static_cast<int>(source.length * horizontalZoom_);
-    widthPixels = juce::jmin(widthPixels, area.getWidth() - positionPixels);
-
-    auto waveformRect = juce::Rectangle<int>(area.getX() + positionPixels, area.getY(), widthPixels,
-                                             area.getHeight());
-
-    // Draw waveform background (source block)
-    g.setColour(clip.colour.darker(0.4f));
-    g.fillRoundedRectangle(waveformRect.toFloat(), 3.0f);
-
-    // Draw real waveform from audio thumbnail
-    if (source.filePath.isNotEmpty()) {
-        auto& thumbnailManager = magda::AudioThumbnailManager::getInstance();
-        double fileWindow = source.length / source.stretchFactor;
-        double displayStart = source.offset;
-        double displayEnd = source.offset + fileWindow;
-
-        thumbnailManager.drawWaveform(g, waveformRect.reduced(0, 4), source.filePath, displayStart,
-                                      displayEnd, clip.colour.brighter(0.2f));
-    }
-
-    // Draw center line
-    g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
-    g.drawHorizontalLine(waveformRect.getCentreY(), waveformRect.getX(), waveformRect.getRight());
-
-    // Clip info overlay
-    g.setColour(clip.colour);
-    g.setFont(FontManager::getInstance().getUIFont(12.0f));
-    g.drawText(clip.name, waveformRect.reduced(8, 4), juce::Justification::topLeft, true);
-
-    // File path
-    if (source.filePath.isNotEmpty()) {
-        g.setColour(DarkTheme::getSecondaryTextColour());
-        g.setFont(FontManager::getInstance().getUIFont(10.0f));
-        g.drawText(source.filePath, waveformRect.reduced(8, 4).translated(0, 16),
-                   juce::Justification::topLeft, true);
-    }
-
-    // Border around source block
-    g.setColour(clip.colour.withAlpha(0.5f));
-    g.drawRoundedRectangle(waveformRect.toFloat(), 3.0f, 1.0f);
-
-    // Draw trim handles when hovering
-    // Left edge handle
-    g.setColour(clip.colour.brighter(0.4f));
-    g.fillRect(waveformRect.getX(), waveformRect.getY(), 3, waveformRect.getHeight());
-    // Right edge handle
-    g.fillRect(waveformRect.getRight() - 3, waveformRect.getY(), 3, waveformRect.getHeight());
-}
-
-void WaveformEditorContent::paintNoClipMessage(juce::Graphics& g, juce::Rectangle<int> area) {
-    g.setColour(DarkTheme::getSecondaryTextColour());
-    g.setFont(FontManager::getInstance().getUIFont(14.0f));
-    g.drawText("No audio clip selected", area, juce::Justification::centred, false);
-
-    g.setFont(FontManager::getInstance().getUIFont(11.0f));
-    g.drawText("Select an audio clip to view its waveform", area.translated(0, 24),
-               juce::Justification::centred, false);
 }
 
 void WaveformEditorContent::resized() {
-    // Nothing special to layout
+    auto bounds = getLocalBounds();
+
+    // Toolbar at top
+    auto toolbarArea = bounds.removeFromTop(TOOLBAR_HEIGHT);
+    timeModeButton_->setBounds(toolbarArea.removeFromLeft(60).reduced(2));
+
+    // Time ruler below toolbar
+    auto rulerArea = bounds.removeFromTop(TIME_RULER_HEIGHT);
+    timeRuler_->setBounds(rulerArea);
+
+    // Viewport fills remaining space
+    viewport_->setBounds(bounds);
+
+    // Update grid size
+    updateGridSize();
 }
+
+// ============================================================================
+// Panel Lifecycle
+// ============================================================================
 
 void WaveformEditorContent::onActivated() {
     // Check for selected audio clip
@@ -210,10 +176,9 @@ void WaveformEditorContent::onActivated() {
     if (selectedClip != magda::INVALID_CLIP_ID) {
         const auto* clip = magda::ClipManager::getInstance().getClip(selectedClip);
         if (clip && clip->type == magda::ClipType::Audio) {
-            editingClipId_ = selectedClip;
+            setClip(selectedClip);
         }
     }
-    repaint();
 }
 
 void WaveformEditorContent::onDeactivated() {
@@ -224,160 +189,16 @@ void WaveformEditorContent::onDeactivated() {
 // Mouse Interaction
 // ============================================================================
 
-void WaveformEditorContent::mouseDown(const juce::MouseEvent& event) {
-    if (editingClipId_ == magda::INVALID_CLIP_ID)
-        return;
-
-    auto* clip = magda::ClipManager::getInstance().getClip(editingClipId_);
-    if (!clip || clip->type != magda::ClipType::Audio || clip->audioSources.empty())
-        return;
-
-    const auto& source = clip->audioSources[0];
-    int x = event.x;
-
-    bool shiftHeld = event.mods.isShiftDown();
-
-    if (isNearLeftEdge(x, source)) {
-        dragMode_ = shiftHeld ? DragMode::StretchLeft : DragMode::ResizeLeft;
-    } else if (isNearRightEdge(x, source)) {
-        dragMode_ = shiftHeld ? DragMode::StretchRight : DragMode::ResizeRight;
-    } else if (isInsideWaveform(x, source)) {
-        dragMode_ = DragMode::Move;
+void WaveformEditorContent::mouseWheelMove(const juce::MouseEvent& event,
+                                           const juce::MouseWheelDetails& wheel) {
+    // Cmd/Ctrl + scroll = zoom
+    if (event.mods.isCommandDown()) {
+        double zoomFactor = 1.0 + (wheel.deltaY * 0.5);
+        int anchorX = event.x - viewport_->getX();
+        performAnchorPointZoom(zoomFactor, anchorX);
     } else {
-        dragMode_ = DragMode::None;
-        return;
-    }
-
-    dragStartX_ = x;
-    dragStartPosition_ = source.position;
-    dragStartAudioOffset_ = source.offset;
-    dragStartLength_ = source.length;
-    dragStartStretchFactor_ = source.stretchFactor;
-
-    // Cache file duration for trim clamping
-    dragStartFileDuration_ = 0.0;
-    auto* thumbnail = magda::AudioThumbnailManager::getInstance().getThumbnail(source.filePath);
-    if (thumbnail) {
-        dragStartFileDuration_ = thumbnail->getTotalLength();
-    }
-}
-
-void WaveformEditorContent::mouseDrag(const juce::MouseEvent& event) {
-    if (dragMode_ == DragMode::None)
-        return;
-    if (editingClipId_ == magda::INVALID_CLIP_ID)
-        return;
-
-    auto* clip = magda::ClipManager::getInstance().getClip(editingClipId_);
-    if (!clip || clip->audioSources.empty())
-        return;
-
-    auto& source = clip->audioSources[0];
-    double deltaSeconds = (event.x - dragStartX_) / horizontalZoom_;
-
-    switch (dragMode_) {
-        case DragMode::ResizeLeft: {
-            // Trim from left: position and length are in timeline time,
-            // offset is in file time. Convert deltaSeconds via stretchFactor.
-            double sf = dragStartStretchFactor_;
-            double fileDelta = deltaSeconds / sf;
-            double newOffset = std::max(0.0, dragStartAudioOffset_ + fileDelta);
-            if (dragStartFileDuration_ > 0.0) {
-                newOffset = std::min(newOffset, dragStartFileDuration_);
-            }
-            double actualFileDelta = newOffset - dragStartAudioOffset_;
-            double timelineDelta = actualFileDelta * sf;
-            source.offset = newOffset;
-            source.position = std::max(0.0, dragStartPosition_ + timelineDelta);
-            source.length = std::max(0.1, dragStartLength_ - timelineDelta);
-            break;
-        }
-        case DragMode::ResizeRight: {
-            // Trim from right: change length, capped so file window stays within file
-            // and source doesn't extend past clip container
-            double newLength = std::max(0.1, dragStartLength_ + deltaSeconds);
-            if (dragStartFileDuration_ > 0.0) {
-                double maxLength = (dragStartFileDuration_ - source.offset) * source.stretchFactor;
-                newLength = std::min(newLength, maxLength);
-            }
-            double clipMaxLength = clip->length - source.position;
-            newLength = std::min(newLength, clipMaxLength);
-            source.length = newLength;
-            break;
-        }
-        case DragMode::Move: {
-            // Move: only change position (slides block, same audio content)
-            source.position = std::max(0.0, dragStartPosition_ + deltaSeconds);
-            break;
-        }
-        case DragMode::StretchRight: {
-            // Stretch from right: anchor left edge, length changes, stretchFactor updates
-            // Capped to clip container length
-            double maxLength = clip->length - source.position;
-            double newLength = std::max(0.1, dragStartLength_ + deltaSeconds);
-            newLength = std::min(newLength, maxLength);
-            double stretchRatio = newLength / dragStartLength_;
-            double newStretchFactor = dragStartStretchFactor_ * stretchRatio;
-            newStretchFactor = juce::jlimit(0.25, 4.0, newStretchFactor);
-            newLength = dragStartLength_ * (newStretchFactor / dragStartStretchFactor_);
-            newLength = std::min(newLength, maxLength);
-            source.length = newLength;
-            source.stretchFactor = newStretchFactor;
-            break;
-        }
-        case DragMode::StretchLeft: {
-            // Stretch from left: anchor right edge, position shifts, length changes
-            // Capped so position doesn't go below 0 (i.e. past clip start)
-            double rightEdge = dragStartPosition_ + dragStartLength_;
-            double newLength = std::max(0.1, dragStartLength_ - deltaSeconds);
-            newLength = std::min(newLength, rightEdge);  // position >= 0
-            double stretchRatio = newLength / dragStartLength_;
-            double newStretchFactor = dragStartStretchFactor_ * stretchRatio;
-            newStretchFactor = juce::jlimit(0.25, 4.0, newStretchFactor);
-            newLength = dragStartLength_ * (newStretchFactor / dragStartStretchFactor_);
-            newLength = std::min(newLength, rightEdge);
-            source.length = newLength;
-            source.position = rightEdge - newLength;
-            source.stretchFactor = newStretchFactor;
-            break;
-        }
-        default:
-            break;
-    }
-
-    magda::ClipManager::getInstance().forceNotifyClipPropertyChanged(editingClipId_);
-    repaint();
-}
-
-void WaveformEditorContent::mouseUp(const juce::MouseEvent& /*event*/) {
-    dragMode_ = DragMode::None;
-}
-
-void WaveformEditorContent::mouseMove(const juce::MouseEvent& event) {
-    if (editingClipId_ == magda::INVALID_CLIP_ID) {
-        setMouseCursor(juce::MouseCursor::NormalCursor);
-        return;
-    }
-
-    const auto* clip = magda::ClipManager::getInstance().getClip(editingClipId_);
-    if (!clip || clip->audioSources.empty()) {
-        setMouseCursor(juce::MouseCursor::NormalCursor);
-        return;
-    }
-
-    const auto& source = clip->audioSources[0];
-    int x = event.x;
-
-    if (isNearLeftEdge(x, source) || isNearRightEdge(x, source)) {
-        if (event.mods.isShiftDown()) {
-            setMouseCursor(juce::MouseCursor::UpDownLeftRightResizeCursor);
-        } else {
-            setMouseCursor(juce::MouseCursor::LeftRightResizeCursor);
-        }
-    } else if (isInsideWaveform(x, source)) {
-        setMouseCursor(juce::MouseCursor::DraggingHandCursor);
-    } else {
-        setMouseCursor(juce::MouseCursor::NormalCursor);
+        // Normal scroll - let viewport handle it
+        Component::mouseWheelMove(event, wheel);
     }
 }
 
@@ -391,13 +212,14 @@ void WaveformEditorContent::clipsChanged() {
         const auto* clip = magda::ClipManager::getInstance().getClip(editingClipId_);
         if (!clip) {
             editingClipId_ = magda::INVALID_CLIP_ID;
+            gridComponent_->setClip(magda::INVALID_CLIP_ID);
         }
     }
-    repaint();
 }
 
 void WaveformEditorContent::clipPropertyChanged(magda::ClipId clipId) {
     if (clipId == editingClipId_) {
+        updateGridSize();
         repaint();
     }
 }
@@ -407,8 +229,7 @@ void WaveformEditorContent::clipSelectionChanged(magda::ClipId clipId) {
     if (clipId != magda::INVALID_CLIP_ID) {
         const auto* clip = magda::ClipManager::getInstance().getClip(clipId);
         if (clip && clip->type == magda::ClipType::Audio) {
-            editingClipId_ = clipId;
-            repaint();
+            setClip(clipId);
         }
     }
 }
@@ -420,39 +241,119 @@ void WaveformEditorContent::clipSelectionChanged(magda::ClipId clipId) {
 void WaveformEditorContent::setClip(magda::ClipId clipId) {
     if (editingClipId_ != clipId) {
         editingClipId_ = clipId;
+        gridComponent_->setClip(clipId);
+
+        // Update time ruler with clip info
+        const auto* clip = magda::ClipManager::getInstance().getClip(clipId);
+        if (clip) {
+            // Get tempo from TimelineController
+            double bpm = 120.0;
+            auto* controller = magda::TimelineController::getCurrent();
+            if (controller) {
+                bpm = controller->getState().tempo.bpm;
+            }
+
+            timeRuler_->setZoom(horizontalZoom_);
+            timeRuler_->setTempo(bpm);
+            timeRuler_->setTimeOffset(clip->startTime);
+            timeRuler_->setClipLength(clip->length);
+        }
+
+        updateGridSize();
+        scrollToClipStart();
+        repaint();
+    }
+}
+
+void WaveformEditorContent::setRelativeTimeMode(bool relative) {
+    if (relativeTimeMode_ != relative) {
+        relativeTimeMode_ = relative;
+
+        // Update button text
+        timeModeButton_->setButtonText(relative ? "REL" : "ABS");
+        timeModeButton_->setToggleState(relative, juce::dontSendNotification);
+
+        // Update components
+        gridComponent_->setRelativeMode(relative);
+        timeRuler_->setRelativeMode(relative);
+
+        // Update grid size and scroll
+        updateGridSize();
+        scrollToClipStart();
         repaint();
     }
 }
 
 // ============================================================================
-// Hit Testing Helpers
+// Private Helpers
 // ============================================================================
 
-juce::Rectangle<int> WaveformEditorContent::getWaveformArea() const {
-    auto bounds = getLocalBounds();
-    bounds.removeFromTop(HEADER_HEIGHT);
-    return bounds.reduced(SIDE_MARGIN, 10);
+void WaveformEditorContent::updateGridSize() {
+    if (gridComponent_) {
+        gridComponent_->updateGridSize();
+
+        // Update time ruler length
+        const auto* clip = magda::ClipManager::getInstance().getClip(editingClipId_);
+        if (clip && timeRuler_) {
+            double totalTime = relativeTimeMode_ ? clip->length : (clip->startTime + clip->length);
+            timeRuler_->setTimelineLength(totalTime + 10.0);  // Add padding
+        }
+    }
 }
 
-bool WaveformEditorContent::isNearLeftEdge(int x, const magda::AudioSource& source) const {
-    auto area = getWaveformArea();
-    int leftEdgeX = area.getX() + static_cast<int>(source.position * horizontalZoom_);
-    return std::abs(x - leftEdgeX) <= EDGE_GRAB_DISTANCE;
+void WaveformEditorContent::scrollToClipStart() {
+    if (relativeTimeMode_) {
+        // In relative mode, scroll to beginning
+        viewport_->setViewPosition(0, viewport_->getViewPositionY());
+    } else {
+        // In absolute mode, scroll to clip start position
+        const auto* clip = magda::ClipManager::getInstance().getClip(editingClipId_);
+        if (clip && gridComponent_) {
+            int clipStartX = gridComponent_->timeToPixel(clip->startTime);
+            viewport_->setViewPosition(clipStartX, viewport_->getViewPositionY());
+        }
+    }
 }
 
-bool WaveformEditorContent::isNearRightEdge(int x, const magda::AudioSource& source) const {
-    auto area = getWaveformArea();
-    int rightEdgeX =
-        area.getX() + static_cast<int>((source.position + source.length) * horizontalZoom_);
-    return std::abs(x - rightEdgeX) <= EDGE_GRAB_DISTANCE;
-}
+void WaveformEditorContent::performAnchorPointZoom(double zoomFactor, int anchorX) {
+    // Calculate anchor point in content space
+    int mouseXInContent = anchorX + viewport_->getViewPositionX();
+    double anchorTime = 0.0;
+    if (gridComponent_) {
+        anchorTime = gridComponent_->pixelToTime(mouseXInContent);
+    }
 
-bool WaveformEditorContent::isInsideWaveform(int x, const magda::AudioSource& source) const {
-    auto area = getWaveformArea();
-    int leftEdgeX = area.getX() + static_cast<int>(source.position * horizontalZoom_);
-    int rightEdgeX =
-        area.getX() + static_cast<int>((source.position + source.length) * horizontalZoom_);
-    return x > leftEdgeX + EDGE_GRAB_DISTANCE && x < rightEdgeX - EDGE_GRAB_DISTANCE;
+    // Apply zoom
+    double newZoom = horizontalZoom_ * zoomFactor;
+    newZoom = juce::jlimit(MIN_ZOOM, MAX_ZOOM, newZoom);
+
+    if (newZoom != horizontalZoom_) {
+        horizontalZoom_ = newZoom;
+
+        // Update grid component
+        gridComponent_->setHorizontalZoom(horizontalZoom_);
+
+        // Update time ruler
+        const auto* clip = magda::ClipManager::getInstance().getClip(editingClipId_);
+        if (clip && timeRuler_) {
+            double bpm = 120.0;
+            auto* controller = magda::TimelineController::getCurrent();
+            if (controller) {
+                bpm = controller->getState().tempo.bpm;
+            }
+            timeRuler_->setZoom(horizontalZoom_);
+            timeRuler_->setTempo(bpm);
+        }
+
+        updateGridSize();
+
+        // Adjust scroll to keep anchor point under mouse
+        if (gridComponent_) {
+            int newAnchorX = gridComponent_->timeToPixel(anchorTime);
+            int newScrollX = newAnchorX - anchorX;
+            viewport_->setViewPosition(newScrollX, viewport_->getViewPositionY());
+        }
+    }
 }
 
 }  // namespace magda::daw::ui

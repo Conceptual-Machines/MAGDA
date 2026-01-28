@@ -1,18 +1,25 @@
 #pragma once
 
+#include <memory>
+
 #include "PanelContent.hpp"
 #include "core/ClipManager.hpp"
+#include "ui/components/timeline/TimeRuler.hpp"
+#include "ui/components/waveform/WaveformGridComponent.hpp"
 
 namespace magda::daw::ui {
 
 /**
  * @brief Waveform editor for audio clips
  *
- * Displays audio waveform for editing:
- * - Waveform visualization from real audio data
- * - Time axis along the top
- * - Trim handles for adjusting source boundaries
- * - Drag to move audio source within clip
+ * Container that manages:
+ * - ScrollNotifyingViewport (scrolling)
+ * - WaveformGridComponent (scrollable waveform content)
+ * - TimeRuler (synchronized with scroll)
+ * - ABS/REL mode toggle
+ * - Zoom controls
+ *
+ * Architecture based on PianoRollContent pattern.
  */
 class WaveformEditorContent : public PanelContent, public magda::ClipManagerListener {
   public:
@@ -33,11 +40,9 @@ class WaveformEditorContent : public PanelContent, public magda::ClipManagerList
     void onActivated() override;
     void onDeactivated() override;
 
-    // Mouse interaction for trim/move
-    void mouseDown(const juce::MouseEvent& event) override;
-    void mouseDrag(const juce::MouseEvent& event) override;
-    void mouseUp(const juce::MouseEvent& event) override;
-    void mouseMove(const juce::MouseEvent& event) override;
+    // Mouse wheel for zoom
+    void mouseWheelMove(const juce::MouseEvent& event,
+                        const juce::MouseWheelDetails& wheel) override;
 
     // ClipManagerListener
     void clipsChanged() override;
@@ -50,37 +55,47 @@ class WaveformEditorContent : public PanelContent, public magda::ClipManagerList
         return editingClipId_;
     }
 
+    // Timeline mode
+    void setRelativeTimeMode(bool relative);
+    bool isRelativeTimeMode() const {
+        return relativeTimeMode_;
+    }
+
   private:
     magda::ClipId editingClipId_ = magda::INVALID_CLIP_ID;
 
-    // Layout constants
-    static constexpr int HEADER_HEIGHT = 24;
-    static constexpr int SIDE_MARGIN = 20;
-    static constexpr int EDGE_GRAB_DISTANCE = 10;
+    // Timeline mode
+    bool relativeTimeMode_ = false;  // false = absolute (timeline), true = relative (clip)
 
     // Zoom
     double horizontalZoom_ = 100.0;  // pixels per second
+    static constexpr double MIN_ZOOM = 20.0;
+    static constexpr double MAX_ZOOM = 500.0;
 
-    // Drag state
-    enum class DragMode { None, ResizeLeft, ResizeRight, Move, StretchLeft, StretchRight };
-    DragMode dragMode_ = DragMode::None;
-    double dragStartPosition_ = 0.0;
-    double dragStartAudioOffset_ = 0.0;
-    double dragStartLength_ = 0.0;
-    int dragStartX_ = 0;
-    double dragStartStretchFactor_ = 1.0;
-    double dragStartFileDuration_ = 0.0;  // Cached file duration at drag start
+    // Layout constants
+    static constexpr int TIME_RULER_HEIGHT = 30;
+    static constexpr int TOOLBAR_HEIGHT = 30;
+    static constexpr int GRID_LEFT_PADDING = 10;
 
-    // Painting helpers
-    void paintHeader(juce::Graphics& g, juce::Rectangle<int> area);
-    void paintWaveform(juce::Graphics& g, juce::Rectangle<int> area, const magda::ClipInfo& clip);
-    void paintNoClipMessage(juce::Graphics& g, juce::Rectangle<int> area);
+    // Components (created in constructor)
+    class ScrollNotifyingViewport;  // Forward declaration
+    std::unique_ptr<ScrollNotifyingViewport> viewport_;
+    std::unique_ptr<WaveformGridComponent> gridComponent_;
+    std::unique_ptr<magda::TimeRuler> timeRuler_;
+    std::unique_ptr<juce::TextButton> timeModeButton_;
 
-    // Hit testing helpers
-    juce::Rectangle<int> getWaveformArea() const;
-    bool isNearLeftEdge(int x, const magda::AudioSource& source) const;
-    bool isNearRightEdge(int x, const magda::AudioSource& source) const;
-    bool isInsideWaveform(int x, const magda::AudioSource& source) const;
+    // Look and feel
+    class ButtonLookAndFeel;
+    std::unique_ptr<ButtonLookAndFeel> buttonLookAndFeel_;
+
+    // Update grid size when clip or zoom changes
+    void updateGridSize();
+
+    // Scroll to show clip start
+    void scrollToClipStart();
+
+    // Anchor-point zoom
+    void performAnchorPointZoom(double zoomFactor, int anchorX);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WaveformEditorContent)
 };
