@@ -433,23 +433,6 @@ void AudioBridge::syncAudioClipToEngine(ClipId clipId, const ClipInfo* clip) {
 
     // 5. UPDATE audio offset (trim point in file)
     audioClipPtr->setOffset(te::TimeDuration::fromSeconds(engineOffset));
-
-    // 6. UPDATE speed ratio (stretch factor)
-    if (!clip->audioSources.empty()) {
-        const auto& source = clip->audioSources[0];
-
-        // Only set speed ratio if actually stretching (not 1.0)
-        // Setting speed ratio requires timestretcher initialization which causes assertions
-        if (std::abs(source.stretchFactor - 1.0) > 0.001) {
-            double currentSpeedRatio = audioClipPtr->getSpeedRatio();
-
-            if (std::abs(currentSpeedRatio - source.stretchFactor) > 0.001) {
-                // Enable timestretcher before setting non-default speed
-                audioClipPtr->setTimeStretchMode(te::TimeStretcher::defaultMode);
-                audioClipPtr->setSpeedRatio(source.stretchFactor);
-            }
-        }
-    }
 }
 
 void AudioBridge::removeClipFromEngine(ClipId clipId) {
