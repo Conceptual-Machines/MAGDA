@@ -68,10 +68,8 @@ class WaveformEditorContent::ButtonLookAndFeel : public juce::LookAndFeel_V4 {
         g.setColour(baseColour);
         g.fillRoundedRectangle(bounds, 3.0f);
 
-        if (button.hasKeyboardFocus(false)) {
-            g.setColour(DarkTheme::getAccentColour().withAlpha(0.5f));
-            g.drawRoundedRectangle(bounds.reduced(1.0f), 3.0f, 1.0f);
-        }
+        g.setColour(DarkTheme::getColour(DarkTheme::BORDER));
+        g.drawRoundedRectangle(bounds, 3.0f, 1.0f);
     }
 
     void drawButtonText(juce::Graphics& g, juce::TextButton& button, bool /*isMouseOver*/,
