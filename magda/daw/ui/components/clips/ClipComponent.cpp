@@ -4,6 +4,7 @@
 #include "../../themes/FontManager.hpp"
 #include "../tracks/TrackContentPanel.hpp"
 #include "audio/AudioThumbnailManager.hpp"
+#include "core/ClipOperations.hpp"
 #include "core/SelectionManager.hpp"
 
 namespace magda {
@@ -707,25 +708,12 @@ void ClipComponent::mouseUp(const juce::MouseEvent& e) {
                     double endTime = snapTimeToGrid(dragStartTime_ + finalLength);
                     finalLength = endTime - dragStartTime_;
                 }
-                finalLength = juce::jmax(0.1, finalLength);
 
-                double stretchRatio = finalLength / dragStartLength_;
-                double newStretchFactor =
-                    juce::jlimit(0.25, 4.0, dragStartStretchFactor_ * stretchRatio);
-                finalLength = dragStartLength_ * (newStretchFactor / dragStartStretchFactor_);
-
-                // Resize clip
-                if (onClipResized) {
-                    onClipResized(clipId_, finalLength, false);
-                }
-                // Stretch audio source: scale length proportionally, update stretchFactor
+                // Use ClipOperations to perform the compound stretch operation
                 auto& cm = ClipManager::getInstance();
-                if (auto* c = cm.getClip(clipId_)) {
-                    if (!c->audioSources.empty()) {
-                        double sourceLength = c->audioSources[0].length * stretchRatio;
-                        cm.setAudioSourceLength(clipId_, 0, sourceLength);
-                        cm.setAudioSourceStretchFactor(clipId_, 0, newStretchFactor);
-                    }
+                if (auto* clip = cm.getClip(clipId_)) {
+                    ClipOperations::stretchClipFromRight(*clip, finalLength);
+                    cm.forceNotifyClipPropertyChanged(clipId_);
                 }
                 break;
             }
@@ -738,30 +726,12 @@ void ClipComponent::mouseUp(const juce::MouseEvent& e) {
                     finalStartTime = snapTimeToGrid(finalStartTime);
                     finalLength = (dragStartTime_ + dragStartLength_) - finalStartTime;
                 }
-                finalStartTime = juce::jmax(0.0, finalStartTime);
-                finalLength = juce::jmax(0.1, finalLength);
 
-                double stretchRatio = finalLength / dragStartLength_;
-                double newStretchFactor =
-                    juce::jlimit(0.25, 4.0, dragStartStretchFactor_ * stretchRatio);
-                finalLength = dragStartLength_ * (newStretchFactor / dragStartStretchFactor_);
-                finalStartTime = (dragStartTime_ + dragStartLength_) - finalLength;
-
-                // Resize clip from start
-                if (onClipResized) {
-                    onClipResized(clipId_, finalLength, true);
-                }
-                if (onClipMoved) {
-                    onClipMoved(clipId_, finalStartTime);
-                }
-                // Stretch audio source
+                // Use ClipOperations to perform the compound stretch operation
                 auto& cm = ClipManager::getInstance();
-                if (auto* c = cm.getClip(clipId_)) {
-                    if (!c->audioSources.empty()) {
-                        double sourceLength = c->audioSources[0].length * stretchRatio;
-                        cm.setAudioSourceLength(clipId_, 0, sourceLength);
-                        cm.setAudioSourceStretchFactor(clipId_, 0, newStretchFactor);
-                    }
+                if (auto* clip = cm.getClip(clipId_)) {
+                    ClipOperations::stretchClipFromLeft(*clip, finalLength);
+                    cm.forceNotifyClipPropertyChanged(clipId_);
                 }
                 break;
             }

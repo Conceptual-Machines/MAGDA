@@ -3,6 +3,7 @@
 
 #include "magda/daw/core/ClipInfo.hpp"
 #include "magda/daw/core/ClipManager.hpp"
+#include "magda/daw/core/ClipOperations.hpp"
 
 /**
  * Tests for audio clip time-stretching and trimming operations
@@ -446,5 +447,146 @@ TEST_CASE("Audio Clip - Edge cases", "[audio][clip][edge]") {
         // Start time clamped to zero
         REQUIRE(clip->startTime == 0.0);
         REQUIRE(clip->length == 6.0);
+    }
+}
+
+TEST_CASE("ClipOperations - stretchSourceFromLeft right edge anchoring bug",
+          "[audio][clip][stretch][regression]") {
+    using namespace magda;
+
+    /**
+     * REGRESSION TEST for bug fixed in ClipOperations::stretchSourceFromLeft
+     *
+     * Bug: The right edge was calculated using the CURRENT source.position
+     * instead of the ORIGINAL position from drag start, causing drift.
+     *
+     * Symptoms:
+     * - Right edge shifted on each drag event
+     * - Audio source appeared to "disappear" or shift unexpectedly
+     * - Position moved incorrectly during stretch
+     *
+     * Root cause:
+     *   double rightEdge = source.position + oldLength;  // BUG: uses current position
+     *
+     * Fix:
+     *   double rightEdge = originalPosition + oldLength;  // uses original position
+     *
+     * This test simulates multiple drag events to verify the right edge stays fixed.
+     */
+
+    SECTION("Multiple stretch events maintain fixed right edge") {
+        AudioSource source;
+        source.filePath = "test.wav";
+        source.offset = 0.0;
+        source.position = 10.0;  // Original position
+        source.length = 5.0;     // Original length
+        source.stretchFactor = 1.0;
+
+        // Calculate expected right edge (should never change)
+        double expectedRightEdge = 10.0 + 5.0;  // 15.0
+        REQUIRE(expectedRightEdge == 15.0);
+
+        // Capture original values at "mouseDown"
+        double originalPosition = source.position;
+        double originalLength = source.length;
+        double originalStretchFactor = source.stretchFactor;
+
+        // Simulate drag event 1: stretch to 6.0 seconds
+        ClipOperations::stretchSourceFromLeft(source, 6.0, originalLength, originalPosition,
+                                              originalStretchFactor, 100.0);
+
+        double rightEdge1 = source.position + source.length;
+        REQUIRE(rightEdge1 == Catch::Approx(expectedRightEdge));
+        REQUIRE(source.position == Catch::Approx(9.0));  // 15.0 - 6.0
+        REQUIRE(source.length == Catch::Approx(6.0));
+        REQUIRE(source.stretchFactor == Catch::Approx(1.2));  // 6.0 / 5.0
+
+        // Simulate drag event 2: stretch to 7.0 seconds (more stretching)
+        ClipOperations::stretchSourceFromLeft(source, 7.0, originalLength, originalPosition,
+                                              originalStretchFactor, 100.0);
+
+        double rightEdge2 = source.position + source.length;
+        REQUIRE(rightEdge2 == Catch::Approx(expectedRightEdge));  // Still 15.0!
+        REQUIRE(source.position == Catch::Approx(8.0));           // 15.0 - 7.0
+        REQUIRE(source.length == Catch::Approx(7.0));
+        REQUIRE(source.stretchFactor == Catch::Approx(1.4));  // 7.0 / 5.0
+
+        // Simulate drag event 3: compress to 4.0 seconds (user dragged right)
+        ClipOperations::stretchSourceFromLeft(source, 4.0, originalLength, originalPosition,
+                                              originalStretchFactor, 100.0);
+
+        double rightEdge3 = source.position + source.length;
+        REQUIRE(rightEdge3 == Catch::Approx(expectedRightEdge));  // Still 15.0!
+        REQUIRE(source.position == Catch::Approx(11.0));          // 15.0 - 4.0
+        REQUIRE(source.length == Catch::Approx(4.0));
+        REQUIRE(source.stretchFactor == Catch::Approx(0.8));  // 4.0 / 5.0
+
+        // Simulate drag event 4: back to original length
+        ClipOperations::stretchSourceFromLeft(source, 5.0, originalLength, originalPosition,
+                                              originalStretchFactor, 100.0);
+
+        double rightEdge4 = source.position + source.length;
+        REQUIRE(rightEdge4 == Catch::Approx(expectedRightEdge));      // Still 15.0!
+        REQUIRE(source.position == Catch::Approx(originalPosition));  // Back to 10.0
+        REQUIRE(source.length == Catch::Approx(originalLength));      // Back to 5.0
+        REQUIRE(source.stretchFactor == Catch::Approx(1.0));          // Back to 1.0
+    }
+
+    SECTION("Stretch factor clamping doesn't break right edge anchoring") {
+        AudioSource source;
+        source.filePath = "test.wav";
+        source.offset = 0.0;
+        source.position = 5.0;
+        source.length = 2.0;
+        source.stretchFactor = 1.0;
+
+        double expectedRightEdge = 5.0 + 2.0;  // 7.0
+        double originalPosition = source.position;
+        double originalLength = source.length;
+        double originalStretchFactor = source.stretchFactor;
+
+        // Try to stretch to 10.0 (5.0x ratio)
+        // But it's also constrained by rightEdge (can't exceed 7.0)
+        // So final length will be 7.0 (limited by right edge), giving 3.5x stretch factor
+        ClipOperations::stretchSourceFromLeft(source, 10.0, originalLength, originalPosition,
+                                              originalStretchFactor, 100.0);
+
+        // Length constrained by right edge to 7.0
+        REQUIRE(source.length == Catch::Approx(7.0));
+
+        // Stretch factor: 7.0 / 2.0 = 3.5x (within [0.25, 4.0] range)
+        REQUIRE(source.stretchFactor == Catch::Approx(3.5));
+
+        // Right edge still anchored correctly at 7.0
+        double rightEdge = source.position + source.length;
+        REQUIRE(rightEdge == Catch::Approx(expectedRightEdge));
+        REQUIRE(source.position == Catch::Approx(0.0));  // 7.0 - 7.0
+    }
+
+    SECTION("Stretch with pre-stretched audio maintains correct calculations") {
+        AudioSource source;
+        source.filePath = "test.wav";
+        source.offset = 0.0;
+        source.position = 20.0;
+        source.length = 10.0;
+        source.stretchFactor = 2.0;  // Already stretched 2x
+
+        double expectedRightEdge = 20.0 + 10.0;  // 30.0
+        double originalPosition = source.position;
+        double originalLength = source.length;
+        double originalStretchFactor = source.stretchFactor;
+
+        // Stretch from 10.0 to 15.0 (1.5x stretch on top of existing 2.0x)
+        ClipOperations::stretchSourceFromLeft(source, 15.0, originalLength, originalPosition,
+                                              originalStretchFactor, 100.0);
+
+        // New stretch factor: 2.0 * (15.0 / 10.0) = 3.0
+        REQUIRE(source.stretchFactor == Catch::Approx(3.0));
+        REQUIRE(source.length == Catch::Approx(15.0));
+
+        // Right edge still anchored
+        double rightEdge = source.position + source.length;
+        REQUIRE(rightEdge == Catch::Approx(expectedRightEdge));
+        REQUIRE(source.position == Catch::Approx(15.0));  // 30.0 - 15.0
     }
 }

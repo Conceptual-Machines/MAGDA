@@ -3,6 +3,7 @@
 #include "../../themes/DarkTheme.hpp"
 #include "../../themes/FontManager.hpp"
 #include "audio/AudioThumbnailManager.hpp"
+#include "core/ClipOperations.hpp"
 
 namespace magda::daw::ui {
 
@@ -277,6 +278,7 @@ void WaveformGridComponent::mouseDrag(const juce::MouseEvent& event) {
 
     DBG("WaveformGrid::mouseDrag - mode=" << static_cast<int>(dragMode_) << ", x=" << event.x);
 
+    // Get clip and source for direct modification during drag (performance optimization)
     auto* clip = magda::ClipManager::getInstance().getClip(editingClipId_);
     if (!clip || clip->audioSources.empty())
         return;
@@ -284,68 +286,77 @@ void WaveformGridComponent::mouseDrag(const juce::MouseEvent& event) {
     auto& source = clip->audioSources[0];
     double deltaSeconds = (event.x - dragStartX_) / horizontalZoom_;
 
+    // Calculate absolute values from original drag start values
+    // (ClipOperations trim functions are incremental, so we calculate absolute here)
     switch (dragMode_) {
         case DragMode::ResizeLeft: {
-            double sf = dragStartStretchFactor_;
-            double fileDelta = deltaSeconds / sf;
-            double newOffset = std::max(0.0, dragStartAudioOffset_ + fileDelta);
+            // Calculate absolute new offset and position from original values
+            double fileDelta = deltaSeconds / dragStartStretchFactor_;
+            double newOffset = dragStartAudioOffset_ + fileDelta;
+
+            // Constrain to file bounds
             if (dragStartFileDuration_ > 0.0) {
-                newOffset = std::min(newOffset, dragStartFileDuration_);
+                newOffset = juce::jmin(newOffset, dragStartFileDuration_);
             }
+            newOffset = juce::jmax(0.0, newOffset);
+
+            // Calculate actual timeline delta achieved
             double actualFileDelta = newOffset - dragStartAudioOffset_;
-            double timelineDelta = actualFileDelta * sf;
+            double timelineDelta = actualFileDelta * dragStartStretchFactor_;
+
+            // Set absolute values
             source.offset = newOffset;
-            source.position = std::max(0.0, dragStartPosition_ + timelineDelta);
-            source.length = std::max(0.1, dragStartLength_ - timelineDelta);
+            source.position = juce::jmax(0.0, dragStartPosition_ + timelineDelta);
+            source.length = juce::jmax(magda::ClipOperations::MIN_SOURCE_LENGTH,
+                                       dragStartLength_ - timelineDelta);
             break;
         }
         case DragMode::ResizeRight: {
-            double newLength = std::max(0.1, dragStartLength_ + deltaSeconds);
+            // Calculate absolute new length from original
+            double newLength = dragStartLength_ + deltaSeconds;
+
+            // Constrain to file bounds
             if (dragStartFileDuration_ > 0.0) {
-                double maxLength = (dragStartFileDuration_ - source.offset) * source.stretchFactor;
-                newLength = std::min(newLength, maxLength);
+                double maxLength =
+                    (dragStartFileDuration_ - dragStartAudioOffset_) * dragStartStretchFactor_;
+                newLength = juce::jmin(newLength, maxLength);
             }
-            double clipMaxLength = clip->length - source.position;
-            newLength = std::min(newLength, clipMaxLength);
-            source.length = newLength;
+
+            // Constrain to clip bounds
+            double clipMaxLength = clip->length - dragStartPosition_;
+            newLength = juce::jmin(newLength, clipMaxLength);
+
+            // Set absolute value
+            source.length = juce::jmax(magda::ClipOperations::MIN_SOURCE_LENGTH, newLength);
             break;
         }
         case DragMode::Move: {
-            source.position = std::max(0.0, dragStartPosition_ + deltaSeconds);
+            // Calculate absolute position from original
+            double newPosition = dragStartPosition_ + deltaSeconds;
+            source.position = juce::jmax(0.0, newPosition);
             break;
         }
         case DragMode::StretchRight: {
-            double maxLength = clip->length - source.position;
-            double newLength = std::max(0.1, dragStartLength_ + deltaSeconds);
-            newLength = std::min(newLength, maxLength);
-            double stretchRatio = newLength / dragStartLength_;
-            double newStretchFactor = dragStartStretchFactor_ * stretchRatio;
-            newStretchFactor = juce::jlimit(0.25, 4.0, newStretchFactor);
-            newLength = dragStartLength_ * (newStretchFactor / dragStartStretchFactor_);
-            newLength = std::min(newLength, maxLength);
-            source.length = newLength;
-            source.stretchFactor = newStretchFactor;
+            // Stretch operations already handle absolute values correctly
+            double newLength = dragStartLength_ + deltaSeconds;
+            magda::ClipOperations::stretchSourceFromRight(source, newLength, dragStartLength_,
+                                                          dragStartStretchFactor_, clip->length);
             break;
         }
         case DragMode::StretchLeft: {
-            double rightEdge = dragStartPosition_ + dragStartLength_;
-            double newLength = std::max(0.1, dragStartLength_ - deltaSeconds);
-            newLength = std::min(newLength, rightEdge);
-            double stretchRatio = newLength / dragStartLength_;
-            double newStretchFactor = dragStartStretchFactor_ * stretchRatio;
-            newStretchFactor = juce::jlimit(0.25, 4.0, newStretchFactor);
-            newLength = dragStartLength_ * (newStretchFactor / dragStartStretchFactor_);
-            newLength = std::min(newLength, rightEdge);
-            source.length = newLength;
-            source.position = rightEdge - newLength;
-            source.stretchFactor = newStretchFactor;
+            // Stretch operations already handle absolute values correctly
+            double newLength = dragStartLength_ - deltaSeconds;
+            magda::ClipOperations::stretchSourceFromLeft(source, newLength, dragStartLength_,
+                                                         dragStartPosition_,
+                                                         dragStartStretchFactor_, clip->length);
             break;
         }
         default:
             break;
     }
 
-    magda::ClipManager::getInstance().forceNotifyClipPropertyChanged(editingClipId_);
+    // Don't notify ClipManager on every drag event - causes expensive feedback loop
+    // Just repaint locally during drag, notify on mouseUp
     repaint();
 
     if (onWaveformChanged) {
@@ -354,6 +365,10 @@ void WaveformGridComponent::mouseDrag(const juce::MouseEvent& event) {
 }
 
 void WaveformGridComponent::mouseUp(const juce::MouseEvent& /*event*/) {
+    // Notify ClipManager once at the end of the drag operation
+    if (dragMode_ != DragMode::None && editingClipId_ != magda::INVALID_CLIP_ID) {
+        magda::ClipManager::getInstance().forceNotifyClipPropertyChanged(editingClipId_);
+    }
     dragMode_ = DragMode::None;
 }
 

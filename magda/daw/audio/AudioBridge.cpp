@@ -437,6 +437,18 @@ void AudioBridge::syncAudioClipToEngine(ClipId clipId, const ClipInfo* clip) {
     // 5. UPDATE audio offset (trim point in file)
     audioClipPtr->setOffset(te::TimeDuration::fromSeconds(engineOffset));
 
+    // 6. UPDATE speed ratio (stretch factor)
+    if (!clip->audioSources.empty()) {
+        const auto& source = clip->audioSources[0];
+        double currentSpeedRatio = audioClipPtr->getSpeedRatio();
+
+        // Only update if changed (avoid expensive thumbnail regeneration)
+        if (std::abs(currentSpeedRatio - source.stretchFactor) > 0.001) {
+            audioClipPtr->setSpeedRatio(source.stretchFactor);
+            DBG("AudioBridge: Updated speed ratio to " << source.stretchFactor);
+        }
+    }
+
     DBG("AudioBridge: Synced audio clip " << clipId << " to engine");
 }
 
