@@ -5,6 +5,7 @@
 #include "core/ClipInfo.hpp"
 #include "core/ClipManager.hpp"
 #include "core/ClipTypes.hpp"
+#include "utils/DragThrottle.hpp"
 
 namespace magda {
 
@@ -104,6 +105,7 @@ class ClipComponent : public juce::Component, public ClipManagerListener {
 
     // Stretch state
     double dragStartStretchFactor_ = 1.0;
+    DragThrottle stretchThrottle_{50};
 
     // Cache zoom level during resize to prevent waveform stretching (absolute mode)
     double dragStartPixelsPerSecond_ = 0.0;

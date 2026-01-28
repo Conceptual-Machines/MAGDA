@@ -4,7 +4,6 @@
 #include "../../themes/FontManager.hpp"
 #include "../tracks/TrackContentPanel.hpp"
 #include "audio/AudioThumbnailManager.hpp"
-#include "core/ClipOperations.hpp"
 #include "core/SelectionManager.hpp"
 
 namespace magda {
@@ -561,6 +560,19 @@ void ClipComponent::mouseDrag(const juce::MouseEvent& e) {
             int newX = parentPanel_->timeToPixel(dragStartTime_);
             int newWidth = static_cast<int>(finalLength * pixelsPerSecond);
             setBounds(newX, getY(), juce::jmax(10, newWidth), getHeight());
+
+            // Throttled live update to audio engine
+            if (stretchThrottle_.check()) {
+                auto& cm = ClipManager::getInstance();
+                if (auto* mutableClip = cm.getClip(clipId_)) {
+                    mutableClip->length = finalLength;
+                    if (!mutableClip->audioSources.empty()) {
+                        mutableClip->audioSources[0].length = finalLength;
+                        mutableClip->audioSources[0].stretchFactor = newStretchFactor;
+                    }
+                    cm.forceNotifyClipPropertyChanged(clipId_);
+                }
+            }
             break;
         }
 
@@ -594,6 +606,21 @@ void ClipComponent::mouseDrag(const juce::MouseEvent& e) {
             int newX = parentPanel_->timeToPixel(finalStartTime);
             int newWidth = static_cast<int>(finalLength * pixelsPerSecond);
             setBounds(newX, getY(), juce::jmax(10, newWidth), getHeight());
+
+            // Throttled live update to audio engine
+            if (stretchThrottle_.check()) {
+                auto& cm = ClipManager::getInstance();
+                if (auto* mutableClip = cm.getClip(clipId_)) {
+                    mutableClip->startTime = finalStartTime;
+                    mutableClip->length = finalLength;
+                    if (!mutableClip->audioSources.empty()) {
+                        mutableClip->audioSources[0].position = 0.0;
+                        mutableClip->audioSources[0].length = finalLength;
+                        mutableClip->audioSources[0].stretchFactor = newStretchFactor;
+                    }
+                    cm.forceNotifyClipPropertyChanged(clipId_);
+                }
+            }
             break;
         }
 
@@ -722,6 +749,8 @@ void ClipComponent::mouseUp(const juce::MouseEvent& e) {
             }
 
             case DragMode::StretchRight: {
+                stretchThrottle_.reset();
+
                 double finalLength = previewLength_;
 
                 if (snapTimeToGrid) {
@@ -729,28 +758,54 @@ void ClipComponent::mouseUp(const juce::MouseEvent& e) {
                     finalLength = endTime - dragStartTime_;
                 }
 
-                // Use ClipOperations to perform the compound stretch operation
+                // Compute final stretch factor from drag-start values
+                double stretchRatio = finalLength / dragStartLength_;
+                double newStretchFactor = dragStartStretchFactor_ * stretchRatio;
+                newStretchFactor = juce::jlimit(0.25, 4.0, newStretchFactor);
+                finalLength = dragStartLength_ * (newStretchFactor / dragStartStretchFactor_);
+
+                // Apply directly (clip state may have been modified by throttled updates)
                 auto& cm = ClipManager::getInstance();
                 if (auto* clip = cm.getClip(clipId_)) {
-                    ClipOperations::stretchClipFromRight(*clip, finalLength);
+                    clip->length = finalLength;
+                    if (!clip->audioSources.empty()) {
+                        clip->audioSources[0].length = finalLength;
+                        clip->audioSources[0].stretchFactor = newStretchFactor;
+                    }
                     cm.forceNotifyClipPropertyChanged(clipId_);
                 }
                 break;
             }
 
             case DragMode::StretchLeft: {
+                stretchThrottle_.reset();
+
+                double endTime = dragStartTime_ + dragStartLength_;
                 double finalStartTime = previewStartTime_;
                 double finalLength = previewLength_;
 
                 if (snapTimeToGrid) {
                     finalStartTime = snapTimeToGrid(finalStartTime);
-                    finalLength = (dragStartTime_ + dragStartLength_) - finalStartTime;
+                    finalLength = endTime - finalStartTime;
                 }
 
-                // Use ClipOperations to perform the compound stretch operation
+                // Compute final stretch factor from drag-start values
+                double stretchRatio = finalLength / dragStartLength_;
+                double newStretchFactor = dragStartStretchFactor_ * stretchRatio;
+                newStretchFactor = juce::jlimit(0.25, 4.0, newStretchFactor);
+                finalLength = dragStartLength_ * (newStretchFactor / dragStartStretchFactor_);
+                finalStartTime = endTime - finalLength;
+
+                // Apply directly (clip state may have been modified by throttled updates)
                 auto& cm = ClipManager::getInstance();
                 if (auto* clip = cm.getClip(clipId_)) {
-                    ClipOperations::stretchClipFromLeft(*clip, finalLength);
+                    clip->startTime = finalStartTime;
+                    clip->length = finalLength;
+                    if (!clip->audioSources.empty()) {
+                        clip->audioSources[0].position = 0.0;
+                        clip->audioSources[0].length = finalLength;
+                        clip->audioSources[0].stretchFactor = newStretchFactor;
+                    }
                     cm.forceNotifyClipPropertyChanged(clipId_);
                 }
                 break;

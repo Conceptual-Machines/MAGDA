@@ -240,10 +240,13 @@ class ClipOperations {
         double originalPosition = clip.audioSources[0].position;
         double originalStretchFactor = clip.audioSources[0].stretchFactor;
 
-        // Resize container from left
-        resizeContainerFromLeft(clip, newLength);
+        // Resize container only (no source trimming — stretch handles source)
+        newLength = juce::jmax(MIN_CLIP_LENGTH, newLength);
+        double lengthDelta = clip.length - newLength;
+        clip.startTime = juce::jmax(0.0, clip.startTime + lengthDelta);
+        clip.length = newLength;
 
-        // Stretch audio source proportionally
+        // Stretch audio source proportionally (handles position, length, stretchFactor)
         stretchSourceFromLeft(clip.audioSources[0], newLength, oldLength, originalPosition,
                               originalStretchFactor, newLength);
     }
