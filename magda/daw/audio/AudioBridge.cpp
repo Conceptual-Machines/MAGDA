@@ -178,15 +178,9 @@ void AudioBridge::clipsChanged() {
 }
 
 void AudioBridge::clipPropertyChanged(ClipId clipId) {
-    // A specific clip's properties changed - sync to engine asynchronously
-    // This prevents UI blocking during drag operations
+    // A specific clip's properties changed - sync to engine
     DBG("AudioBridge::clipPropertyChanged - clipId=" << clipId);
-
-    juce::MessageManager::callAsync([this, clipId]() {
-        if (!isShuttingDown_.load(std::memory_order_acquire)) {
-            syncClipToEngine(clipId);
-        }
-    });
+    syncClipToEngine(clipId);
 }
 
 void AudioBridge::clipSelectionChanged(ClipId clipId) {

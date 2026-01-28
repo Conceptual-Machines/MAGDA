@@ -219,10 +219,11 @@ void WaveformEditorContent::clipsChanged() {
 
 void WaveformEditorContent::clipPropertyChanged(magda::ClipId clipId) {
     if (clipId == editingClipId_) {
-        // Re-set the clip to refresh clipStartTime and clipLength in grid
+        // Grid has already updated itself during editing operations
+        // Only update time ruler (not the grid)
         const auto* clip = magda::ClipManager::getInstance().getClip(clipId);
         if (clip) {
-            gridComponent_->setClip(clipId);
+            // gridComponent_->setClip(clipId);  // Skip - causes expensive feedback loop
 
             // Update time ruler with new clip position
             double bpm = 120.0;
